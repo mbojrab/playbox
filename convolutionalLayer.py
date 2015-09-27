@@ -70,7 +70,7 @@ class ConvolutionalLayer(Layer) :
 
         # we can call this method to activate the layer
         self.activate = function([self.input], self.output)
-        
+
         # store off our sizing
         self.kernelShape = kernelShape
         self.downsampleShape = downsampleShape
@@ -101,3 +101,6 @@ class ConvolutionalLayer(Layer) :
     def activate (self, input) :
         self.activate(input)
         return self.output
+
+    def backPropagate (self, input, errorGrad, backError) :
+        
