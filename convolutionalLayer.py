@@ -1,17 +1,19 @@
 from layer import Layer
-from exception import ValueError
 import numpy as np
-from theano.tensor.nnet import tanh
+from theano.tensor import tanh
 from theano import shared, config, function
+from theano.tensor import grad
 
 class ConvolutionalLayer(Layer) :
     '''This class describes a Convolutional Neural Layer which specifies
        a series of kernels and subsample.
 
+       layerID           : unique name identifier for this layer
        input             : the input buffer for this layer
-                           (batch size, channels, rows, columns)
+       inputPattern      : (batch size, channels, rows, columns)
        kernelShape       : (number of kernels, channels, rows, columns)
        downsampleShape   : (rowFactor, columnFactor)
+       learningRate      : learning rate for all neurons
        initialWeights    : weights to initialize the network
                            None generates random weights for the layer
        initialThresholds : thresholds to initialize the network
@@ -21,16 +23,17 @@ class ConvolutionalLayer(Layer) :
        runCPU            : run processing on CPU
        randomNumGen      : generator for the initial weight values
     '''
-    def __init__ (self, layerID, input, kernelShape, downsampleShape,
-                  initialWeights=None, initialThresholds=None, 
-                  activation=tanh, runCPU=True, randomNumGen=None) :
+    def __init__ (self, layerID, input, inputPattern, kernelShape, 
+                  downsampleShape, learningRate = .001, initialWeights=None, 
+                  initialThresholds=None, activation=tanh, runCPU=True,
+                  randomNumGen=None) :
         Layer.__init__(self, layerID, runCPU)
 
-        if input.shape[3] == kernelShape[3] or \
-           input.shape[4] == kernelShape[4] :
+        if inputPattern[3] == kernelShape[3] or \
+           inputPattern[4] == kernelShape[4] :
             raise ValueError('ConvolutionalLayer Error: ' +
                              'InputShape cannot equal filterShape')
-        if input.shape[1] != kernelShape[1] :
+        if inputPattern[1] != kernelShape[1] :
             raise ValueError('ConvolutionalLayer Error: ' +
                              'Number of Channels must match in ' +
                              'inputShape and kernelShape')
@@ -38,20 +41,25 @@ class ConvolutionalLayer(Layer) :
         from theano.tensor.signal.downsample import max_pool_2d
 
         self.input = input
+        self.inputPattern = inputPattern
 
-        # setup initial values for the weights
+        # setup initial values for the weights -- if necessary
         if initialWeights is None :
+            # create a rng if its needed
+            if randomNumGen is None :
+               from numpy.random import RandomState
+               randomNumGen = RandomState(1234)
+
             downRate = np.prod(downsampleShape)
             fanIn = np.prod(kernelShape[1:])
             fanOut = kernelShape[0] * np.prod(kernelShape[2:]) / downRate
             scaleFactor = np.sqrt(6. / (fanIn + fanOut))
-            initialWeights = np.asarray(randomNumGen.uniform(low=-scaleFactor,
-                                                             high=scaleFactor,
-                                                             size=kernelShape),
-                                        dtype=config.floatX)
+            initialWeights = np.asarray(randomNumGen.uniform(
+                    low=-scaleFactor, high=scaleFactor, size=kernelShape),
+                    dtype=config.floatX)
         self._weights = shared(value=initialWeights, borrow=True)
 
-        # setup initial values for the thresholds
+        # setup initial values for the thresholds -- if necessary
         if initialThresholds is None :
             initialThresholds = np.zeros((kernelShape[0],),
                                          dtype=config.floatX)
@@ -59,7 +67,7 @@ class ConvolutionalLayer(Layer) :
 
         # create a function to perform the convolution
         convolve = conv2d(self.input, self._weights,
-                          self.input.shape, kernelShape)
+                          self.inputPattern, kernelShape)
 
         # create a function to perform the max pooling
         pooling = max_pool_2d(convolve, downsampleShape, True)
@@ -102,5 +110,5 @@ class ConvolutionalLayer(Layer) :
         self.activate(input)
         return self.output
 
-    def backPropagate (self, input, errorGrad, backError) :
-        
+    def buildBackPropagate (self, cost) :
+        self.grads = grad(cost, [self.W, self.b])
