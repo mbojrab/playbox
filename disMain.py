@@ -20,6 +20,8 @@
    JobRunner class with some additional functionality specific to 
    their needs.
 '''
+import pickle
+
 class JobRunner() :
     
     def __init__(self, jobID, prog, argList) :
@@ -45,23 +47,24 @@ class JobRunner() :
         self.stdout = None
         self.stderr = None
         self.result = None
-        
+
+    # its important to have a __str__ so we can print to the logger later
     def __str__(self) :
         return 'Job [' + str(self.jobID) + ']\n' + \
                '\tProgram  = ' + str(self.prog) + '\n' + \
                '\tArgList  = ' + str(self.argList) + '\n' + \
                '\tHostName = ' + str(self.hostname) + '\n' + \
-               '\tStdOut   = ' + str(self.stdout) + '\n' + \
-               '\tStdErr   = ' + str(self.stderr) + '\n' + \
+               '\tStdOut   = ' + str(self.stdout.strip()) + '\n' + \
+               '\tStdErr   = ' + str(self.stderr.strip()) + '\n' + \
                '\tResult   = ' + str(self.result) + '\n'
 
     # run this command as a subprocess on the node
     def _runSubProcess(self) :
-        from subprocess import Popen
+        from subprocess import Popen, PIPE
         import socket
         self.hostname = socket.gethostname()
         (self.stdout, self.stderr) = Popen(args=[self.prog] + self.argList,
-                                           stdout=Popen.PIPE, stderr=Popen.PIPE,
+                                           stdout=PIPE, stderr=PIPE,
                                            shell=False).communicate()
 
     # collect the results for this run
@@ -71,22 +74,30 @@ class JobRunner() :
         self.result = float(self.stdout)
         
     def run(self) :
+        '''Override this method if you need the nodes to perform a different operation.'''
         self._runSubProcess()
         self._collectResults()
 
     @staticmethod
-    def rank(jobs) :
-        lowestJob = None
-        for job in jobs :
-            if lowestJob is None or job.result < lowestJob.result :
-                lowestJob = job
-        return lowestJob
+    def rank(runners) :
+        '''Override this method if you need a different ranking scheme.'''
+        lowestRunner = None
+        for runner in runners :
+            if lowestRunner is None or runner.result < lowestRunner.result :
+                lowestRunner = runner
+        return lowestRunner
 
-def disCompute(jobRunner) :
-    import pickle
+def disCompute(runner) :
+    '''This method gets sent out to the node in order to run the request.
+       memory updated here is lost, so we play the trick of updating the
+       internal members of the runner class, and then return it as the
+       result. This is pickled, so it gets serialized appropriately.
+    '''
     # run the provided class
-    jobRunner.run()
-    return pickle.dump(jobRunner)
+    runner.run()
+
+    # pickle the object and send it back
+    return pickle.dumps(runner)
 
 if __name__ == '__main__':
     import dispy, dispy.httpd, argparse, logging, sys
@@ -110,7 +121,7 @@ if __name__ == '__main__':
 
     # setup the logger
     log = logging.getLogger('dispy: ' + options.prog)
-    log.setLevel(logging.DEBUG)
+    log.setLevel(logging.INFO)
     formatter = logging.Formatter('%(levelname)s - %(message)s')
     stream = logging.StreamHandler()
     stream.setLevel(logging.DEBUG)
@@ -122,7 +133,7 @@ if __name__ == '__main__':
         argSets = f.readlines()
 
     # create the cluster for this program launch
-    cluster = dispy.JobCluster(disCompute, depends=[JR])
+    cluster = dispy.JobCluster(disCompute, depends=[JobRunner])
 
     # start a monitor for the cluster at http://localhost:8181
     jobMonitor = dispy.httpd.DispyHTTPServer(cluster, host='localhost')
@@ -135,30 +146,38 @@ if __name__ == '__main__':
     for ii in range(len(argSets)) :
         log.info('Adding Job[' + str(ii) + ']')
 
-        # create an object to perform the work on the node
-        runner = JR(ii, options.prog, argSets[ii])
+        # create a runner to perform the work on each node
+        runner = JobRunner(ii, options.prog, argSets[ii])
+
+        # this adds the job to the queue, and its input is the runner
         job = cluster.submit(runner)
-        job.id = runner
+        job.id = ii
         jobs.append(job)
 
     # wait for the cluster to finish
     cluster.wait()
 
-    # print the statistic of the clustered run --
+    # print the statistic of the clustered run -- Hacktacular!
     # We have no access to their method's print, so we temporarily redirect
-    # stdout to a string, so we can capture the status in our logger.    
+    # stdout to a string, so we can capture the status in our logger.
     temp = sys.stdout
     sys.stdout = StringIO()
     cluster.stats()
     log.info(sys.stdout.getvalue())
     sys.stdout = temp   
 
+    # deserialize the pickled results back into our runners
+    runners = []
     for job in jobs :
-        log.info('Job[' + str(job.id.jobID) + ']: ' + str(job.result))
-    
+        runner = pickle.loads(job.result)
+        runners.append(runner)
+        log.debug('Job[' + str(job.id) + ']: ' + str(runner))
+        log.debug('Job[' + str(job.id) + ']: ' + str(job.stdout))
+        log.debug('Job[' + str(job.id) + ']: ' + str(job.stderr))
+
     # rank the result and return the best
-    bestJob = JR.rank(jobs)
-    log.info('The best job was: \n' + str(bestJob.result))
+    bestJob = JR.rank(runners)
+    log.info('The best job was: \n' + str(bestJob))
 
     # cleanup
     jobMonitor.shutdown()
