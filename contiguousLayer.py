@@ -45,7 +45,7 @@ class ContiguousLayer(Layer) :
                 size=(self.inputPattern, numNeurons)),
                 dtype=config.floatX)
             if activation == sigmoid :
-                self.weights *= 4.
+                initialWeights *= 4.
         self._weights = shared(value=initialWeights, borrow=True)
 
         # setup initial values for the thresholds
