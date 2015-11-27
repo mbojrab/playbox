@@ -83,14 +83,14 @@ class JobRunner() :
         return lowestJob
 
 def disCompute(jobRunner) :
+    import pickle
     # run the provided class
     jobRunner.run()
-    return "here"
-    #return jobRunner.hostname
-
+    return pickle.dump(jobRunner)
 
 if __name__ == '__main__':
-    import dispy, dispy.httpd, argparse, logging
+    import dispy, dispy.httpd, argparse, logging, sys
+    from cStringIO import StringIO
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--prog', dest='prog',
@@ -144,8 +144,14 @@ if __name__ == '__main__':
     # wait for the cluster to finish
     cluster.wait()
 
-    # print the statistic of the clustered run
-    log.info(cluster.stats())
+    # print the statistic of the clustered run --
+    # We have no access to their method's print, so we temporarily redirect
+    # stdout to a string, so we can capture the status in our logger.    
+    temp = sys.stdout
+    sys.stdout = StringIO()
+    cluster.stats()
+    log.info(sys.stdout.getvalue())
+    sys.stdout = temp   
 
     for job in jobs :
         log.info('Job[' + str(job.id.jobID) + ']: ' + str(job.result))
