@@ -37,12 +37,11 @@ class JobRunner() :
            results  - results should contain a metric for which the host 
                       can later rank the job results.
         '''
-        import socket
         self.prog = prog
         self.argList = argList if not isinstance(argList, str) \
                        else argList.split()
         self.jobID = jobID
-        self.hostname = socket.gethostname()
+        self.hostname = None
         self.stdout = None
         self.stderr = None
         self.result = None
@@ -59,11 +58,11 @@ class JobRunner() :
     # run this command as a subprocess on the node
     def _runSubProcess(self) :
         from subprocess import Popen
-        (out, err) = Popen(args=[self.prog] + self.argList,
-                           stdout=Popen.PIPE, stderr=Popen.PIPE,
-                           shell=False).communicate()
-        self.stdout = out
-        self.stderr = err
+        import socket
+        self.hostname = socket.gethostname()
+        (self.stdout, self.stderr) = Popen(args=[self.prog] + self.argList,
+                                           stdout=Popen.PIPE, stderr=Popen.PIPE,
+                                           shell=False).communicate()
 
     # collect the results for this run
     def _collectResults(self) :
@@ -83,15 +82,15 @@ class JobRunner() :
                 lowestJob = job
         return lowestJob
 
-def disCompute(jobRunner):
+def disCompute(jobRunner) :
     # run the provided class
-    results = jobRunner.run()
+    jobRunner.run()
+    return "here"
+    #return jobRunner.hostname
 
-    # return the status of the job
-    return results
 
 if __name__ == '__main__':
-    import dispy, argparse, logging
+    import dispy, dispy.httpd, argparse, logging
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--prog', dest='prog',
@@ -114,7 +113,7 @@ if __name__ == '__main__':
     log.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(levelname)s - %(message)s')
     stream = logging.StreamHandler()
-    stream.setLevel(logging.INFO)
+    stream.setLevel(logging.DEBUG)
     stream.setFormatter(formatter)
     log.addHandler(stream)
 
@@ -123,7 +122,10 @@ if __name__ == '__main__':
         argSets = f.readlines()
 
     # create the cluster for this program launch
-    cluster = dispy.JobCluster(disCompute, depends=[JobRunner])
+    cluster = dispy.JobCluster(disCompute, depends=[JR])
+
+    # start a monitor for the cluster at http://localhost:8181
+    jobMonitor = dispy.httpd.DispyHTTPServer(cluster, host='localhost')
 
     # submit the jobs to the cluster --
     # this submits each argument set individually, and stores the jobs
@@ -132,8 +134,6 @@ if __name__ == '__main__':
     jobs = []
     for ii in range(len(argSets)) :
         log.info('Adding Job[' + str(ii) + ']')
-        log.debug('Job[' + str(ii) + ']: ' + \
-                  options.prog + ' ' + ' '.join(argSets[ii]))
 
         # create an object to perform the work on the node
         runner = JR(ii, options.prog, argSets[ii])
@@ -141,19 +141,19 @@ if __name__ == '__main__':
         job.id = runner
         jobs.append(job)
 
-    # wait for the jobs and collect results
-    for job in jobs :
-        job()
-        runner = job.id
-        jobID = 'Job[' + str(runner.jobID) + ']'
-        log.info(jobID + ': Finished on ' + runner.hostname)
-        log.debug(jobID + ' - Result: ' + str(runner.result))
-        log.debug(jobID + ' - StdOut: ' + str(runner.stdout))
-        log.debug(jobID + ' - StdErr: ' + str(runner.stderr))
+    # wait for the cluster to finish
+    cluster.wait()
 
     # print the statistic of the clustered run
     log.info(cluster.stats())
 
+    for job in jobs :
+        log.info('Job[' + str(job.id.jobID) + ']: ' + str(job.result))
+    
     # rank the result and return the best
-    bestJob = JR().rank(jobs)
-    log.info('The best job was: \n' + str(bestJob))
+    bestJob = JR.rank(jobs)
+    log.info('The best job was: \n' + str(bestJob.result))
+
+    # cleanup
+    jobMonitor.shutdown()
+    cluster.close()
