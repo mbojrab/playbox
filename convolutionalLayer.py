@@ -24,10 +24,10 @@ class ConvolutionalLayer(Layer) :
        randomNumGen      : generator for the initial weight values
     '''
     def __init__ (self, layerID, input, inputPattern, kernelShape, 
-                  downsampleShape, learningRate = .001, initialWeights=None, 
+                  downsampleShape, learningRate = 0.001, initialWeights=None, 
                   initialThresholds=None, activation=tanh, runCPU=True,
                   randomNumGen=None) :
-        Layer.__init__(self, layerID, runCPU)
+        Layer.__init__(self, layerID, learningRate, runCPU)
 
         if inputPattern[3] == kernelShape[3] or \
            inputPattern[4] == kernelShape[4] :

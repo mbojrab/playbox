@@ -10,15 +10,14 @@ class Net () :
        a softmax normalization on the output vector to obtain [0,1]
        classification. This allows for a cross-entropy (ie nll) loss function.
     '''
-    def __init__ (self, learningRate=.001, regType='L2',
+    def __init__ (self, regType='L2',
                   runCPU=True, log=None) :
         self._runCPU = runCPU
-        self._profiler = Profiler(log, 
+        self._profiler = Profiler(log,
                                   'NeuralNet', 
                                   './NeuralNet-Profile.xml') if \
                                   log is not None else None
         self._regularization = regType
-        self._learningRate = learningRate
         self._layers = []
         self._weights = []
         self.input = None
@@ -65,6 +64,8 @@ class Net () :
         # weight/bias are added in reverse order because they will
         # be used back propagation, which runs output to input
         self._weights = layer.getWeights() + self._weights
+        self._learningRates = [layer.getLearningRate()] * 2 + \
+                              self._learningRates
         self._endProfile()
 
     def finalizeNetwork(self) :
@@ -112,8 +113,9 @@ class Net () :
         # create the function for back propagation of all layers --
         # this is combined for convenience
         gradients = t.grad(nll + reg, self._weights)
-        updates = [(weights, weights - self._learningRate * gradient)
-                   for weights, gradient in zip(self._weights, gradients)]
+        updates = [(weights, weights - learningRate * gradient)
+                   for weights, gradient, learningRate in \
+                       zip(self._weights, gradients, self._learningRates)]
         self._trainNetwork = theano.function(
             [self._layers[0].input, expectedOutput], nll, updates=updates)
         self._endProfile()
