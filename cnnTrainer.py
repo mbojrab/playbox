@@ -24,7 +24,8 @@ def ingestImagery(filepath=None, log=None) :
     filepath = 'mnist.pkl.gz' if None else filepath
     train = test = None
 
-    log.info('Ingesting imagery...')
+    if log is not None :
+        log.info('Ingesting imagery...')
 
     # the mnist dataset is a special case
     if 'mnist.pkl.gz' in filepath :
@@ -33,29 +34,34 @@ def ingestImagery(filepath=None, log=None) :
         if filepath not in os.listdir(os.getcwd()) :
             import urllib
             url = 'http://www.iro.umontreal.ca/~lisa/deep/data/mnist/mnist.pkl.gz'
-            log.debug('Downloading data from ' + url)
+            if log is not None :
+                log.debug('Downloading data from ' + url)
             urllib.urlretrieve(url, filepath)
 
         # Load the dataset to memory -- 
         # the mnist dataset is a special case created by University of Toronto
-        log.debug('Load the data into memory')
+        if log is not None :
+            log.debug('Load the data into memory')
         with gzip.open(filepath, 'rb') as f :
             # this dataset has a valid and test and no labels. 
             train, valid, test = cPickle.load(f)
 
             # add the validation set to the training set
-            log.debug('Combine the Train and Valid datasets')
+            if log is not None :
+                log.debug('Combine the Train and Valid datasets')
             trainData, trainLabel = train
             validData, validLabel = valid
             train = trainData + validData, trainLabel + validLabel
 
             # create a label vector
-            log.debug('Create the labels')
+            if log is not None :
+                log.debug('Create the labels')
             labels = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 
     else :
         # Load the dataset to memory
-        log.debug('Load the data into memory')
+        if log is not None :
+            log.debug('Load the data into memory')
         with gzip.open(filepath, 'rb') as f :
             train, test, labels = cPickle.load(f)
 
@@ -68,7 +74,8 @@ def ingestImagery(filepath=None, log=None) :
 
     # load each into shared variables -- 
     # this avoids having to copy the data to the GPU between each call
-    log.debug('Transfer the memory into shared variables')
+    if log is not None :
+        log.debug('Transfer the memory into shared variables')
     return [splitToShared(train), splitToShared(test)], labels
 
 '''
