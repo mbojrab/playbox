@@ -18,14 +18,12 @@ class ContiguousLayer(Layer) :
                            None generates random thresholds for the layer
        activation        : the sigmoid function to use for activation
                            this must be a function with a derivative form
-       runCPU            : run processing on CPU
        randomNumGen      : generator for the initial weight values
     '''
     def __init__ (self, layerID, input, inputPattern, numNeurons,
                   learningRate = 0.001, initialWeights=None,
-                  initialThresholds=None, activation=tanh, runCPU=True,
-                  randomNumGen=None) :
-        Layer.__init__(self, layerID, learningRate, runCPU)
+                  initialThresholds=None, activation=tanh, randomNumGen=None) :
+        Layer.__init__(self, layerID, learningRate)
 
         # store the input buffer
         self.input = input

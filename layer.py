@@ -1,14 +1,13 @@
 class Layer () :
-    def __init__ (self, layerID, learningRate=0.001, runCPU=True) :
+    def __init__ (self, layerID, learningRate=0.001) :
         '''This class describes an abstract Neural Layer.
-           layerID : unique name identifier for this layer
-           runCPU  : run processing on CPU
+           layerID      : unique name identifier for this layer
+           learningRate : multiplier for speed of gradient descent 
         '''
         self.input = None
         self.output = None
         self.layerID = layerID
         self._learningRate = learningRate
-        self.runCPU = runCPU
         
     def getWeights(self) :
         raise NotImplementedError('Implement the getWeights() method')

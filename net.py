@@ -10,9 +10,10 @@ class Net () :
        a softmax normalization on the output vector to obtain [0,1]
        classification. This allows for a cross-entropy (ie nll) loss function.
     '''
-    def __init__ (self, regType='L2',
-                  runCPU=True, log=None) :
-        self._runCPU = runCPU
+    def __init__ (self, regType='L2', device='gpu', log=None) :
+        if device not in ['cpu', 'gpu', 'gpu0', 'gpu1', 'gpu2', 'gpu3'] :
+            raise Exception('Device value cannot be [' + device + ']')
+        theano.config.device = device
         self._profiler = Profiler(log,
                                   'NeuralNet', 
                                   './NeuralNet-Profile.xml') if \

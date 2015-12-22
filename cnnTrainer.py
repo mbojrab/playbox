@@ -2,32 +2,33 @@ import theano.tensor as t
 from net import Net
 from contiguousLayer import ContiguousLayer
 from convolutionalLayer import ConvolutionalLayer
-import datasetUtils 
+import datasetUtils, theano
 
 '''
 '''
 if __name__ == '__main__' :
     import argparse, logging
     parser = argparse.ArgumentParser()
-    parser.add_argument('--log', dest='logfile',
+    parser.add_argument('--log', dest='logfile', default=None,
                         help='Specify log output file.')
-    parser.add_argument('--level', dest='level',
+    parser.add_argument('--level', dest='level', default='INFO',
                         help='Log Level.')
-    parser.add_argument('--learnC', dest='learnC',
+    parser.add_argument('--learnC', dest='learnC', default=.0031,
                         help='Rate of learning on Convolutional Layers.')
-    parser.add_argument('--learnF', dest='learnF',
+    parser.add_argument('--learnF', dest='learnF', default=.0015,
                         help='Rate of learning on Fully-Connected Layers.')
-    parser.add_argument('--kernel', dest='kernel',
+    parser.add_argument('--kernel', dest='kernel', default=6,
                         help='Number of Convolutional Kernels in each Layer.')
-    parser.add_argument('--neuron', dest='neuron',
+    parser.add_argument('--neuron', dest='neuron', default=120,
                         help='Number of Neurons in Hidden Layer.')
-    parser.add_argument('--limit', dest='limit',
+    parser.add_argument('--limit', dest='limit', default=5,
                         help='Number of runs between validation checks')
-    parser.add_argument('--stop', dest='stop',
+    parser.add_argument('--stop', dest='stop', default=5,
                         help='Number of inferior validation checks before ending')
-    parser.add_argument('--cpu', dest='runCPU', help='Run training on the CPU')
-    parser.add_argument('data', dest='data',
-                        help='Pickle file for the training and test sets')
+    parser.add_argument('--device', dest='device', default='gpu',
+                        choices=['cpu', 'gpu', 'gpu0', 'gpu1', 'gpu2', 'gpu3'],
+                        help='Run training on the CPU')
+    parser.add_argument('data', help='Pickle file for the training and test sets')
     options = parser.parse_args()
 
     # this makes the indexing more intuitive
@@ -35,7 +36,7 @@ if __name__ == '__main__' :
     LABEL = 1
 
     # setup the logger
-    log = logging.getLogger('cnnTrainer: ' + options.train)
+    log = logging.getLogger('cnnTrainer: ' + options.data)
     log.setLevel(options.level.upper())
     formatter = logging.Formatter('%(levelname)s - %(message)s')
     stream = logging.StreamHandler()
@@ -60,26 +61,25 @@ if __name__ == '__main__' :
         datasetUtils.pickleDataset(options.data, log=log), log=log)
 
     # create the network -- LeNet-5
-    runCPU = options.runCPU.upper() == 'TRUE'
-    network = Net(regType='', runCPU=False, log=log)
+    network = Net(regType='', device=options.device, log=log)
 
     # add convolutional layers
     network.addLayer(ConvolutionalLayer('c1', input, (1,1,28,28), (6,5,5),
-                                        (2,2), runCPU=runCPU, randomNumGen=rng,
+                                        (2,2), randomNumGen=rng,
                                         learningRate=options.learnC))
     network.addLayer(ConvolutionalLayer('c2', network.getNetworkOutput(),
                                         network.getOutputSize(), (6,5,5),
-                                        (2,2), runCPU=runCPU, randomNumGen=rng,
+                                        (2,2), randomNumGen=rng,
                                         learningRate=options.learnC))
     # add fully connected layers
     network.addLayer(ContiguousLayer(
         'f3', network.getNetworkOutput()[0].flatten(2),
         network.getNetworkOutput()[1], int(options.neuron),
-        float(options.learnF), runCPU=runCPU, randomNumGen=rng))
+        float(options.learnF), randomNumGen=rng))
     network.addLayer(ContiguousLayer(
         'f4', network.getNetworkOutput()[0],
         network.getNetworkOutput()[1], len(labels),
-        float(options.learnF), runCPU=runCPU, randomNumGen=rng))
+        float(options.learnF), randomNumGen=rng))
 
     lastBest = 0
     globalCount = 0
