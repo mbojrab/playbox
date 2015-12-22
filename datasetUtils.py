@@ -8,12 +8,15 @@ def ingestImagery(filepath=None, log=None) :
        log      : Logger for tracking the progress
        return   :
            Format -- 
-           [(trainData, trainLabel), (testData, testLabel)], labels
+           (trainData, trainLabel), (testData, testLabel), labels
 
            The 'trainLabel' and 'testLabel' are integer values corresponding
            to the index into the 'labels' string vector. this provides a
            better means to identify errors during back propagation, but
            still allows label finding during classification.
+
+           TODO: Consider returning these as objects for more intuitive
+                 indexing. For now numpy indexing is sufficient.
     '''
 
     # if None load the MNIST
@@ -74,7 +77,7 @@ def ingestImagery(filepath=None, log=None) :
     # this avoids having to copy the data to the GPU between each call
     if log is not None :
         log.debug('Transfer the memory into shared variables')
-    return [splitToShared(train), splitToShared(test)], labels
+    return splitToShared(train), splitToShared(test), labels
 
 def readImage(image, log=None) :
     '''Load the image into memory. It can be any type supported by PIL
@@ -99,14 +102,15 @@ def makeMiniBatch(x, log=None) :
     if numImages == 0 :
         raise Exception('No images were found.')
 
-    # make a mini-batch of size (numImages, numChannels, rows, cols)
+    # make a mini-batch of size (numImages, numChannels, rows, cols) --
+    # NOTE: We assume all imagery is of the same dimensions  
     numChan, rows, cols = x[0][0].shape[0], x[0][0].shape[1], x[0][0].shape[2]
     temp = numpy.concatenate(x)
-    tempData = temp[::2]
-    tempData = numpy.resize(tempData, (numImages, numChan, rows, cols))
+    tempData = numpy.resize(numpy.concatenate(temp[::2]),
+                            (numImages, numChan, rows, cols))
 
     # labels are now just contiguous
-    tempLabel = temp[1::2]
+    tempLabel = numpy.asarray(temp[1::2], dtype='int32')
     return tempData, tempLabel
 
 
@@ -168,7 +172,7 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5, log=None) :
     random.shuffle(train)
     random.shuffle(test)
 
-    # make it a contiguous batch
+    # make it a contiguous buffer, so we have the option of batch learning
     if log is not None :
         log.info('Create the mini-batches')
     train = makeMiniBatch(train)
@@ -195,9 +199,3 @@ if __name__ == '__main__' :
 
     i = ingestImagery(pickleDataset('G:/coding/input/binary_smaller', log=log),
                       log=log)
-    print i
-    train, test, labels = i
-    print train
-    print test
-    print labels
-

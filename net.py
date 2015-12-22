@@ -149,7 +149,9 @@ class Net () :
 
 
 if __name__ == "__main__" :
-    '''    
+    '''
+    # this shows the execution of a sequence of functions by
+    # combining them into a higher level function
     a = t.iscalar('a')
     b = t.iscalar('b')
 
