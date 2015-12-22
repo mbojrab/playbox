@@ -98,16 +98,16 @@ class ConvolutionalLayer(Layer) :
     def getFeatureSize (self) :
         '''This is the post convolution size of the output.
            (channels, rows, columns)'''
-        return (self.kernelSize[1],
+        return (self.inputSize[0], self.kernelSize[0],
                 self.inputSize[2] - self.kernelSize[2] + 1,
                 self.inputSize[3] - self.kernelSize[3] + 1)
     def getOutputSize (self) :
         '''This is the post downsample size of the output.
-           (channels, rows, columns)'''
+           (numImages, channels, rows, columns)'''
         fShape = self.getFeatureSize()
-        return (fShape[0],
-                fShape[1] / self.downsampleFactor[0],
-                fShape[2] / self.downsampleFactor[1])
+        return (fShape[0], fShape[1],
+                fShape[2] / self.downsampleFactor[0],
+                fShape[3] / self.downsampleFactor[1])
 
     def activate (self, input) :
         self.activate(input)

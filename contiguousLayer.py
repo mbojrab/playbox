@@ -9,7 +9,7 @@ class ContiguousLayer(Layer) :
        
        layerID           : unique name identifier for this layer
        input             : the input buffer for this layer
-       inputPattern      : number of elements in input buffer
+       inputSize         : number of elements in input buffer
        numNeurons        : number of neurons in this layer
        learningRate      : learning rate for all neurons
        initialWeights    : weights to initialize the network
@@ -20,14 +20,14 @@ class ContiguousLayer(Layer) :
                            this must be a function with a derivative form
        randomNumGen      : generator for the initial weight values
     '''
-    def __init__ (self, layerID, input, inputPattern, numNeurons,
+    def __init__ (self, layerID, input, inputSize, numNeurons,
                   learningRate=0.001, initialWeights=None,
                   initialThresholds=None, activation=tanh, randomNumGen=None) :
         Layer.__init__(self, layerID, learningRate)
 
         # store the input buffer
         self.input = input
-        self.inputPattern = inputPattern
+        self.inputSize = inputSize
         self.numNeurons = numNeurons
 
         # setup initial values for the weights
@@ -38,9 +38,9 @@ class ContiguousLayer(Layer) :
                randomNumGen = RandomState(1234)
 
             initialWeights = np.asarray(randomNumGen.uniform(
-                low=-np.sqrt(6. / (self.inputPattern + self.numNeurons)),
-                high=np.sqrt(6. / (self.inputPattern + self.numNeurons)),
-                size=(self.inputPattern, self.numNeurons)),
+                low=-np.sqrt(6. / (self.inputSize + self.numNeurons)),
+                high=np.sqrt(6. / (self.inputSize + self.numNeurons)),
+                size=(self.inputSize, self.numNeurons)),
                 dtype=config.floatX)
             if activation == sigmoid :
                 initialWeights *= 4.
@@ -61,7 +61,7 @@ class ContiguousLayer(Layer) :
         return [self._weights, self._thresholds]
     def getInputSize (self) :
         '''(1, pattern size)'''
-        return self.inputPattern
+        return self.inputSize
     def getOutputSize (self) :
         '''(1, number of neurons)'''
         return self.numNeurons
@@ -83,13 +83,13 @@ if __name__ == '__main__' :
     y = tensor.fvector('y')
 
     imageSize = (28,28)
-    inputPattern = np.prod(imageSize)
-    layer = ContiguousLayer('layer0', x, inputPattern, 10, .001)
+    inputSize = np.prod(imageSize)
+    layer = ContiguousLayer('layer0', x, inputSize, 10, .001)
 
     from numpy.random import RandomState
     randomNumGen = RandomState(1234)
     x1 = randomNumGen.uniform(low=-1., high=1.,
-                              size=(1, inputPattern)).astype(config.floatX)
+                              size=(1, inputSize)).astype(config.floatX)
 
     # time the activation
     from time import time
