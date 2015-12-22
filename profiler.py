@@ -1,6 +1,7 @@
 from timeit import default_timer as timer
 from Queue import LifoQueue as queue
 import lxml.etree as et
+import logging
 
 class Profiler () :
     def __init__ (self, log=None, name='ApplicationName',
@@ -64,7 +65,7 @@ class Profiler () :
                 f.write(et.tostring(self._root, pretty_print=True))
 
 if __name__ == '__main__' :
-    import logging, time
+    import time
     log = logging.getLogger('profilerTest')
     log.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(levelname)s - %(message)s')

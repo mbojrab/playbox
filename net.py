@@ -9,11 +9,14 @@ class Net () :
        for network-wide classification and back propagation. The network uses
        a softmax normalization on the output vector to obtain [0,1]
        classification. This allows for a cross-entropy (ie nll) loss function.
+
+       regType : type of regularization term to use
+                 default None : perform no additional regularization
+                 L1           : Least Absolute Deviation
+                 L2           : Least Squares
+       log     : Logger to use
     '''
-    def __init__ (self, regType='L2', device='gpu', log=None) :
-        if device not in ['cpu', 'gpu', 'gpu0', 'gpu1', 'gpu2', 'gpu3'] :
-            raise Exception('Device value cannot be [' + device + ']')
-        theano.config.device = device
+    def __init__ (self, regType='L2', log=None) :
         self._profiler = Profiler(log,
                                   'NeuralNet', 
                                   './NeuralNet-Profile.xml') if \
@@ -21,6 +24,7 @@ class Net () :
         self._regularization = regType
         self._layers = []
         self._weights = []
+        self._learningRates = []
         self.input = None
         self.output = None
 
@@ -40,7 +44,12 @@ class Net () :
             raise IndexError('Network must have at least one layer' +
                              'to call getNetworkInput().')
         return self._layers[0].input
-
+    def getNetworkInputSize(self) :
+        '''Return the first layer's input size'''
+        if len(self._layers) == 0 :
+            raise IndexError('Network must have at least one layer' +
+                             'to call getNetworkInputSize().')
+        return self._layers[0].getInputSize()
     def getNetworkOutput(self) :
         '''Return the last layer's output. This should be used as input to
            the next layer.
@@ -49,7 +58,12 @@ class Net () :
             raise IndexError('Network must have at least one layer' +
                              'to call getNetworkOutput().')
         return self._layers[-1].output
-
+    def getNetworkOutputSize(self) :
+        '''Return the last layer's output size.'''
+        if len(self._layers) == 0 :
+            raise IndexError('Network must have at least one layer' +
+                             'to call getNetworkOutputSize().')
+        return self._layers[-1].getOutputSize()
     def addLayer(self, layer) :
         '''Add a Layer to the network. It is the responsibility of the user
            to connect the current network's output as the input to the next
@@ -141,6 +155,8 @@ class Net () :
            NOTE: Class labels for expectedOutput are assumed to be [0,1]
         '''
         self._startProfile('Classifying the Inputs', 'info')
+        if not hasattr(self, '_trainNetwork') :
+            self.finalizeNetwork()
 
         # train the input --
         # the user decides if this is online or batch training
@@ -175,7 +191,7 @@ if __name__ == "__main__" :
     input = t.fvector('input')
     expectedOutput = t.bvector('expectedOutput')
 
-    network = Net(regType='', learningRate=.01, runCPU=False)
+    network = Net(regType='')
     network.addLayer(
         ContiguousLayer('c1', input, 5, 3))
     network.addLayer(

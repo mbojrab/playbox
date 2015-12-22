@@ -1,6 +1,13 @@
 import theano, numpy, cPickle, gzip, os
 import theano.tensor as t
 
+def loadShared(x, borrow=True) :
+    if not isinstance(x, numpy.ndarray) :
+        x = numpy.asarray(x, dtype=theano.config.floatX)
+    return theano.shared(x, borrow=borrow)
+def splitToShared(x, borrow=True) :
+    data, label = x
+    return (loadShared(data), t.cast(loadShared(label), 'int32'))
 def ingestImagery(filepath=None, log=None) :
     '''Load the dataset provided by the user.
        filepath : This can be a cPickle, a path to the directory structure,
@@ -65,19 +72,12 @@ def ingestImagery(filepath=None, log=None) :
         with gzip.open(filepath, 'rb') as f :
             train, test, labels = cPickle.load(f)
 
-    def loadShared(x, borrow=True) :
-        if not isinstance(x, numpy.ndarray) :
-            x = numpy.asarray(x, dtype=theano.config.floatX)
-        return theano.shared(x, borrow=borrow)
-    def splitToShared(x, borrow=True) :
-        data, label = x
-        return (loadShared(data), t.cast(loadShared(label), 'int32'))
-
     # load each into shared variables -- 
     # this avoids having to copy the data to the GPU between each call
     if log is not None :
         log.debug('Transfer the memory into shared variables')
     return splitToShared(train), splitToShared(test), labels
+
 
 def readImage(image, log=None) :
     '''Load the image into memory. It can be any type supported by PIL
@@ -94,7 +94,6 @@ def readImage(image, log=None) :
         # just one channel
         a = numpy.asarray(img.getdata(), dtype=theano.config.floatX)
         return numpy.resize(a, (1, img.size[1], img.size[0]))
-
 def makeMiniBatch(x, log=None) :
     '''Deinterleave the data and labels. Resize so we can use batched learning
     '''
@@ -112,8 +111,6 @@ def makeMiniBatch(x, log=None) :
     # labels are now just contiguous
     tempLabel = numpy.asarray(temp[1::2], dtype='int32')
     return tempData, tempLabel
-
-
 def pickleDataset(filepath, holdoutPercentage=.05, minTest=5, log=None) :
     '''Create a pickle out of a directory structure. The directory structure
        is assumed to be a series of directories, each contain imagery assigned
@@ -186,6 +183,7 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5, log=None) :
 
     # return the output filename
     return outputFile
+
 
 if __name__ == '__main__' :
     import logging

@@ -21,13 +21,14 @@ class ContiguousLayer(Layer) :
        randomNumGen      : generator for the initial weight values
     '''
     def __init__ (self, layerID, input, inputPattern, numNeurons,
-                  learningRate = 0.001, initialWeights=None,
+                  learningRate=0.001, initialWeights=None,
                   initialThresholds=None, activation=tanh, randomNumGen=None) :
         Layer.__init__(self, layerID, learningRate)
 
         # store the input buffer
         self.input = input
         self.inputPattern = inputPattern
+        self.numNeurons = numNeurons
 
         # setup initial values for the weights
         if initialWeights is None :
@@ -37,9 +38,9 @@ class ContiguousLayer(Layer) :
                randomNumGen = RandomState(1234)
 
             initialWeights = np.asarray(randomNumGen.uniform(
-                low=-np.sqrt(6. / (self.inputPattern + numNeurons)),
-                high=np.sqrt(6. / (self.inputPattern + numNeurons)),
-                size=(self.inputPattern, numNeurons)),
+                low=-np.sqrt(6. / (self.inputPattern + self.numNeurons)),
+                high=np.sqrt(6. / (self.inputPattern + self.numNeurons)),
+                size=(self.inputPattern, self.numNeurons)),
                 dtype=config.floatX)
             if activation == sigmoid :
                 initialWeights *= 4.
@@ -47,7 +48,7 @@ class ContiguousLayer(Layer) :
 
         # setup initial values for the thresholds
         if initialThresholds is None :
-            initialThresholds = np.zeros((numNeurons,),
+            initialThresholds = np.zeros((self.numNeurons,),
                                          dtype=config.floatX)
         self._thresholds = shared(value=initialThresholds, borrow=True)
 
@@ -60,10 +61,10 @@ class ContiguousLayer(Layer) :
         return [self._weights, self._thresholds]
     def getInputSize (self) :
         '''(1, pattern size)'''
-        return self.input.shape
+        return self.inputPattern
     def getOutputSize (self) :
         '''(1, number of neurons)'''
-        return self.output.shape
+        return self.numNeurons
     def activate (self, input) :
         '''activate the neural layer'''
         return self.activation(input)
