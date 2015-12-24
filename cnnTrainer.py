@@ -2,7 +2,7 @@ import theano.tensor as t
 from net import Net
 from contiguousLayer import ContiguousLayer
 from convolutionalLayer import ConvolutionalLayer
-import datasetUtils, theano
+import datasetUtils, numpy
 
 '''
 '''
@@ -25,15 +25,11 @@ if __name__ == '__main__' :
                         help='Number of runs between validation checks')
     parser.add_argument('--stop', dest='stop', default=5,
                         help='Number of inferior validation checks before ending')
-    parser.add_argument('--device', dest='device', default='gpu',
-                        choices=['cpu', 'gpu', 'gpu0', 'gpu1', 'gpu2', 'gpu3'],
-                        help='Run training on the CPU')
     parser.add_argument('data', help='Pickle file for the training and test sets')
     options = parser.parse_args()
 
     # this makes the indexing more intuitive
-    DATA  = 0
-    LABEL = 1
+    DATA, LABEL = 0, 1
 
     # setup the logger
     log = logging.getLogger('cnnTrainer: ' + options.data)
@@ -52,59 +48,110 @@ if __name__ == '__main__' :
     # create a random number generator for efficiency
     from numpy.random import RandomState
     from time import time
+    from operator import mul
     rng = RandomState(int(time()))
 
-    input = t.fvector('input')
+    input = t.ftensor4('input')
     expectedOutput = t.bvector('expectedOutput')
 
     train, test, labels = datasetUtils.ingestImagery(
         datasetUtils.pickleDataset(options.data, log=log), log=log)
 
     # create the network -- LeNet-5
-    network = Net(regType='', device=options.device, log=log)
+    network = Net(regType='', log=None)#log)
 
     # add convolutional layers
-    network.addLayer(ConvolutionalLayer('c1', input, (1,1,28,28), (6,5,5),
-                                        (2,2), randomNumGen=rng,
-                                        learningRate=options.learnC))
-    network.addLayer(ConvolutionalLayer('c2', network.getNetworkOutput(),
-                                        network.getOutputSize(), (6,5,5),
-                                        (2,2), randomNumGen=rng,
-                                        learningRate=options.learnC))
+    network.addLayer(ConvolutionalLayer(
+        layerID='c1', input=input, inputSize=(1,1,28,28), kernelSize=(6,1,5,5),
+        downsampleFactor=(2,2), randomNumGen=rng, learningRate=options.learnC))
+    # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
+    # this way we don't combine the channels kernels we created in the first
+    # layer and destroy our dimensionality
+    netOutputSize = network.getNetworkOutputSize()
+    netOutputSize = (netOutputSize[0] * netOutputSize[1], 1,
+                     netOutputSize[2], netOutputSize[3])
+    network.addLayer(ConvolutionalLayer(
+        layerID='c2', input=network.getNetworkOutput().reshape(netOutputSize),
+        inputSize=netOutputSize, kernelSize=(6,1,5,5), downsampleFactor=(2,2), 
+        randomNumGen=rng, learningRate=options.learnC))
+
     # add fully connected layers
     network.addLayer(ContiguousLayer(
-        'f3', network.getNetworkOutput()[0].flatten(2),
-        network.getNetworkOutput()[1], int(options.neuron),
-        float(options.learnF), randomNumGen=rng))
+        layerID='f3', input=network.getNetworkOutput().flatten(),
+        inputSize=reduce(mul, network.getNetworkOutputSize()),
+        numNeurons=int(options.neuron), learningRate=float(options.learnF),
+        randomNumGen=rng))
     network.addLayer(ContiguousLayer(
-        'f4', network.getNetworkOutput()[0],
-        network.getNetworkOutput()[1], len(labels),
-        float(options.learnF), randomNumGen=rng))
+        layerID='f4', input=network.getNetworkOutput(),
+        inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
+        learningRate=float(options.learnF), randomNumGen=rng))
 
-    lastBest = 0
-    globalCount = 0
-    degradationCount = 0
+    train = [(datasetUtils.readImage('G:/coding/input/binary_smaller/0/0.tif', log), 0)]
+    train = datasetUtils.makeMiniBatch(train)
+
+    globalCount = lastBest = degradationCount = 0
     runningAccuracy = 0.0
+    lastSave = ''
+
+    expBuffer = numpy.zeros(len(labels), dtype='int32')
+    expBuffer[train[LABEL]] = 1
+    
+    from time import time
+    numRuns = 10000
+
+    # test the classify runtime
+    print "Classifying Inputs..."
+    timer = time()
+    for ii in range(numRuns) :
+        out = network.classify(train[DATA])
+    timer = time() - timer
+    print "total time: " + str(timer) + \
+          "s | per input: " + str(timer/numRuns) + "s"
+    print (out.argmax(), out)
+ 
+    print "Training Network..."
+    timer = time()
+    for i in range(numRuns) :
+        network.train(train[DATA], expBuffer)
+    timer = time() - timer
+    print "total time: " + str(timer) + \
+          "s | per input: " + str(timer/numRuns) + "s"
+    out = network.classify(train[DATA])
+    print (out.argmax(), out)
+
     while True :
+        from time import time
+
         # run the specified number of epochs
         numEpochs = int(options.limit)
         for localEpoch in range(numEpochs) :
+            
             for ii in range(len(train[DATA])) :
-                network.train(train[DATA][ii], train[LABEL][ii])
+                expBuffer[train[LABEL]] = 1
+                network.train(train[DATA], expBuffer)
+                expBuffer[train[LABEL]] = 0
 
         # calculate the accuracy against the test set
-        runAcc = 0.0
+        curAcc = 0.0
         for input, label in zip(test[DATA], test[LABEL]) :
-            if network.classify(input).argmax() == label :
-                runAcc += 1.0
-        runAcc /= float(len(test[LABEL]))
+            if network.classify(input.get_value()).argmax() == label.get_value() :
+                curAcc += 1.0
+        curAcc /= float(len(test[LABEL]))
 
         # check if we've done better
-        if runAcc > runningAccuracy :
+        if curAcc > runningAccuracy :
             # reset and save the network
             degradationCount = 0
+            runningAccuracy = curAcc
             lastBest = globalCount
-            network.save('')
+            lastSave = options.base + \
+                       '_learnC' + str(options.learnC) + \
+                       '_learnF' + str(options.learnF) + \
+                       '_momentum' + str(options.momentum) + \
+                       '_kernel' + str(options.kernel) + \
+                       '_neuron' + str(options.neuron) + \
+                       '_epoch' + str(lastBest) + '.tar.gz'
+            network.save(lastSave)
         else :
             # quit once we've had 'stop' times of less accuracy
             degradationCount += 1
@@ -112,3 +159,8 @@ if __name__ == '__main__' :
                 break
         globalCount += numEpochs
 
+    # rename the network which achieved the highest accuracy
+    os.rename(lastBest,
+              options.base + '_FinalOnHoldOut_' + \
+              options.data + '_epoch' + str(lastBest) + \
+              '_acc' + str(runningAccuracy) + '.tar.gz'
