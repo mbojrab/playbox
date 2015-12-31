@@ -8,7 +8,7 @@ class Layer () :
         self.output = None
         self.layerID = layerID
         self._learningRate = learningRate
-        
+
     def getWeights(self) :
         raise NotImplementedError('Implement the getWeights() method')
 

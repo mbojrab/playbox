@@ -1,7 +1,7 @@
 from layer import Layer
 from profiler import Profiler
-import theano
 import theano.tensor as t
+import theano, cPickle, gzip
 
 class Net () :
     '''The Net object allows the user to build multi-layer neural networks of
@@ -28,6 +28,17 @@ class Net () :
         self.input = None
         self.output = None
 
+    def __getstate__(self) :
+        # remove the profiler as it is not robust to distributed processing
+        dict = self.__dict__.copy()
+        dict['_profiler'] = None
+        return dict
+    def __setstate__(self, dict) :
+        # use the current constructor-supplied profiler --
+        # this ensures the profiler is setup for the current system
+        tmp = self._profiler
+        self.__dict__.update(dict)
+        self._profiler = tmp
     def _startProfile(self, message, level) :
         if self._profiler is not None :
             self._profiler.startProfile(message, level)
@@ -64,6 +75,27 @@ class Net () :
             raise IndexError('Network must have at least one layer' +
                              'to call getNetworkOutputSize().')
         return self._layers[-1].getOutputSize()
+    def save(self, filepath) :
+        '''Save the network to disk.
+           TODO: This should instead pickle only the weights and state
+                 Performing the Pickling in this manner could have issues
+                 with future releases of Theano.
+           TODO: This should also support output to Synapse file
+        '''
+        if '.pkl.gz' in filepath :
+            with gzip.open(filepath, 'wb') as f :
+                f.write(cPickle.dumps(self.__getstate__(),
+                                      protocol=cPickle.HIGHEST_PROTOCOL))
+    def load(self, filepath) :
+        '''Load the network from disk.
+           TODO: This should instead pickle the weights and build layers
+                 Performing the Pickling in this manner could have issues
+                 with future releases of Theano.
+           TODO: This should also support input from Synapse file
+        '''
+        if '.pkl.gz' in filepath :
+            with gzip.open(filepath, 'rb') as f :
+                self.__setstate__(cPickle.load(f))
     def addLayer(self, layer) :
         '''Add a Layer to the network. It is the responsibility of the user
            to connect the current network's output as the input to the next
@@ -91,7 +123,7 @@ class Net () :
         if len(self._layers) == 0 :
             raise IndexError('Network must have at least one layer' +
                              'to call getNetworkInput().')
-        
+
         self._startProfile('Finalizing Network', 'info')
 
         # create one function that activates the entire network --
@@ -137,7 +169,7 @@ class Net () :
 
     def classify (self, input) :
         '''Classify the given input. This lets the user classify the output.'''
-        self._startProfile('Classifying the Input', 'info')
+        self._startProfile('Classifying the Input', 'debug')
         if not hasattr(self, '_classify') :
             self.finalizeNetwork()
 
@@ -154,7 +186,7 @@ class Net () :
 
            NOTE: Class labels for expectedOutput are assumed to be [0,1]
         '''
-        self._startProfile('Classifying the Inputs', 'info')
+        self._startProfile('Classifying the Inputs', 'debug')
         if not hasattr(self, '_trainNetwork') :
             self.finalizeNetwork()
 
@@ -174,19 +206,19 @@ if __name__ == "__main__" :
 
     out1 = a**2
     square = theano.function([a], out1)
-    
+
     out2 = out1**3
     cube = theano.function([out1], out2)
-    
+
     total = theano.function([a], out2)
-    
-    
+
     print square(4)
     print cube(4)
     print total(4)
     '''
 
     from contiguousLayer import ContiguousLayer
+    from time import time
 
     input = t.fvector('input')
     expectedOutput = t.bvector('expectedOutput')
@@ -197,7 +229,6 @@ if __name__ == "__main__" :
     network.addLayer(
         ContiguousLayer('c2', network.getNetworkOutput(), 3, 3))
 
-    from time import time
     numRuns = 10000
     arr = [1, 2, 3, 4, 5]
     exp = [0, 0, 1]
@@ -223,3 +254,5 @@ if __name__ == "__main__" :
           "s | per input: " + str(timer/numRuns) + "s"
     out = network.classify(arr)
     print (out.argmax(), out)
+
+    network.save('e:/out.pkl.gz')
