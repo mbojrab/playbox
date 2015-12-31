@@ -29,11 +29,26 @@ class Net () :
         self.output = None
 
     def __getstate__(self) :
-        # remove the profiler as it is not robust to distributed processing
         dict = self.__dict__.copy()
+        # remove the functions -- they will be rebuilt JIT
+        if '_classify' in dict :
+            del dict['_classify']
+        if '_cost' in dict :
+            del dict['_cost']
+        if '_trainNetwork' in dict :
+            del dict['_trainNetwork']
+        # remove the profiler as it is not robust to distributed processing
         dict['_profiler'] = None
         return dict
     def __setstate__(self, dict) :
+        # remove any current functions from the object so we force the
+        # theano functions to be rebuilt with the new buffers
+        if hasattr(self, '_classify') :
+            delattr(self, '_classify')
+        if hasattr(self, '_cost') :
+            delattr(self, '_cost')
+        if hasattr(self, '_trainNetwork') :
+            delattr(self, '_trainNetwork')
         # use the current constructor-supplied profiler --
         # this ensures the profiler is setup for the current system
         tmp = self._profiler
@@ -82,10 +97,12 @@ class Net () :
                  with future releases of Theano.
            TODO: This should also support output to Synapse file
         '''
+        self._startProfile('Saving network to disk', 'info')
         if '.pkl.gz' in filepath :
             with gzip.open(filepath, 'wb') as f :
                 f.write(cPickle.dumps(self.__getstate__(),
                                       protocol=cPickle.HIGHEST_PROTOCOL))
+        self._endProfile()
     def load(self, filepath) :
         '''Load the network from disk.
            TODO: This should instead pickle the weights and build layers
@@ -93,9 +110,11 @@ class Net () :
                  with future releases of Theano.
            TODO: This should also support input from Synapse file
         '''
+        self._startProfile('Loading network from disk', 'info')
         if '.pkl.gz' in filepath :
             with gzip.open(filepath, 'rb') as f :
                 self.__setstate__(cPickle.load(f))
+        self._endProfile()
     def addLayer(self, layer) :
         '''Add a Layer to the network. It is the responsibility of the user
            to connect the current network's output as the input to the next

@@ -57,9 +57,8 @@ if __name__ == '__main__' :
     from operator import mul
     rng = RandomState(int(time()))
 
-    input = t.ftensor4('input')
-    expectedOutput = t.bvector('expectedOutput')
-
+    # NOTE: The pickleDataset will silently use previously created pickles if
+    #       one exists (for efficiency). So watch out for stale pickles!
     log.info('Ingesting Imagery...')
     train, test, labels = datasetUtils.ingestImagery(
         datasetUtils.pickleDataset(options.data, log=log), log=log)
@@ -69,10 +68,12 @@ if __name__ == '__main__' :
 
     if options.synapse is not None :
         # load a previously saved network
-        log.info('Loading Network...')
         network.load(options.synapse)
     else :
         log.info('Initializing Network...')
+
+        input = t.ftensor4('input')
+        expectedOutput = t.bvector('expectedOutput')
 
         # add convolutional layers
         network.addLayer(ConvolutionalLayer(
@@ -100,9 +101,6 @@ if __name__ == '__main__' :
             inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
             learningRate=float(options.learnF), randomNumGen=rng))
 
-    train = [(datasetUtils.readImage('G:/coding/input/binary_smaller/0/0.tif', log), 0)]
-    train = datasetUtils.makeMiniBatch(train)
-
     globalCount = lastBest = degradationCount = 0
     runningAccuracy = 0.0
     lastSave = ''
@@ -110,57 +108,30 @@ if __name__ == '__main__' :
     expBuffer = numpy.zeros(len(labels), dtype='int32')
     expBuffer[train[LABEL]] = 1
     
-    from time import time
-    numRuns = 10000
-
-    # test the classify runtime
-    print "Classifying Inputs..."
-    timer = time()
-    for ii in range(numRuns) :
-        out = network.classify(train[DATA])
-    timer = time() - timer
-    print "total time: " + str(timer) + \
-          "s | per input: " + str(timer/numRuns) + "s"
-    print (out.argmax(), out)
- 
-    print "Training Network..."
-    timer = time()
-    for i in range(numRuns) :
-        network.train(train[DATA], expBuffer)
-    timer = time() - timer
-    print "total time: " + str(timer) + \
-          "s | per input: " + str(timer/numRuns) + "s"
-    out = network.classify(train[DATA])
-    print (out.argmax(), out)
-
-    lastSave = options.base + \
-               '_learnC' + str(options.learnC) + \
-               '_learnF' + str(options.learnF) + \
-               '_momentum' + str(options.momentum) + \
-               '_kernel' + str(options.kernel) + \
-               '_neuron' + str(options.neuron) + \
-               '_epoch' + str(lastBest) + '.pkl.gz'
-    log.info('Saving to: ' + os.path.abspath(lastSave))
-    network.save(os.path.abspath(lastSave))
-
-'''
     while True :
+        from time import time
 
         # run the specified number of epochs
         numEpochs = int(options.limit)
         for localEpoch in range(numEpochs) :
-            
+            timer = time()
             for ii in range(len(train[DATA])) :
                 expBuffer[train[LABEL]] = 1
                 network.train(train[DATA], expBuffer)
                 expBuffer[train[LABEL]] = 0
+            log.info('Training Epoch [' + str(globalCount + localEpoch) + 
+                     '] - ' + str(time() - timer) + 's')
 
         # calculate the accuracy against the test set
         curAcc = 0.0
+        timer = time()
         for input, label in zip(test[DATA], test[LABEL]) :
             if network.classify(input.get_value()).argmax() == label.get_value() :
                 curAcc += 1.0
         curAcc /= float(len(test[LABEL]))
+        log.info('Testing Accuracy - ' + str(time() - timer) + 's\n' +
+                 '\tCorrect: ' + str(curAcc * 100) + '%\n' +
+                 '\tFalse  : ' + str((1-curAcc) * 100) + '%\n')
 
         # check if we've done better
         if curAcc > runningAccuracy :
@@ -188,4 +159,3 @@ if __name__ == '__main__' :
               options.base + '_FinalOnHoldOut_' + \
               options.data + '_epoch' + str(lastBest) + \
               '_acc' + str(runningAccuracy) + '.tar.gz')
-'''
