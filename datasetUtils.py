@@ -157,11 +157,15 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5, log=None) :
             log.debug('Holding out [' + str(numTest) + '] of [' + \
                       str(len(files)) + ']')
         for ii in range(len(files)) :
-            imgLabel = readImage(os.path.join(root, files[ii]), log), labelIndx
-            if ii % numTest == 0 : 
-                train.append(imgLabel)
-            else :
-                test.append(imgLabel)
+            try :
+                imgLabel = readImage(os.path.join(root, files[ii]), log), labelIndx
+                if ii % numTest == 0 : 
+                    train.append(imgLabel)
+                else :
+                    test.append(imgLabel)
+            except (IOError) :
+                # if it runs across a non-image file do nothing
+                pass
 
     # randomize the data -- otherwise its not stochastic
     if log is not None :
