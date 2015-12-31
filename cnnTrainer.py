@@ -2,7 +2,7 @@ import theano.tensor as t
 from net import Net
 from contiguousLayer import ContiguousLayer
 from convolutionalLayer import ConvolutionalLayer
-import datasetUtils, numpy
+import datasetUtils, numpy, os
 
 '''
 '''
@@ -17,6 +17,8 @@ if __name__ == '__main__' :
                         help='Rate of learning on Convolutional Layers.')
     parser.add_argument('--learnF', dest='learnF', default=.0015,
                         help='Rate of learning on Fully-Connected Layers.')
+    parser.add_argument('--momentum', dest='momentum', default=.3,
+                        help='Momentum rate all layers.')
     parser.add_argument('--kernel', dest='kernel', default=6,
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', default=120,
@@ -25,6 +27,10 @@ if __name__ == '__main__' :
                         help='Number of runs between validation checks')
     parser.add_argument('--stop', dest='stop', default=5,
                         help='Number of inferior validation checks before ending')
+    parser.add_argument('--base', dest='base', default='leNet5',
+                        help='Base name of the network output file.')
+    parser.add_argument('--syn', dest='synapse', default=None,
+                        help='Load from a previously saved network.')
     parser.add_argument('data', help='Pickle file for the training and test sets')
     options = parser.parse_args()
 
@@ -54,37 +60,45 @@ if __name__ == '__main__' :
     input = t.ftensor4('input')
     expectedOutput = t.bvector('expectedOutput')
 
+    log.info('Ingesting Imagery...')
     train, test, labels = datasetUtils.ingestImagery(
         datasetUtils.pickleDataset(options.data, log=log), log=log)
 
     # create the network -- LeNet-5
-    network = Net(regType='', log=None)#log)
+    network = Net(regType='', log=log)
 
-    # add convolutional layers
-    network.addLayer(ConvolutionalLayer(
-        layerID='c1', input=input, inputSize=(1,1,28,28), kernelSize=(6,1,5,5),
-        downsampleFactor=(2,2), randomNumGen=rng, learningRate=options.learnC))
-    # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
-    # this way we don't combine the channels kernels we created in the first
-    # layer and destroy our dimensionality
-    netOutputSize = network.getNetworkOutputSize()
-    netOutputSize = (netOutputSize[0] * netOutputSize[1], 1,
-                     netOutputSize[2], netOutputSize[3])
-    network.addLayer(ConvolutionalLayer(
-        layerID='c2', input=network.getNetworkOutput().reshape(netOutputSize),
-        inputSize=netOutputSize, kernelSize=(6,1,5,5), downsampleFactor=(2,2), 
-        randomNumGen=rng, learningRate=options.learnC))
+    if options.synapse is not None :
+        # load a previously saved network
+        log.info('Loading Network...')
+        network.load(options.synapse)
+    else :
+        log.info('Initializing Network...')
 
-    # add fully connected layers
-    network.addLayer(ContiguousLayer(
-        layerID='f3', input=network.getNetworkOutput().flatten(),
-        inputSize=reduce(mul, network.getNetworkOutputSize()),
-        numNeurons=int(options.neuron), learningRate=float(options.learnF),
-        randomNumGen=rng))
-    network.addLayer(ContiguousLayer(
-        layerID='f4', input=network.getNetworkOutput(),
-        inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
-        learningRate=float(options.learnF), randomNumGen=rng))
+        # add convolutional layers
+        network.addLayer(ConvolutionalLayer(
+            layerID='c1', input=input, inputSize=(1,1,28,28), kernelSize=(6,1,5,5),
+            downsampleFactor=(2,2), randomNumGen=rng, learningRate=options.learnC))
+        # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
+        # this way we don't combine the channels kernels we created in the first
+        # layer and destroy our dimensionality
+        netOutputSize = network.getNetworkOutputSize()
+        netOutputSize = (netOutputSize[0] * netOutputSize[1], 1,
+                         netOutputSize[2], netOutputSize[3])
+        network.addLayer(ConvolutionalLayer(
+            layerID='c2', input=network.getNetworkOutput().reshape(netOutputSize),
+            inputSize=netOutputSize, kernelSize=(6,1,5,5), downsampleFactor=(2,2), 
+            randomNumGen=rng, learningRate=options.learnC))
+
+        # add fully connected layers
+        network.addLayer(ContiguousLayer(
+            layerID='f3', input=network.getNetworkOutput().flatten(),
+            inputSize=reduce(mul, network.getNetworkOutputSize()),
+            numNeurons=int(options.neuron), learningRate=float(options.learnF),
+            randomNumGen=rng))
+        network.addLayer(ContiguousLayer(
+            layerID='f4', input=network.getNetworkOutput(),
+            inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
+            learningRate=float(options.learnF), randomNumGen=rng))
 
     train = [(datasetUtils.readImage('G:/coding/input/binary_smaller/0/0.tif', log), 0)]
     train = datasetUtils.makeMiniBatch(train)
@@ -119,8 +133,18 @@ if __name__ == '__main__' :
     out = network.classify(train[DATA])
     print (out.argmax(), out)
 
+    lastSave = options.base + \
+               '_learnC' + str(options.learnC) + \
+               '_learnF' + str(options.learnF) + \
+               '_momentum' + str(options.momentum) + \
+               '_kernel' + str(options.kernel) + \
+               '_neuron' + str(options.neuron) + \
+               '_epoch' + str(lastBest) + '.pkl.gz'
+    log.info('Saving to: ' + os.path.abspath(lastSave))
+    network.save(os.path.abspath(lastSave))
+
+'''
     while True :
-        from time import time
 
         # run the specified number of epochs
         numEpochs = int(options.limit)
@@ -163,4 +187,5 @@ if __name__ == '__main__' :
     os.rename(lastBest,
               options.base + '_FinalOnHoldOut_' + \
               options.data + '_epoch' + str(lastBest) + \
-              '_acc' + str(runningAccuracy) + '.tar.gz'
+              '_acc' + str(runningAccuracy) + '.tar.gz')
+'''
