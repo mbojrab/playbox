@@ -74,10 +74,10 @@ def ingestImagery(filepath=None, log=None) :
 
     # load each into shared variables -- 
     # this avoids having to copy the data to the GPU between each call
-    if log is not None :
-        log.debug('Transfer the memory into shared variables')
-    return splitToShared(train), splitToShared(test), labels
-
+#    if log is not None :
+#        log.debug('Transfer the memory into shared variables')
+#    return splitToShared(train), splitToShared(test), labels
+    return train, test, labels
 
 def readImage(image, log=None) :
     '''Load the image into memory. It can be any type supported by PIL
@@ -101,12 +101,12 @@ def makeMiniBatch(x, log=None) :
     if numImages == 0 :
         raise Exception('No images were found.')
 
-    # make a mini-batch of size (numImages, numChannels, rows, cols) --
+    # make a mini-batch of size (numBatches, batchSize, numChannels, rows, cols) --
     # NOTE: We assume all imagery is of the same dimensions  
     numChan, rows, cols = x[0][0].shape[0], x[0][0].shape[1], x[0][0].shape[2]
     temp = numpy.concatenate(x)
     tempData = numpy.resize(numpy.concatenate(temp[::2]),
-                            (numImages, numChan, rows, cols))
+                            (numImages, 1, numChan, rows, cols))
 
     # labels are now just contiguous
     tempLabel = numpy.asarray(temp[1::2], dtype='int32')
@@ -153,19 +153,16 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5, log=None) :
         # isn't getting overfitted. We will randomize the input later.
         # 
         numTest = max(minTest, int(holdoutPercentage * len(files)))
+        holdout = int(1. / (float(numTest) / float(len(files))))
         if log is not None :
             log.debug('Holding out [' + str(numTest) + '] of [' + \
                       str(len(files)) + ']')
         for ii in range(len(files)) :
-            try :
-                imgLabel = readImage(os.path.join(root, files[ii]), log), labelIndx
-                if ii % numTest == 0 : 
-                    train.append(imgLabel)
-                else :
-                    test.append(imgLabel)
-            except (IOError) :
-                # if it runs across a non-image file do nothing
-                pass
+            imgLabel = readImage(os.path.join(root, files[ii]), log), labelIndx
+            if ii % holdout == 0 : 
+                test.append(imgLabel)
+            else :
+                train.append(imgLabel)
 
     # randomize the data -- otherwise its not stochastic
     if log is not None :
@@ -175,7 +172,7 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5, log=None) :
 
     # make it a contiguous buffer, so we have the option of batch learning
     if log is not None :
-        log.info('Create the mini-batches')
+        log.info('Creating the mini-batches')
     train = makeMiniBatch(train)
     test = makeMiniBatch(test)
 

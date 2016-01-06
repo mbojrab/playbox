@@ -97,7 +97,7 @@ class Net () :
                  with future releases of Theano.
            TODO: This should also support output to Synapse file
         '''
-        self._startProfile('Saving network to disk', 'info')
+        self._startProfile('Saving network to disk ['+filepath+']', 'info')
         if '.pkl.gz' in filepath :
             with gzip.open(filepath, 'wb') as f :
                 f.write(cPickle.dumps(self.__getstate__(),
@@ -110,7 +110,7 @@ class Net () :
                  with future releases of Theano.
            TODO: This should also support input from Synapse file
         '''
-        self._startProfile('Loading network from disk', 'info')
+        self._startProfile('Loading network from disk ['+filepath+']', 'info')
         if '.pkl.gz' in filepath :
             with gzip.open(filepath, 'rb') as f :
                 self.__setstate__(cPickle.load(f))

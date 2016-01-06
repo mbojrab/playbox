@@ -27,11 +27,12 @@ if __name__ == '__main__' :
                         help='Number of runs between validation checks')
     parser.add_argument('--stop', dest='stop', default=5,
                         help='Number of inferior validation checks before ending')
-    parser.add_argument('--base', dest='base', default='leNet5',
-                        help='Base name of the network output file.')
+    parser.add_argument('--base', dest='base', default='./leNet5',
+                        help='Base name of the network output and temp files.')
     parser.add_argument('--syn', dest='synapse', default=None,
                         help='Load from a previously saved network.')
-    parser.add_argument('data', help='Pickle file for the training and test sets')
+    parser.add_argument('data', help='Directory or pkl.gz file for the ' +
+                                     'training and test sets')
     options = parser.parse_args()
 
     # this makes the indexing more intuitive
@@ -59,7 +60,6 @@ if __name__ == '__main__' :
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
-    log.info('Ingesting Imagery...')
     train, test, labels = datasetUtils.ingestImagery(
         datasetUtils.pickleDataset(options.data, log=log), log=log)
 
@@ -104,10 +104,7 @@ if __name__ == '__main__' :
     globalCount = lastBest = degradationCount = 0
     runningAccuracy = 0.0
     lastSave = ''
-
-    expBuffer = numpy.zeros(len(labels), dtype='int32')
-    expBuffer[train[LABEL]] = 1
-    
+    expectedOutput = numpy.zeros(network.getNetworkOutputSize(), dtype='int32')
     while True :
         from time import time
 
@@ -115,10 +112,10 @@ if __name__ == '__main__' :
         numEpochs = int(options.limit)
         for localEpoch in range(numEpochs) :
             timer = time()
-            for ii in range(len(train[DATA])) :
-                expBuffer[train[LABEL]] = 1
-                network.train(train[DATA], expBuffer)
-                expBuffer[train[LABEL]] = 0
+            for ii in range(len(train[LABEL])) :
+                expectedOutput[train[LABEL][ii]] = 1
+                network.train(train[DATA][ii], expectedOutput)
+                expectedOutput[train[LABEL][ii]] = 0
             log.info('Training Epoch [' + str(globalCount + localEpoch) + 
                      '] - ' + str(time() - timer) + 's')
 
@@ -126,7 +123,7 @@ if __name__ == '__main__' :
         curAcc = 0.0
         timer = time()
         for input, label in zip(test[DATA], test[LABEL]) :
-            if network.classify(input.get_value()).argmax() == label.get_value() :
+            if network.classify(input).argmax() == label :
                 curAcc += 1.0
         curAcc /= float(len(test[LABEL]))
         log.info('Testing Accuracy - ' + str(time() - timer) + 's\n' +
@@ -145,7 +142,7 @@ if __name__ == '__main__' :
                        '_momentum' + str(options.momentum) + \
                        '_kernel' + str(options.kernel) + \
                        '_neuron' + str(options.neuron) + \
-                       '_epoch' + str(lastBest) + '.tar.gz'
+                       '_epoch' + str(lastBest) + '.pkl.gz'
             network.save(lastSave)
         else :
             # quit once we've had 'stop' times of less accuracy
@@ -154,8 +151,13 @@ if __name__ == '__main__' :
                 break
         globalCount += numEpochs
 
+        # if we ever get to 100% drop out -- for optimization
+        if runningAccuracy == 1. :
+            break
+
     # rename the network which achieved the highest accuracy
-    os.rename(lastBest,
-              options.base + '_FinalOnHoldOut_' + \
-              options.data + '_epoch' + str(lastBest) + \
-              '_acc' + str(runningAccuracy) + '.tar.gz')
+    bestNetwork = options.base + '_FinalOnHoldOut_' + \
+                  os.path.basename(options.data) + '_epoch' + str(lastBest) + \
+                  '_acc' + str(runningAccuracy) + '.pkl.gz'
+    log.info('Renaming Best Network to [' + bestNetwork + ']')
+    os.rename(lastSave, bestNetwork)
