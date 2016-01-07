@@ -145,14 +145,12 @@ if __name__ == '__main__' :
                        '_epoch' + str(lastBest) + '.pkl.gz'
             network.save(lastSave)
         else :
-            # quit once we've had 'stop' times of less accuracy
             degradationCount += 1
-            if degradationCount > options.stop :
-                break
+
         globalCount += numEpochs
 
-        # if we ever get to 100% drop out -- for optimization
-        if runningAccuracy == 1. :
+        # stopping conditions for regularization
+        if degradationCount > int(options.stop) or runningAccuracy == 1. :
             break
 
     # rename the network which achieved the highest accuracy
