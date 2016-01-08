@@ -101,7 +101,8 @@ def makeMiniBatch(x, log=None) :
     if numImages == 0 :
         raise Exception('No images were found.')
 
-    # make a mini-batch of size (numBatches, batchSize, numChannels, rows, cols) --
+    # make a mini-batch of size --
+    # (numBatches, batchSize, numChannels, rows, cols)
     # NOTE: We assume all imagery is of the same dimensions  
     numChan, rows, cols = x[0][0].shape[0], x[0][0].shape[1], x[0][0].shape[2]
     temp = numpy.concatenate(x)
