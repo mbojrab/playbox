@@ -26,7 +26,8 @@ if __name__ == '__main__' :
     parser.add_argument('--limit', dest='limit', default=5,
                         help='Number of runs between validation checks')
     parser.add_argument('--stop', dest='stop', default=5,
-                        help='Number of inferior validation checks before ending')
+                        help='Number of inferior validation checks before ' +
+                             'ending')
     parser.add_argument('--base', dest='base', default='./leNet5',
                         help='Base name of the network output and temp files.')
     parser.add_argument('--syn', dest='synapse', default=None,
@@ -77,17 +78,21 @@ if __name__ == '__main__' :
 
         # add convolutional layers
         network.addLayer(ConvolutionalLayer(
-            layerID='c1', input=input, inputSize=(1,1,28,28), kernelSize=(6,1,5,5),
-            downsampleFactor=(2,2), randomNumGen=rng, learningRate=options.learnC))
+            layerID='c1', input=input, 
+            inputSize=(1,1,28,28), kernelSize=(6,1,5,5),
+            downsampleFactor=(2,2), randomNumGen=rng,
+            learningRate=options.learnC))
         # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
-        # this way we don't combine the channels kernels we created in the first
-        # layer and destroy our dimensionality
+        # this way we don't combine the channels kernels we created in 
+        # the first layer and destroy our dimensionality
         netOutputSize = network.getNetworkOutputSize()
         netOutputSize = (netOutputSize[0] * netOutputSize[1], 1,
                          netOutputSize[2], netOutputSize[3])
         network.addLayer(ConvolutionalLayer(
-            layerID='c2', input=network.getNetworkOutput().reshape(netOutputSize),
-            inputSize=netOutputSize, kernelSize=(6,1,5,5), downsampleFactor=(2,2), 
+            layerID='c2', 
+            input=network.getNetworkOutput().reshape(netOutputSize),
+            inputSize=netOutputSize, 
+            kernelSize=(6,1,5,5), downsampleFactor=(2,2), 
             randomNumGen=rng, learningRate=options.learnC))
 
         # add fully connected layers
