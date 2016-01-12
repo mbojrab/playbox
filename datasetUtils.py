@@ -8,10 +8,11 @@ def loadShared(x, borrow=True) :
 def splitToShared(x, borrow=True) :
     data, label = x
     return (loadShared(data), t.cast(loadShared(label), 'int32'))
-def ingestImagery(filepath=None, log=None) :
+def ingestImagery(filepath=None, shared=False, log=None) :
     '''Load the dataset provided by the user.
        filepath : This can be a cPickle, a path to the directory structure,
                   or None if the MNIST dataset should be loaded.
+       shared   : Load data into shared variables for training
        log      : Logger for tracking the progress
        return   :
            Format -- 
@@ -74,10 +75,12 @@ def ingestImagery(filepath=None, log=None) :
 
     # load each into shared variables -- 
     # this avoids having to copy the data to the GPU between each call
-#    if log is not None :
-#        log.debug('Transfer the memory into shared variables')
-#    return splitToShared(train), splitToShared(test), labels
-    return train, test, labels
+    if shared is True :
+        if log is not None :
+            log.debug('Transfer the memory into shared variables')
+        return splitToShared(train), splitToShared(test), labels
+    else :
+        return train, test, labels
 
 def readImage(image, log=None) :
     '''Load the image into memory. It can be any type supported by PIL
