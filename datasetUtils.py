@@ -97,25 +97,38 @@ def readImage(image, log=None) :
         # just one channel
         a = numpy.asarray(img.getdata(), dtype=theano.config.floatX)
         return numpy.resize(a, (1, img.size[1], img.size[0]))
-def makeMiniBatch(x, log=None) :
-    '''Deinterleave the data and labels. Resize so we can use batched learning
+def makeMiniBatch(x, batchSize=1, log=None) :
+    '''Deinterleave the data and labels. Resize so we can use batched learning.
+       x         : numpy.ndarray containing tuples of elements
+                   [(imageData1, labelInt1), (imageData2, labelInt2),...] 
+       batchSize : the size of the training mini-batch. this is intended to be
+                   be an integer in range [1:numImages].
+       return    : the deinterleaved data of the specified batching size.
+                   [[imageData1, imageData2], [labelInt1, labelInt2]]
     '''
+    import math
     numImages = len(x)
     if numImages == 0 :
         raise Exception('No images were found.')
+    numBatches = int(math.floor(float(numImages) / float(batchSize)))
 
     # make a mini-batch of size --
-    # (numBatches, batchSize, numChannels, rows, cols)
-    # NOTE: We assume all imagery is of the same dimensions  
+    # NOTE: We assume all imagery is of the same dimensions
     numChan, rows, cols = x[0][0].shape[0], x[0][0].shape[1], x[0][0].shape[2]
     temp = numpy.concatenate(x)
+    if log is not None :
+        log.info('Creating Dataset : ' + 
+                 str((numBatches, batchSize, numChan, rows, cols)))
     tempData = numpy.resize(numpy.concatenate(temp[::2]),
-                            (numImages, 1, numChan, rows, cols))
+                            (numBatches, batchSize, numChan, rows, cols))
 
     # labels are now just contiguous
-    tempLabel = numpy.asarray(temp[1::2], dtype='int32')
+    # TODO: this needs to account for different batch sizes
+    tempLabel = numpy.resize(numpy.asarray(temp[1::2], dtype='int32'),
+                             (numBatches, batchSize))
     return tempData, tempLabel
-def pickleDataset(filepath, holdoutPercentage=.05, minTest=5, log=None) :
+def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
+                  batchSize=1, log=None) :
     '''Create a pickle out of a directory structure. The directory structure
        is assumed to be a series of directories, each contain imagery assigned
        assigned the label of the directory name.
@@ -174,11 +187,18 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5, log=None) :
     random.shuffle(train)
     random.shuffle(test)
 
-    # make it a contiguous buffer, so we have the option of batch learning
+    # make it a contiguous buffer, so we have the option of batch learning --
+    #
+    # Here the training set can be set to a specified batchSize. This will
+    # help to speed processing and reduce high-frequency noise during training.
+    #
+    # Alternatively the test set does not require mini-batches, so we instead
+    # make the batchSize=numImages, so we can quickly test the accuracy of
+    # the network against our entire test set in one call.
     if log is not None :
         log.info('Creating the mini-batches')
-    train = makeMiniBatch(train)
-    test = makeMiniBatch(test)
+    train = makeMiniBatch(train, batchSize)
+    test =  makeMiniBatch(test, len(test))
 
     # pickle the dataset
     if log is not None :
