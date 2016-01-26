@@ -21,8 +21,6 @@ class ClassifierNetwork () :
         self._layers = []
         self._weights = []
         self._learningRates = []
-        self.input = None
-        self.output = None
         if filepath is not None :
             self.load(filepath)
 
@@ -119,18 +117,19 @@ class ClassifierNetwork () :
         self._startProfile('Finalizing Network', 'info')
 
         # create one function that activates the entire network --
-        # Here we use softmax on the netowork output to produce a normalized 
+        # Here we use softmax on the network output to produce a normalized 
         # output prediction, which emphasizes significant neural responses.
         # This takes as its input, the first layer's input, and uses the final
         # layer's output as the function (ie the network classification).
         self._out = t.nnet.softmax(self._layers[-1].output)
-        self._classify = theano.function([self._layers[0].input], self._out)
-
+        self._outClass = t.argmax(self._out, axis=1)
+        self._classify = theano.function([self._layers[0].input],
+                                         self._outClass)
         self._endProfile()
     def classify (self, inputs) :
         '''Classify the given inputs. The input is assumed to be 
            numpy.ndarray with dimensions specified by the first layer of the 
-           network.
+           network. The output is the index of the softmax classification.
         '''
         self._startProfile('Classifying the Inputs', 'debug')
         if not hasattr(self, '_classify') :
@@ -138,9 +137,9 @@ class ClassifierNetwork () :
 
         # activating the last layer triggers all previous 
         # layers due to dependencies we've enforced
-        out = self._classify(inputs)
+        classIndex = self._classify(inputs)
         self._endProfile()
-        return out
+        return classIndex
 
 class TrainerNetwork (ClassifierNetwork) :
     '''This network allows for training data on a theano.shared wrapped
@@ -157,8 +156,8 @@ class TrainerNetwork (ClassifierNetwork) :
                   (((numBatches, batchSize, numChannels, rows, cols)), 
                    integerLabelIndices)
        test     : theano.shared dataset used for network testing in format --
-                  (((numBatches, batchSize, numChannels, rows, cols)), 
-                   integerLabelIndices)
+                  (((1, numImages, numChannels, rows, cols)), 
+                  integerLabelIndices)
                   The intersection of train and test datasets should be a null
                   set. The test dataset will be used to regularize the training
        regType  : type of regularization term to use
@@ -173,6 +172,12 @@ class TrainerNetwork (ClassifierNetwork) :
         ClassifierNetwork.__init__(self, filepath=filepath, log=log)
         self._trainData, self._trainLabels = train
         self._testData, self._testLabels = test
+        self._numTrainBatches = self._trainLabels.shape[0]
+        self._numTestImages = self._testLabels.shape.eval()[0] * \
+                              self._testLabels.shape.eval()[1]
+        #self._expectedOutputs = theano.shared(
+        #    value=numpy.zeros(self.getNetworkOutputSize(), dtype='int32'), 
+        #    name='expectedOutputs')
         self._regularization = regType
     def __getstate__(self) :
         dict = self.__dict__.copy()
@@ -223,23 +228,45 @@ class TrainerNetwork (ClassifierNetwork) :
         ClassifierNetwork.finalizeNetwork(self)
         self._profiler = tmp
 
-        # create a function to 
+        # create a function to quickly check the accuracy against the test set
         index = t.lscalar('index')
-        expectedOutput = t.ivector('expectedOutput')
-        numCorrect = t.sum(t.eq(expectedOutput, t.argmax(self._out)))
+        expectedLabels = t.ivector('expectedLabels')
+        numCorrect = t.sum(t.eq(self._outClass, expectedLabels))
+        # NOTE: the 'input' variable name was create elsewhere and provided as
+        #       input to the first layer. We now use that object to connect
+        #       our shared buffers.
+        self._checkAccuracyNP = theano.function(
+            [self._layers[0].input, expectedLabels], numCorrect)
         self._checkAccuracy = theano.function(
-            [index], numCorrect,  
-            givens={input: self._testData[index],
-                    expectedOutput: self._testLabels[index]})
+            [index], numCorrect, 
+            givens={self._layers[0].input: self._testData[index],
+                    expectedLabels: self._testLabels[index]})
+
+        # setup a looping function to JIT create the expected output vectors --
+        # this saves memory as the expectedOutput matrix is a very sparse
+        # representation, so we built it instead of storing it.
+        def createExpectedOutput(label, sz):
+            return t.set_subtensor(
+                t.zeros((sz,), dtype='int32')[label], 1)
+        outputSize = t.iscalar("outputSize")
+        result, updates = theano.scan(fn=createExpectedOutput,
+                                      outputs_info=None,
+                                      sequences=[expectedLabels],
+                                      non_sequences=[outputSize])
+        self._createBatchExpectedOutput = theano.function(
+            inputs=[expectedLabels, outputSize], outputs=result)
 
         # create the negative log likelihood function --
         # This is the cost function for the network, and it assumes [0,1]
         # classification labeling. If the expectedOutput is not [0,1], Doc
         # Brown will hit you with a time machine.
-        nll = (-expectedOutput * t.log(self._out) - 
-              (1-expectedOutput) * t.log(1-self._out)).mean()
-        self._cost = theano.function([self._layers[0].input, expectedOutput],
-                                     nll)
+        expectedOutputs = t.imatrix('expectedOutputs')
+        nll = t.mean(-expectedOutputs * t.log(self._out) - 
+                     (1-expectedOutputs) * t.log(1-self._out))
+        nllPer = t.mean(-expectedOutputs * t.log(self._out) - 
+                        (1-expectedOutputs) * t.log(1-self._out), axis=0)
+        self._cost = theano.function([self._layers[0].input, expectedOutputs],
+                                     nllPer)
 
         # calculate a regularization term -- if desired
         reg = 0.0
@@ -260,47 +287,148 @@ class TrainerNetwork (ClassifierNetwork) :
         updates = [(weights, weights - learningRate * gradient)
                    for weights, gradient, learningRate in \
                        zip(self._weights, gradients, self._learningRates)]
-        self._trainNetwork = theano.function(
-            [index], nll, updates=updates,
-            givens={input: self._trainData[index],
-                    expectedOutput: self._trainLabels[index]})
+        # NOTE: the 'input' variable name was create elsewhere and provided as
+        #       input to the first layer. We now use that object to connect
+        #       our shared buffers.
+        self._trainNetworkNP = theano.function(
+            [self._layers[0].input, expectedOutputs], nll, updates=updates)
+        #self._trainNetwork = theano.function(
+        #    [index], nll, updates=updates,
+        #    givens={self._layers[0].input: self._trainData[index],
+        #            expectedOutputs: self._trainLabels[index]})
         self._endProfile()
 
-    def train(self, index) :
+    #def train(self, index) :
+    def train(self, index, inputs, expectedLabels) :
         '''Train the network against the pre-loaded inputs. This accepts 
            a batch index into the pre-compiled input and expectedOutput sets.
 
            NOTE: Class labels for expectedOutput are assumed to be [0,1]
         '''
-        self._startProfile('Classifying the Inputs', 'debug')
-        if not hasattr(self, '_trainNetwork') :
+        self._startProfile('Training Batch [' + str(index) +
+                           '/' + str(self._numTrainBatches) + ']', 'debug')
+        if not hasattr(self, '_trainNetworkNP') :
             self.finalizeNetwork()
+        if not isinstance(index, int) :
+            raise Exception('Variable index must be an integer value')
+        if index >= self._numTrainBatches :
+            raise Exception('Variable index out of range for numBatches')
 
         # train the input --
         # the user decides if this is online or batch training
-        self._trainNetwork(index)
+        expectedOutputs = self._createBatchExpectedOutput(
+            expectedLabels, self.getNetworkOutputSize())
+        self._trainNetworkNP(inputs, expectedOutputs)
+        #self._trainNetwork(index)
 
         self._endProfile()
-    def checkAccuracy(self, index) :
-        '''Check the accuracy against the pre-compiled the given inputs.
-           This accepts a batch index into the pre-compiled input and
-           expectedOutput sets.
-           This returns the number of correctly classified inputs in the batch.
-           The user can find the accuracy by dividing the total number of
-           correct by the total number of inputs.
+    def trainEpoch(self, globalEpoch, numEpochs=1) :
+        '''Train the network against the pre-loaded inputs for a user-specified
+           number of epochs.
+           globalEpoch : total number of epochs the network has previously 
+                         trained
+           numEpochs   : number of epochs to train this round before stopping
         '''
-        self._startProfile('Checking the network Accuracy', 'debug')
+        for localEpoch in range(numEpochs) :
+            self._startProfile('Running Epoch [' + 
+                               str(globalEpoch + localEpoch) + ']', 'info')
+            for ii in range(self._numTrainBatches) :
+                self.train(ii, self._trainData[ii], self._trainLabels[ii])
+            self._endProfile()
+        return globalEpoch + numEpochs
+    def checkAccuracy(self) :
+        '''Check the accuracy against the pre-compiled the given inputs.
+           This runs against the entire test set in a single call and returns
+           the current accuracy of the network [0%:100%].
+        '''
+        self._startProfile('Checking Accuracy', 'debug')
         if not hasattr(self, '_checkAccuracy') :
             self.finalizeNetwork()
 
         # return the sum of all correctly classified targets
-        self._checkAccuracy(index)
-
+        '''
+        acc = 0.0
+        for ii in range(self._numTestBatches) :
+            
+            print self._checkAccuracy(ii)
+            acc += float(self._checkAccuracy(ii))
+        '''
+        acc = self._checkAccuracy(0)
         self._endProfile()
-
+        return acc / float(self._numTestImages) * 100.
+    def check(self, i, e) :
+        return self._cost(i, e)
 
 if __name__ == "__main__" :
+    labels = t.ivector("lables")
+    outputSize = t.iscalar("outputSize")
+    def createExpectedOutput(label, outputSize):
+        return t.set_subtensor(
+            t.zeros((outputSize,), dtype='float32')[label], 1.)
+    result, updates = theano.scan(fn=createExpectedOutput,
+                                  outputs_info=None,
+                                  sequences=[labels],
+                                  non_sequences=[outputSize])
+    createBatchExpectedOutput = theano.function(
+        inputs=[labels, outputSize], outputs=result)
+
+    # test
+    import numpy
+    labelVect = numpy.asarray([1, 2, 0], dtype=numpy.int32)
+    print(createBatchExpectedOutput(labelVect, 5))
+    
     '''
+    location = t.ivector("location")
+    output_model = t.fvector("output_model")
+    def set_value_at_position(a_location, output_model):
+        return t.set_subtensor(t.zeros_like(output_model)[a_location], 1.)
+    result, updates = theano.scan(fn=set_value_at_position,
+                                  outputs_info=None,
+                                  sequences=[location],
+                                  non_sequences=[output_model])
+    assign_values_at_positions = theano.function(
+        inputs=[location, output_model], 
+        outputs=result)
+    
+    # test
+    import numpy
+    test_locations = numpy.asarray([1, 2, 0], dtype=numpy.int32)
+    test_output_model = numpy.zeros((5,), dtype=numpy.float32)
+    print(assign_values_at_positions(test_locations, test_output_model))
+    
+    import numpy as np
+    value = t.fscalar('value')
+    expectedLabels = t.ivector('expectedLabels')
+    expectedOutputs = theano.shared(np.zeros((5,5), dtype='float32'), 
+                                    name='expectedOutputs')
+#    expectedOutputs = theano.shared(value=np.zeros((5,5), dtype='int32'), 
+#                                    name='expectedOutputs')
+    def updateVector(vect, indx, value) :
+        print vect.type
+        print indx.type
+        print value.type
+        return t.set_subtensor(vect[indx], value)
+    results, updates = theano.scan(
+        fn=updateVector,
+        outputs_info=None,
+        sequences=[expectedOutputs, expectedLabels],
+        non_sequences=value)
+
+
+    indx = t.iscalar('indx')
+    updateExpectedMatrix = theano.function(
+        [expectedLabels, value], results[-1])
+
+    labels = np.asarray([1,0,3,4,5], dtype='int32')
+    updateExpectedMatrix(labels, 1.)
+    print expectedOutputs.type
+    
+    print expectedOutputs.type
+    theano.function([expectedOutputs], )
+    print dir(t.set_subtensor(expectedOutputs[0], 1.))
+    print expectedOutputs.get_value()
+
+
     # this shows the execution of a sequence of functions by
     # combining them into a higher level function
     a = t.iscalar('a')
@@ -317,26 +445,38 @@ if __name__ == "__main__" :
     print square(4)
     print cube(4)
     print total(4)
-    '''
 
     from contiguousLayer import ContiguousLayer
     from time import time
     from datasetUtils import splitToShared
+    import numpy
 
-    input = t.fvector('input')
-    expectedOutput = t.ivector('expectedOutput')
+    input = t.fmatrix('input')
 
+    dim = 1000
+    numNeurons = 10
     numRuns = 10000
-    trainArr = ([range(10000)], [[0, 0, 1]])
-    testArr  = ([range(10000)], [[0, 0, 1]])
-    train = splitToShared(trainArr, borrow=False)
-    test  = splitToShared(testArr,  borrow=False)
+    
+    # this is intentionally getting one of the inputs labels incorrect to
+    # prove the checkAccuracy call is working.
+    trainArr = (numpy.asarray([[range(dim)]], dtype='float32'), 
+                numpy.asarray([[0]], dtype='int32'))
+    testArr  = (numpy.asarray([[range(dim), range(dim), range(dim)]], dtype='float32'), 
+                numpy.asarray([[1, 2, 1]], dtype='int32'))
 
-    network = TrainerNetwork(train=train, test=train, regType='')
+    print testArr[0].shape
+    print testArr[1].shape
+    train = splitToShared(trainArr, borrow=True)
+    test  = splitToShared(testArr,  borrow=True)
+
+    network = TrainerNetwork(train, test, regType='')
     network.addLayer(
-        ContiguousLayer('f1', input, len(trainArr[0][0]), 100))
+        ContiguousLayer('f1', input, dim, numNeurons))
     network.addLayer(
-        ContiguousLayer('f2', network.getNetworkOutput(), 100, 3))
+        ContiguousLayer('f2', network.getNetworkOutput(), numNeurons, 3))
+
+    print "Classify: " + str(network.classify(testArr[0][0]))
+    print "NLL: " + str(network.check(testArr[0][0], testArr[1][0]))
 
     # test the classify runtime
     print "Classifying Inputs..."
@@ -346,18 +486,19 @@ if __name__ == "__main__" :
     timer = time() - timer
     print "total time: " + str(timer) + \
           "s | per input: " + str(timer/numRuns) + "s"
-    print (out.argmax(), out)
+    print network.classify(testArr[0][0])
 
     # test the train runtime
     numRuns = 10000
     print "Training Network..."
     timer = time()
-    for i in range(numRuns) :
+    for ii in range(numRuns) :
         network.train(0)
+#    network.trainEpoch(0, numRuns)
     timer = time() - timer
     print "total time: " + str(timer) + \
           "s | per input: " + str(timer/numRuns) + "s"
-    out = network.classify(trainArr[0][0])
-    print (out.argmax(), out)
+    print str(network.checkAccuracy() * 100.)
 
     network.save('e:/out.pkl.gz')
+    '''

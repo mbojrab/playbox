@@ -1,13 +1,14 @@
 import theano.tensor as t
-from net import Net
+from net import TrainerNetwork as Net
 from contiguousLayer import ContiguousLayer
 from convolutionalLayer import ConvolutionalLayer
-import datasetUtils, numpy, os
+import datasetUtils, os, argparse, logging
+from time import time
 
 '''
 '''
 if __name__ == '__main__' :
-    import argparse, logging
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--log', dest='logfile', default=None,
                         help='Specify log output file.')
@@ -55,49 +56,48 @@ if __name__ == '__main__' :
 
     # create a random number generator for efficiency
     from numpy.random import RandomState
-    from time import time
     from operator import mul
     rng = RandomState(int(time()))
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
     train, test, labels = datasetUtils.ingestImagery(
-        datasetUtils.pickleDataset(options.data, log=log), log=log)
+        datasetUtils.pickleDataset(options.data, log=log),
+        shared=False, log=log)
+    tr = datasetUtils.splitToShared(train, borrow=True)
+    te = datasetUtils.splitToShared(test,  borrow=True)
 
     # create the network -- LeNet-5
-    network = Net(regType='', log=log)
+    network = Net(train, te, regType='', log=log)
 
     if options.synapse is not None :
         # load a previously saved network
         network.load(options.synapse)
     else :
         log.info('Initializing Network...')
-
         input = t.ftensor4('input')
-        expectedOutput = t.bvector('expectedOutput')
 
         # add convolutional layers
         network.addLayer(ConvolutionalLayer(
             layerID='c1', input=input, 
-            inputSize=(1,1,28,28), kernelSize=(6,1,5,5),
+            inputSize=(1,1,28,28), kernelSize=(options.kernel,1,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             learningRate=options.learnC))
+
         # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
         # this way we don't combine the channels kernels we created in 
         # the first layer and destroy our dimensionality
-        netOutputSize = network.getNetworkOutputSize()
-        netOutputSize = (netOutputSize[0] * netOutputSize[1], 1,
-                         netOutputSize[2], netOutputSize[3])
         network.addLayer(ConvolutionalLayer(
-            layerID='c2', 
-            input=network.getNetworkOutput().reshape(netOutputSize),
-            inputSize=netOutputSize, 
-            kernelSize=(6,1,5,5), downsampleFactor=(2,2), 
-            randomNumGen=rng, learningRate=options.learnC))
+            layerID='c2',
+            input=network.getNetworkOutput(), 
+            inputSize=network.getNetworkOutputSize(), 
+            kernelSize=(options.kernel,options.kernel,5,5),
+            downsampleFactor=(2,2), randomNumGen=rng,
+            learningRate=options.learnC))
 
         # add fully connected layers
         network.addLayer(ContiguousLayer(
-            layerID='f3', input=network.getNetworkOutput().flatten(),
+            layerID='f3', input=network.getNetworkOutput().flatten(2),
             inputSize=reduce(mul, network.getNetworkOutputSize()),
             numNeurons=int(options.neuron), learningRate=float(options.learnF),
             randomNumGen=rng))
@@ -107,33 +107,20 @@ if __name__ == '__main__' :
             learningRate=float(options.learnF), randomNumGen=rng))
 
     globalCount = lastBest = degradationCount = 0
+    numEpochs = int(options.limit)
     runningAccuracy = 0.0
     lastSave = ''
-    expectedOutput = numpy.zeros(network.getNetworkOutputSize(), dtype='int32')
     while True :
-        from time import time
+        timer = time()
 
         # run the specified number of epochs
-        numEpochs = int(options.limit)
-        for localEpoch in range(numEpochs) :
-            timer = time()
-            for ii in range(len(train[LABEL])) :
-                expectedOutput[train[LABEL][ii]] = 1
-                network.train(train[DATA][ii], expectedOutput)
-                expectedOutput[train[LABEL][ii]] = 0
-            log.info('Training Epoch [' + str(globalCount + localEpoch) + 
-                     '] - ' + str(time() - timer) + 's')
+        globalCount = network.trainEpoch(globalCount, numEpochs)
 
         # calculate the accuracy against the test set
-        curAcc = 0.0
-        timer = time()
-        for input, label in zip(test[DATA], test[LABEL]) :
-            if network.classify(input).argmax() == label :
-                curAcc += 1.0
-        curAcc /= float(len(test[LABEL]))
-        log.info('Testing Accuracy - ' + str(time() - timer) + 's\n' +
-                 '\tCorrect: ' + str(curAcc * 100) + '%\n' +
-                 '\tFalse  : ' + str((1-curAcc) * 100) + '%\n')
+        curAcc = network.checkAccuracy()
+        log.info('Checking Accuracy - {0}s ' \
+                 '\n\tCorrect  : {1}% \n\tIncorrect  : {2}%'.format(
+                 time() - timer, curAcc, (100-curAcc)))
 
         # check if we've done better
         if curAcc > runningAccuracy :
@@ -150,12 +137,11 @@ if __name__ == '__main__' :
                        '_epoch' + str(lastBest) + '.pkl.gz'
             network.save(lastSave)
         else :
+            # increment the number of poor performing runs
             degradationCount += 1
 
-        globalCount += numEpochs
-
         # stopping conditions for regularization
-        if degradationCount > int(options.stop) or runningAccuracy == 1. :
+        if degradationCount > int(options.stop) or runningAccuracy == 100. :
             break
 
     # rename the network which achieved the highest accuracy
@@ -163,4 +149,6 @@ if __name__ == '__main__' :
                   os.path.basename(options.data) + '_epoch' + str(lastBest) + \
                   '_acc' + str(runningAccuracy) + '.pkl.gz'
     log.info('Renaming Best Network to [' + bestNetwork + ']')
+    if os.path.exists(bestNetwork) :
+        os.remove(bestNetwork)
     os.rename(lastSave, bestNetwork)
