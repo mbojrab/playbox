@@ -156,7 +156,7 @@ class TrainerNetwork (ClassifierNetwork) :
                   (((numBatches, batchSize, numChannels, rows, cols)), 
                    integerLabelIndices)
        test     : theano.shared dataset used for network testing in format --
-                  (((1, numImages, numChannels, rows, cols)), 
+                  (((numBatches, batchSize, numChannels, rows, cols)), 
                   integerLabelIndices)
                   The intersection of train and test datasets should be a null
                   set. The test dataset will be used to regularize the training
@@ -173,8 +173,9 @@ class TrainerNetwork (ClassifierNetwork) :
         self._trainData, self._trainLabels = train
         self._testData, self._testLabels = test
         self._numTrainBatches = self._trainLabels.shape[0]
-        self._numTestImages = self._testLabels.shape.eval()[0] * \
-                              self._testLabels.shape.eval()[1]
+        self._numTestBatches = self._testLabels.shape.eval()[0]
+        self._numTestSize = self._numTestBatches * \
+                            self._testLabels.shape.eval()[1]
         #self._expectedOutputs = theano.shared(
         #    value=numpy.zeros(self.getNetworkOutputSize(), dtype='int32'), 
         #    name='expectedOutputs')
@@ -317,7 +318,7 @@ class TrainerNetwork (ClassifierNetwork) :
         # train the input --
         # the user decides if this is online or batch training
         expectedOutputs = self._createBatchExpectedOutput(
-            expectedLabels, self.getNetworkOutputSize())
+            expectedLabels, self.getNetworkOutputSize()[1])
         self._trainNetworkNP(inputs, expectedOutputs)
         #self._trainNetwork(index)
 
@@ -346,18 +347,12 @@ class TrainerNetwork (ClassifierNetwork) :
             self.finalizeNetwork()
 
         # return the sum of all correctly classified targets
-        '''
         acc = 0.0
         for ii in range(self._numTestBatches) :
-            
-            print self._checkAccuracy(ii)
             acc += float(self._checkAccuracy(ii))
-        '''
-        acc = self._checkAccuracy(0)
+
         self._endProfile()
-        return acc / float(self._numTestImages) * 100.
-    def check(self, i, e) :
-        return self._cost(i, e)
+        return acc / float(self._numTestSize) * 100.
 
 if __name__ == "__main__" :
     labels = t.ivector("lables")

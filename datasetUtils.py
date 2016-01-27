@@ -198,7 +198,7 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
     if log is not None :
         log.info('Creating the mini-batches')
     train = makeMiniBatch(train, batchSize)
-    test =  makeMiniBatch(test, len(test))
+    test =  makeMiniBatch(test, batchSize)
 
     # pickle the dataset
     if log is not None :

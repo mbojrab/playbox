@@ -27,7 +27,7 @@ class ContiguousLayer(Layer) :
 
         # store the input buffer
         self.input = input
-        self.inputSize = inputSize
+        self.inputSize = inputSize if len(inputSize) == 2 else (1, inputSize)
         self.numNeurons = numNeurons
 
         # setup initial values for the weights
@@ -38,9 +38,9 @@ class ContiguousLayer(Layer) :
                randomNumGen = RandomState(1234)
 
             initialWeights = np.asarray(randomNumGen.uniform(
-                low=-np.sqrt(6. / (self.inputSize + self.numNeurons)),
-                high=np.sqrt(6. / (self.inputSize + self.numNeurons)),
-                size=(self.inputSize, self.numNeurons)),
+                low=-np.sqrt(6. / (self.inputSize[1] + self.numNeurons)),
+                high=np.sqrt(6. / (self.inputSize[1] + self.numNeurons)),
+                size=(self.inputSize[1], self.numNeurons)),
                 dtype=config.floatX)
             if activation == sigmoid :
                 initialWeights *= 4.
@@ -60,11 +60,11 @@ class ContiguousLayer(Layer) :
         '''This allows the network backprop all layers efficiently.'''
         return [self._weights, self._thresholds]
     def getInputSize (self) :
-        '''(1, pattern size)'''
+        '''(numInputs, pattern size)'''
         return self.inputSize
     def getOutputSize (self) :
-        '''(1, number of neurons)'''
-        return self.numNeurons
+        '''(numInputs, number of neurons)'''
+        return (self.inputSize[0], self.numNeurons)
     def activate (self, input) :
         '''activate the neural layer'''
         return self.activation(input)

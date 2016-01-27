@@ -62,7 +62,7 @@ if __name__ == '__main__' :
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
     train, test, labels = datasetUtils.ingestImagery(
-        datasetUtils.pickleDataset(options.data, log=log),
+        datasetUtils.pickleDataset(options.data, batchSize=5, log=log),
         shared=False, log=log)
     tr = datasetUtils.splitToShared(train, borrow=True)
     te = datasetUtils.splitToShared(test,  borrow=True)
@@ -80,9 +80,9 @@ if __name__ == '__main__' :
         # add convolutional layers
         network.addLayer(ConvolutionalLayer(
             layerID='c1', input=input, 
-            inputSize=(1,1,28,28), kernelSize=(options.kernel,1,5,5),
+            inputSize=train[0].shape[1:], kernelSize=(options.kernel,1,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
-            learningRate=options.learnC))
+            learningRate=float(options.learnC)))
 
         # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
         # this way we don't combine the channels kernels we created in 
@@ -93,12 +93,13 @@ if __name__ == '__main__' :
             inputSize=network.getNetworkOutputSize(), 
             kernelSize=(options.kernel,options.kernel,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
-            learningRate=options.learnC))
+            learningRate=float(options.learnC)))
 
         # add fully connected layers
         network.addLayer(ContiguousLayer(
             layerID='f3', input=network.getNetworkOutput().flatten(2),
-            inputSize=reduce(mul, network.getNetworkOutputSize()),
+            inputSize=(network.getNetworkOutputSize()[0], 
+                       reduce(mul, network.getNetworkOutputSize()[1:])),
             numNeurons=int(options.neuron), learningRate=float(options.learnF),
             randomNumGen=rng))
         network.addLayer(ContiguousLayer(
@@ -115,7 +116,6 @@ if __name__ == '__main__' :
 
         # run the specified number of epochs
         globalCount = network.trainEpoch(globalCount, numEpochs)
-
         # calculate the accuracy against the test set
         curAcc = network.checkAccuracy()
         log.info('Checking Accuracy - {0}s ' \
