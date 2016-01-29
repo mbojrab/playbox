@@ -10,28 +10,32 @@ from time import time
 if __name__ == '__main__' :
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--log', dest='logfile', default=None,
+    parser.add_argument('--log', dest='logfile', type=str, default=None,
                         help='Specify log output file.')
-    parser.add_argument('--level', dest='level', default='INFO',
+    parser.add_argument('--level', dest='level', default='INFO', type=str, 
                         help='Log Level.')
-    parser.add_argument('--learnC', dest='learnC', default=.0031,
+    parser.add_argument('--learnC', dest='learnC', type=float, default=.0031,
                         help='Rate of learning on Convolutional Layers.')
-    parser.add_argument('--learnF', dest='learnF', default=.0015,
+    parser.add_argument('--learnF', dest='learnF', type=float, default=.0015,
                         help='Rate of learning on Fully-Connected Layers.')
-    parser.add_argument('--momentum', dest='momentum', default=.3,
+    parser.add_argument('--momentum', dest='momentum', type=float, default=.3,
                         help='Momentum rate all layers.')
-    parser.add_argument('--kernel', dest='kernel', default=6,
+    parser.add_argument('--kernel', dest='kernel', type=int, default=6,
                         help='Number of Convolutional Kernels in each Layer.')
-    parser.add_argument('--neuron', dest='neuron', default=120,
+    parser.add_argument('--neuron', dest='neuron', type=int, default=120,
                         help='Number of Neurons in Hidden Layer.')
-    parser.add_argument('--limit', dest='limit', default=5,
+    parser.add_argument('--limit', dest='limit', type=int, default=5,
                         help='Number of runs between validation checks')
-    parser.add_argument('--stop', dest='stop', default=5,
+    parser.add_argument('--stop', dest='stop', type=int, default=5,
                         help='Number of inferior validation checks before ' +
                              'ending')
-    parser.add_argument('--base', dest='base', default='./leNet5',
+    parser.add_argument('--holdout', dest='holdout', type=float, default=.05,
+                        help='Percent of data to be held out for testing.')
+    parser.add_argument('--batch', dest='batchSize', type=int, default=5,
+                        help='Batch size for training and test sets.')
+    parser.add_argument('--base', dest='base', type=str, default='./leNet5',
                         help='Base name of the network output and temp files.')
-    parser.add_argument('--syn', dest='synapse', default=None,
+    parser.add_argument('--syn', dest='synapse', type=str, default=None,
                         help='Load from a previously saved network.')
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
                                      'training and test sets')
@@ -62,7 +66,9 @@ if __name__ == '__main__' :
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
     train, test, labels = datasetUtils.ingestImagery(
-        datasetUtils.pickleDataset(options.data, batchSize=5, log=log),
+        datasetUtils.pickleDataset(
+            options.data, batchSize=options.batchSize, 
+            holdoutPercentage=options.holdout, log=log),
         shared=False, log=log)
     tr = datasetUtils.splitToShared(train, borrow=True)
     te = datasetUtils.splitToShared(test,  borrow=True)
@@ -81,8 +87,8 @@ if __name__ == '__main__' :
         network.addLayer(ConvolutionalLayer(
             layerID='c1', input=input, 
             inputSize=train[0].shape[1:], kernelSize=(options.kernel,1,5,5),
-            downsampleFactor=(2,2), randomNumGen=rng,
-            learningRate=float(options.learnC)))
+            downsampleFactor=(2,2), randomNumGen=rng, 
+            learningRate=options.learnC))
 
         # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
         # this way we don't combine the channels kernels we created in 
@@ -93,22 +99,22 @@ if __name__ == '__main__' :
             inputSize=network.getNetworkOutputSize(), 
             kernelSize=(options.kernel,options.kernel,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
-            learningRate=float(options.learnC)))
+            learningRate=options.learnC))
 
         # add fully connected layers
         network.addLayer(ContiguousLayer(
             layerID='f3', input=network.getNetworkOutput().flatten(2),
             inputSize=(network.getNetworkOutputSize()[0], 
                        reduce(mul, network.getNetworkOutputSize()[1:])),
-            numNeurons=int(options.neuron), learningRate=float(options.learnF),
+            numNeurons=options.neuron, learningRate=options.learnF,
             randomNumGen=rng))
         network.addLayer(ContiguousLayer(
             layerID='f4', input=network.getNetworkOutput(),
             inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
-            learningRate=float(options.learnF), randomNumGen=rng))
+            learningRate=options.learnF, randomNumGen=rng))
 
     globalCount = lastBest = degradationCount = 0
-    numEpochs = int(options.limit)
+    numEpochs = options.limit
     runningAccuracy = 0.0
     lastSave = ''
     while True :
