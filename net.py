@@ -28,13 +28,17 @@ class ClassifierNetwork () :
         dict = self.__dict__.copy()
         # remove the functions -- they will be rebuilt JIT
         if '_classify' in dict : del dict['_classify']
+        if '_classifyAndSoftmax' in dict : del dict['_classifyAndSoftmax']
         # remove the profiler as it is not robust to distributed processing
         dict['_profiler'] = None
         return dict
     def __setstate__(self, dict) :
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
-        if hasattr(self, '_classify') : delattr(self, '_classify')
+        if hasattr(self, '_classify') : 
+            delattr(self, '_classify')
+        if hasattr(self, '_classifyAndSoftmax') : 
+            delattr(self, '_classifyAndSoftmax')
         # use the current constructor-supplied profiler --
         # this ensures the profiler is setup for the current system
         tmp = self._profiler
@@ -125,6 +129,8 @@ class ClassifierNetwork () :
         self._outClass = t.argmax(self._out, axis=1)
         self._classify = theano.function([self._layers[0].input],
                                          self._outClass)
+        self._classifyAndSoftmax = theano.function([self._layers[0].input],
+                                                   [self._outClass, self._out])
         self._endProfile()
     def classify (self, inputs) :
         '''Classify the given inputs. The input is assumed to be 
@@ -140,6 +146,22 @@ class ClassifierNetwork () :
         classIndex = self._classify(inputs)
         self._endProfile()
         return classIndex
+    def classifyAndSoftmax (self, inputs) :
+        '''Classify the given inputs. The input is assumed to be 
+           numpy.ndarray with dimensions specified by the first layer of the 
+           network.
+
+           return : (classification index, softmax vector)
+        '''
+        self._startProfile('Classifying the Inputs', 'debug')
+        if not hasattr(self, '_classifyAndSoftmax') :
+            self.finalizeNetwork()
+
+        # activating the last layer triggers all previous 
+        # layers due to dependencies we've enforced
+        classIndex, softmax = self._classifyAndSoftmax(inputs)
+        self._endProfile()
+        return classIndex, softmax
 
 class TrainerNetwork (ClassifierNetwork) :
     '''This network allows for training data on a theano.shared wrapped
@@ -262,6 +284,7 @@ class TrainerNetwork (ClassifierNetwork) :
         # classification labeling. If the expectedOutput is not [0,1], Doc
         # Brown will hit you with a time machine.
         expectedOutputs = t.imatrix('expectedOutputs')
+    
         nll = t.mean(-expectedOutputs * t.log(self._out) - 
                      (1-expectedOutputs) * t.log(1-self._out))
         nllPer = t.mean(-expectedOutputs * t.log(self._out) - 
@@ -280,7 +303,6 @@ class TrainerNetwork (ClassifierNetwork) :
         # built for dense outputs and is computationally stable at small errors
         elif self._regularization == 'L2' :
             reg = sum([abs(w ** 2).sum() for w in self._weights]) * regSF
-
 
         # create the function for back propagation of all layers --
         # this is combined for convenience

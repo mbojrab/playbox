@@ -78,8 +78,8 @@ class ConvolutionalLayer(Layer) :
         pooling = max_pool_2d(convolve, self.downsampleFactor, True)
 
         # the output buffer is now connected to a sequence of operations
-        self.output = tanh(pooling + 
-                           self._thresholds.dimshuffle('x', 0, 'x', 'x'))
+        out = pooling + self._thresholds.dimshuffle('x', 0, 'x', 'x')
+        self.output = out if activation is None else activation(out)
 
         # we can call this method to activate the layer
         self.activate = function([self.input], self.output)

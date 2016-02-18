@@ -284,6 +284,8 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
 
     while (epoch < n_epochs) and (not done_looping):
         epoch = epoch + 1
+        import time
+        start = time.time()
         for minibatch_index in xrange(n_train_batches):
 
             iter = (epoch - 1) * n_train_batches + minibatch_index
@@ -328,6 +330,7 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
             if patience <= iter:
                 done_looping = True
                 break
+        print 'Running Epoch[' + str(epoch) + ']: ' + str(time.time() - start) + 's' 
 
     end_time = timeit.default_timer()
     print('Optimization complete.')

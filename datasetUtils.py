@@ -89,14 +89,16 @@ def readImage(image, log=None) :
     if log is not None :
         log.debug('Openning Image [' + image + ']')
     img = Image.open(image)
-    if img.mode == 'RBG' :
+    if img.mode == 'RBG' or img.mode == 'RGB' :
         # channels are interleaved by band
         a = numpy.concatenate((img.split()), dtype=theano.config.floatX)
-        return numpy.resize(a, (3, img.size[1], img.size[0]))
+        a = numpy.resize(a, (3, img.size[1], img.size[0]))
+        return a if img.mode == 'RGB' else a[[0,2,1],:,:]
     elif img.mode == 'L' :
         # just one channel
         a = numpy.asarray(img.getdata(), dtype=theano.config.floatX)
         return numpy.resize(a, (1, img.size[1], img.size[0]))
+
 def makeMiniBatch(x, batchSize=1, log=None) :
     '''Deinterleave the data and labels. Resize so we can use batched learning.
        x         : numpy.ndarray containing tuples of elements
@@ -127,6 +129,7 @@ def makeMiniBatch(x, batchSize=1, log=None) :
     tempLabel = numpy.resize(numpy.asarray(temp[1::2], dtype='int32'),
                              (numBatches, batchSize))
     return tempData, tempLabel
+
 def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
                   batchSize=1, log=None) :
     '''Create a pickle out of a directory structure. The directory structure

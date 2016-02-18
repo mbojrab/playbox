@@ -4,6 +4,7 @@ from contiguousLayer import ContiguousLayer
 from convolutionalLayer import ConvolutionalLayer
 import datasetUtils, os, argparse, logging
 from time import time
+from theano.tensor.nnet import relu as sigmoid
 
 '''
 '''
@@ -25,10 +26,9 @@ if __name__ == '__main__' :
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
                         help='Number of Neurons in Hidden Layer.')
     parser.add_argument('--limit', dest='limit', type=int, default=5,
-                        help='Number of runs between validation checks')
+                        help='Number of runs between validation checks.')
     parser.add_argument('--stop', dest='stop', type=int, default=5,
-                        help='Number of inferior validation checks before ' +
-                             'ending')
+                        help='Number of inferior validation checks to end.')
     parser.add_argument('--holdout', dest='holdout', type=float, default=.05,
                         help='Percent of data to be held out for testing.')
     parser.add_argument('--batch', dest='batchSize', type=int, default=5,
@@ -70,6 +70,7 @@ if __name__ == '__main__' :
             options.data, batchSize=options.batchSize, 
             holdoutPercentage=options.holdout, log=log),
         shared=False, log=log)
+
     tr = datasetUtils.splitToShared(train, borrow=True)
     te = datasetUtils.splitToShared(test,  borrow=True)
 
@@ -87,7 +88,7 @@ if __name__ == '__main__' :
         network.addLayer(ConvolutionalLayer(
             layerID='c1', input=input, 
             inputSize=train[0].shape[1:], kernelSize=(options.kernel,1,5,5),
-            downsampleFactor=(2,2), randomNumGen=rng, 
+            downsampleFactor=(2,2), randomNumGen=rng,
             learningRate=options.learnC))
 
         # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
