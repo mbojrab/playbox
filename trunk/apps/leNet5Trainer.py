@@ -1,12 +1,14 @@
 import theano.tensor as t
-from net import TrainerNetwork as Net
-from contiguousLayer import ContiguousLayer
-from convolutionalLayer import ConvolutionalLayer
-import datasetUtils, os, argparse, logging
+from nn.net import TrainerNetwork as Net
+from nn.contiguousLayer import ContiguousLayer
+from nn.convolutionalLayer import ConvolutionalLayer
+from nn.datasetUtils import ingestImagery, pickleDataset, splitToShared
+import os, argparse, logging
 from time import time
-from theano.tensor.nnet import relu as sigmoid
 
-'''
+'''This is a simple network in the topology of leNet5 the well-known
+   MNIST dataset trainer from Yann LeCun. This is capable of training other
+   datasets, however the sizing must be correct.
 '''
 if __name__ == '__main__' :
 
@@ -65,14 +67,13 @@ if __name__ == '__main__' :
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
-    train, test, labels = datasetUtils.ingestImagery(
-        datasetUtils.pickleDataset(
+    train, test, labels = ingestImagery(pickleDataset(
             options.data, batchSize=options.batchSize, 
             holdoutPercentage=options.holdout, log=log),
         shared=False, log=log)
 
-    tr = datasetUtils.splitToShared(train, borrow=True)
-    te = datasetUtils.splitToShared(test,  borrow=True)
+    tr = splitToShared(train, borrow=True)
+    te = splitToShared(test,  borrow=True)
 
     # create the network -- LeNet-5
     network = Net(train, te, regType='', log=log)
