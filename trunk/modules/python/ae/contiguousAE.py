@@ -12,11 +12,14 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
 
        If the decoded message matches the original input, the encoders is
        considered lossless. Otherwise the loss is calculated and the encoder 
-       is updated, so it can better encode the input when encountered again. 
+       is updated, so it can better encode the input when encountered again.
+       Over time the object will extract regular patterns in the data which
+       are frequently encountered.
 
        CAEs can be used to initialize a Neural Network in a greedy layerwise
-       fashion. This allows networks to encode regular patterns using 
-       non-labeled datasets.
+       fashion. This should be used to better regularize the weight 
+       initialization, and can be used when unlabeled data far outweighs
+       the amount of labeled.
 
        layerID          : unique name identifier for this layer
        input            : the input buffer for this layer
