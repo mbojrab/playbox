@@ -1,8 +1,8 @@
-from nn.contiguousLayer import ContiguousLayer
 import numpy as np
 from theano import config, shared, dot, function
 import theano.tensor as t
-from encoder import AutoEncoder
+from ae.encoder import AutoEncoder
+from nn.contiguousLayer import ContiguousLayer
 
 class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
     '''This class describes a Contractive AutoEncoder (CAE). This is a 
@@ -78,10 +78,9 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
 
         # create the negative log likelihood function --
         # this is our cost function with respect to the original input
-        self._nll = \
-            t.mean(-t.sum(self.input * t.log(self._decodedInput) +
-                          (1 - self.input) * t.log(1 - self._decodedInput), 
-                          axis=1))
+        self._nll = t.mean(-t.sum(self.input * t.log(self._decodedInput) +
+                           (1 - self.input) * t.log(1 - self._decodedInput), 
+                           axis=1))
 
         gradients = t.grad(self._nll + self._jacobianCost, self.getWeights())
         self._updates = [(weights, weights - learningRate * gradient)
@@ -104,3 +103,46 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
     def train(self, image) :
         self._trainLayer(image)
 
+if __name__ == '__main__' :
+    import argparse, logging
+    from nn.datasetUtils import ingestImagery, pickleDataset
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--log', dest='logfile', type=str, default=None,
+                        help='Specify log output file.')
+    parser.add_argument('--level', dest='level', default='INFO', type=str, 
+                        help='Log Level.')
+    parser.add_argument('--contraction', dest='contraction', default='INFO', 
+                        type=str, help='Rate of contraction.')
+    parser.add_argument('--learn', dest='learn', type=float, default=.0031,
+                        help='Rate of learning on AutoEncoder.')
+    parser.add_argument('--neuron', dest='neuron', type=int, default=120,
+                        help='Number of Neurons in Hidden Layer.')
+    parser.add_argument('data', help='Directory or pkl.gz file for the ' +
+                                     'training and test sets')
+    options = parser.parse_args()
+
+    # setup the logger
+    log = logging.getLogger('CAE: ' + options.data)
+    log.setLevel(options.level.upper())
+    formatter = logging.Formatter('%(levelname)s - %(message)s')
+    stream = logging.StreamHandler()
+    stream.setLevel(options.level.upper())
+    stream.setFormatter(formatter)
+    log.addHandler(stream)
+
+    # NOTE: The pickleDataset will silently use previously created pickles if
+    #       one exists (for efficiency). So watch out for stale pickles!
+    train, test, labels = ingestImagery(pickleDataset(
+            options.data, batchSize=1, 
+            holdoutPercentage=0, log=log), shared=False, log=log)
+    vectorized = (train[0].shape[0], train[0].shape[3] * train[0].shape[4])
+    train[0] = np.reshape(train[0], vectorized)
+    print train[0].shape
+
+    input = t.fmatrix()
+    ae = ContractiveAutoEncoder('cae', input, options.neuron, options.learn,
+                                options.contraction)
+    for ii in range(10) :
+        for jj in range(len(train[0])) :
+            ae.train(train[0][jj])
