@@ -3,42 +3,18 @@ from profiler import Profiler
 import theano.tensor as t
 import theano, cPickle, gzip
 
-class ClassifierNetwork () :
-    '''The ClassifierNetwork object allows the user to build multi-layer neural
-       networks of various topologies easily. This class provides users with 
-       functionality to load a trained Network from disk and begin classifying
-       inputs. 
-
-       filepath : Path to an already trained network on disk 
-                  'None' creates randomized weighting
-       log      : Logger to use
-    '''
-    def __init__ (self, filepath=None, log=None) :
-        self._profiler = Profiler(log,
-                                  'NeuralNet', 
+class Network () :
+    def __init__ (self, log=None) :
+        self._profiler = Profiler(log, 'NeuralNet', 
                                   './NeuralNet-Profile.xml') if \
                                   log is not None else None
         self._layers = []
-        self._weights = []
-        self._learningRates = []
-        if filepath is not None :
-            self.load(filepath)
-
     def __getstate__(self) :
         dict = self.__dict__.copy()
-        # remove the functions -- they will be rebuilt JIT
-        if '_classify' in dict : del dict['_classify']
-        if '_classifyAndSoftmax' in dict : del dict['_classifyAndSoftmax']
         # remove the profiler as it is not robust to distributed processing
         dict['_profiler'] = None
         return dict
     def __setstate__(self, dict) :
-        # remove any current functions from the object so we force the
-        # theano functions to be rebuilt with the new buffers
-        if hasattr(self, '_classify') : 
-            delattr(self, '_classify')
-        if hasattr(self, '_classifyAndSoftmax') : 
-            delattr(self, '_classifyAndSoftmax')
         # use the current constructor-supplied profiler --
         # this ensures the profiler is setup for the current system
         tmp = self._profiler
@@ -53,7 +29,6 @@ class ClassifierNetwork () :
     def _listify(self, data) :
         if data is None : return []
         else : return data if isinstance(data, list) else [data]
-
     def getNetworkInput(self) :
         '''Return the first layer's input'''
         if len(self._layers) == 0 :
@@ -80,6 +55,44 @@ class ClassifierNetwork () :
             raise IndexError('Network must have at least one layer' +
                              'to call getNetworkOutputSize().')
         return self._layers[-1].getOutputSize()
+
+class ClassifierNetwork (Network) :
+    '''The ClassifierNetwork object allows the user to build multi-layer neural
+       networks of various topologies easily. This class provides users with 
+       functionality to load a trained Network from disk and begin classifying
+       inputs. 
+
+       filepath : Path to an already trained network on disk 
+                  'None' creates randomized weighting
+       log      : Logger to use
+    '''
+    def __init__ (self, filepath=None, log=None) :
+        Network.__init__(self, log)
+        self._weights = []
+        self._learningRates = []
+        if filepath is not None :
+            self.load(filepath)
+
+    def __getstate__(self) :
+        dict = self.__dict__.copy()
+        # remove the functions -- they will be rebuilt JIT
+        if '_classify' in dict : del dict['_classify']
+        if '_classifyAndSoftmax' in dict : del dict['_classifyAndSoftmax']
+        # remove the profiler as it is not robust to distributed processing
+        dict['_profiler'] = None
+        return dict
+    def __setstate__(self, dict) :
+        # remove any current functions from the object so we force the
+        # theano functions to be rebuilt with the new buffers
+        if hasattr(self, '_classify') : 
+            delattr(self, '_classify')
+        if hasattr(self, '_classifyAndSoftmax') : 
+            delattr(self, '_classifyAndSoftmax')
+        # use the current constructor-supplied profiler --
+        # this ensures the profiler is setup for the current system
+        tmp = self._profiler
+        self.__dict__.update(dict)
+        self._profiler = tmp
     def load(self, filepath) :
         '''Load the network from disk.
            TODO: This should also support input from Synapse file
@@ -284,7 +297,7 @@ class TrainerNetwork (ClassifierNetwork) :
         # classification labeling. If the expectedOutput is not [0,1], Doc
         # Brown will hit you with a time machine.
         expectedOutputs = t.imatrix('expectedOutputs')
-    
+
         nll = t.mean(-expectedOutputs * t.log(self._out) - 
                      (1-expectedOutputs) * t.log(1-self._out))
         nllPer = t.mean(-expectedOutputs * t.log(self._out) - 

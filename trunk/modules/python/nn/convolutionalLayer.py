@@ -2,7 +2,6 @@ from layer import Layer
 import numpy as np
 from theano.tensor import tanh
 from theano import shared, config, function
-from theano.tensor import grad
 
 class ConvolutionalLayer(Layer) :
     '''This class describes a Convolutional Neural Layer which specifies
@@ -108,10 +107,3 @@ class ConvolutionalLayer(Layer) :
         return (fShape[0], fShape[1],
                 fShape[2] / self.downsampleFactor[0],
                 fShape[3] / self.downsampleFactor[1])
-
-    def activate (self, input) :
-        self.activate(input)
-        return self.output
-
-    def buildBackPropagate (self, cost) :
-        self.grads = grad(cost, [self.W, self.b])

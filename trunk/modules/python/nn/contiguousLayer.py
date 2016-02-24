@@ -54,7 +54,7 @@ class ContiguousLayer(Layer) :
 
         out = dot(self.input, self._weights) + self._thresholds
         self.output = out if activation is None else activation(out)
-        self.activation = function([self.input], self.output)
+        self.activate = function([self.input], self.output)
 
     def getWeights(self) :
         '''This allows the network backprop all layers efficiently.'''
@@ -65,42 +65,3 @@ class ContiguousLayer(Layer) :
     def getOutputSize (self) :
         '''(numInputs, number of neurons)'''
         return (self.inputSize[0], self.numNeurons)
-    def activate (self, input) :
-        '''activate the neural layer'''
-        return self.activation(input)
-    def backPropagate (self, cost) :
-        '''Update the weights and thresholds. The grad() method will calculate
-           the error gradient automatically with respect to these weights from
-           the final output. No need to keep track of this for each layer.
-        '''
-        from theano.tensor import grad
-        self._weights -= self._learningRate * grad(cost, self._weights)
-        self._thresholds -= self._learningRate * grad(cost, self._thresholds)
-
-if __name__ == '__main__' :
-    from theano import tensor
-    x = tensor.fmatrix('x')
-    y = tensor.fvector('y')
-
-    imageSize = (28,28)
-    inputSize = np.prod(imageSize)
-    layer = ContiguousLayer('layer0', x, inputSize, 10, .001)
-
-    from numpy.random import RandomState
-    randomNumGen = RandomState(1234)
-    x1 = randomNumGen.uniform(low=-1., high=1.,
-                              size=(1, inputSize)).astype(config.floatX)
-
-    # time the activation
-    from time import time
-    t = time()
-    for i in range(100000) :
-        out = layer.activate(x1)
-    print "total time: " + str(time() - t) + "s"
-
-
-    # time the training
-    t = time()
-    for i in range(100000) :
-        layer.activate(x1)
-    print "total time: " + str(time() - t) + "s"
