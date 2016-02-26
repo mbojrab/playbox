@@ -16,10 +16,11 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
        Over time the object will extract regular patterns in the data which
        are frequently encountered.
 
-       CAEs can be used to initialize a Neural Network in a greedy layerwise
-       fashion. This should be used to better regularize the weight 
-       initialization, and can be used when unlabeled data far outweighs
-       the amount of labeled.
+       CAEs can be stacked and trained in a greedy layerwise manner, and the
+       trained CAEs can be used to initialize a Neural Network into a better
+       regularized state than random initialization. Lastly this technique can
+       be used when the amount of unlabeled data far outweighs the amount of 
+       labeled data.
 
        layerID          : unique name identifier for this layer
        input            : the input buffer for this layer

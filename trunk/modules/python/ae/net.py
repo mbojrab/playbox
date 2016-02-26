@@ -3,8 +3,8 @@ import theano, cPickle, gzip
 from nn.net import Network
 from encoder import AutoEncoder
 
-class StackerNetwork (Network) :
-    '''The StackerNetwork object allows autoencoders to be stacked such that
+class StackedAENetwork (Network) :
+    '''The StackedAENetwork object allows autoencoders to be stacked such that
        the output of one autoencoder becomes the input to another. It creates
        the necessary connections to train the AE in a greedy layerwise manner. 
        The resulting trained AEs can be used to initialize a nn.TrainerNetwork.
