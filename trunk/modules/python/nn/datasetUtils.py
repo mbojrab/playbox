@@ -82,6 +82,11 @@ def ingestImagery(filepath=None, shared=False, log=None) :
     else :
         return train, test, labels
 
+def normalize(v) :
+    '''Normalize a vector.'''
+    minimum, maximum = numpy.amin(v), numpy.amax(v)
+    return (v - minimum) / (maximum - minimum)
+
 def readImage(image, log=None) :
     '''Load the image into memory. It can be any type supported by PIL
     '''
@@ -92,12 +97,12 @@ def readImage(image, log=None) :
     if img.mode == 'RBG' or img.mode == 'RGB' :
         # channels are interleaved by band
         a = numpy.concatenate((img.split()), dtype=theano.config.floatX)
-        a = numpy.resize(a, (3, img.size[1], img.size[0]))
+        a = numpy.resize(normalize(a), (3, img.size[1], img.size[0]))
         return a if img.mode == 'RGB' else a[[0,2,1],:,:]
     elif img.mode == 'L' :
         # just one channel
         a = numpy.asarray(img.getdata(), dtype=theano.config.floatX)
-        return numpy.resize(a, (1, img.size[1], img.size[0]))
+        return numpy.resize(normalize(a), (1, img.size[1], img.size[0]))
 
 def makeMiniBatch(x, batchSize=1, log=None) :
     '''Deinterleave the data and labels. Resize so we can use batched learning.

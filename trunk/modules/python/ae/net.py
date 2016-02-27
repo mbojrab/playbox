@@ -1,7 +1,8 @@
 import theano.tensor as t
 import theano, cPickle, gzip
 from nn.net import Network
-from encoder import AutoEncoder
+from ae.encoder import AutoEncoder
+import numpy as np
 
 class StackedAENetwork (Network) :
     '''The StackedAENetwork object allows autoencoders to be stacked such that
@@ -15,7 +16,9 @@ class StackedAENetwork (Network) :
     '''
     def __init__ (self, train, log=None) :
         Network.__init__ (self, log)
+        self._indexVar = t.lscalar('index')
         self._trainData, self._trainLabels = train
+        self._numTrainBatches = self._trainLabels.get_value(borrow=True).shape[0]
         self._greedyTrainer = []
 
     def addLayer(self, encoder) :
@@ -33,12 +36,14 @@ class StackedAENetwork (Network) :
 
         # all layers start with the input original input, however are updated
         # in a layerwise manner.
-        out, update = encoder.getUpdates()
+        out, updates = encoder.getUpdates()
         self._greedyTrainer.append(
-            theano.function(self.getNetworkInput(), out, updates=update))
+            theano.function([self._indexVar], out, updates=updates,
+                            givens={self.getNetworkInput() : 
+                                    self._trainData[self._indexVar]}))
         self._endProfile()
 
-    def train(self, layerIndex, index, inputs) :
+    def train(self, layerIndex, index) :
         '''Train the network against the pre-loaded inputs. This accepts
            a batch index into the pre-compiled input set.
            layerIndex : specify which layer to train
@@ -54,10 +59,11 @@ class StackedAENetwork (Network) :
 
         # train the input --
         # the user decides if this is online or batch training
-        self._greedyTrainer[layerIndex](inputs)
-        #self._greedyTrainer[layerIndex](index)
+        ret = self._greedyTrainer[layerIndex](index)
 
         self._endProfile()
+        return ret
+
     def trainEpoch(self, layerIndex, globalEpoch, numEpochs=1) :
         '''Train the network against the pre-loaded inputs for a user-specified
            number of epochs.
@@ -65,10 +71,78 @@ class StackedAENetwork (Network) :
                          trained
            numEpochs   : number of epochs to train this round before stopping
         '''
+        globCost = []
         for localEpoch in range(numEpochs) :
             self._startProfile('Running Epoch [' + 
                                str(globalEpoch + localEpoch) + ']', 'info')
-            for ii in range(self._numTrainBatches) :
-                self.train(layerIndex, ii, self._trainData[ii])
+            locCost = []
+            for ii in range(self._numTrainBatches//100) :
+                locCost.append(self.train(layerIndex, ii))
+
+            locCost = np.mean(locCost, axis=0)
+            self._startProfile('Epoch Cost: ' + str(locCost[0]) + ' - '\
+                               'Epoch Jacob: ' + str(locCost[1]), 'info')
+            globCost.append(locCost)
             self._endProfile()
-        return globalEpoch + numEpochs
+            self._endProfile()
+        return globalEpoch + numEpochs, globCost
+
+    def writeWeights(self) :
+        for layer in self._layers :
+            layer.writeWeights()
+
+
+if __name__ == '__main__' :
+    import argparse, logging
+    from nn.datasetUtils import ingestImagery, pickleDataset, splitToShared
+    from contiguousAE import ContractiveAutoEncoder
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--log', dest='logfile', type=str, default=None,
+                        help='Specify log output file.')
+    parser.add_argument('--level', dest='level', default='info', type=str, 
+                        help='Log Level.')
+    parser.add_argument('--contraction', dest='contraction', default=0.1, 
+                        type=float, help='Rate of contraction.')
+    parser.add_argument('--learn', dest='learn', type=float, default=0.01,
+                        help='Rate of learning on AutoEncoder.')
+    parser.add_argument('--neuron', dest='neuron', type=int, default=100,
+                        help='Number of Neurons in Hidden Layer.')
+    parser.add_argument('data', help='Directory or pkl.gz file for the ' +
+                                     'training and test sets')
+    options = parser.parse_args()
+
+    # setup the logger
+    log = logging.getLogger('CAE: ' + options.data)
+    log.setLevel(options.level.upper())
+    formatter = logging.Formatter('%(levelname)s - %(message)s')
+    stream = logging.StreamHandler()
+    stream.setLevel(options.level.upper())
+    stream.setFormatter(formatter)
+    log.addHandler(stream)
+    if options.logfile is not None :
+        logFile = logging.FileHandler(options.logfile)
+        logFile.setLevel(options.level.upper())
+        logFile.setFormatter(formatter)
+        log.addHandler(logFile)
+
+    # NOTE: The pickleDataset will silently use previously created pickles if
+    #       one exists (for efficiency). So watch out for stale pickles!
+    train, test, labels = ingestImagery(pickleDataset(
+            options.data, batchSize=100, 
+            holdoutPercentage=0, log=log), shared=False, log=log)
+    vectorized = (train[0].shape[0], train[0].shape[1], 
+                  train[0].shape[3] * train[0].shape[4])
+    train = (np.reshape(train[0], vectorized), train[1])
+
+    network = StackedAENetwork(splitToShared(train), log)
+    input = t.fmatrix('input')
+    network.addLayer(ContractiveAutoEncoder(
+        'cae', input, (vectorized[1], vectorized[2]),
+        options.neuron, options.learn, options.contraction))
+
+    globalEpoch = 0
+    for ii in range(100) :
+        globalEpoch, globalCost = network.trainEpoch(0, globalEpoch)
+    network.writeWeights()
+    del network

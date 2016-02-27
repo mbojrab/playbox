@@ -27,8 +27,10 @@ class ContiguousLayer(Layer) :
 
         # store the input buffer
         self.input = input
-        self.inputSize = inputSize if len(inputSize) == 2 else (1, inputSize)
-        self.numNeurons = numNeurons
+        self._inputSize = inputSize
+        if isinstance(self._inputSize, long) or len(self._inputSize) is not 2 :
+            self._inputSize = (1, inputSize)
+        self._numNeurons = numNeurons
 
         # setup initial values for the weights
         if initialWeights is None :
@@ -38,9 +40,9 @@ class ContiguousLayer(Layer) :
                randomNumGen = RandomState(1234)
 
             initialWeights = np.asarray(randomNumGen.uniform(
-                low=-np.sqrt(6. / (self.inputSize[1] + self.numNeurons)),
-                high=np.sqrt(6. / (self.inputSize[1] + self.numNeurons)),
-                size=(self.inputSize[1], self.numNeurons)),
+                low=-np.sqrt(6. / (self._inputSize[1] + self._numNeurons)),
+                high=np.sqrt(6. / (self._inputSize[1] + self._numNeurons)),
+                size=(self._inputSize[1], self._numNeurons)),
                 dtype=config.floatX)
             if activation == sigmoid :
                 initialWeights *= 4.
@@ -48,7 +50,7 @@ class ContiguousLayer(Layer) :
 
         # setup initial values for the thresholds
         if initialThresholds is None :
-            initialThresholds = np.zeros((self.numNeurons,),
+            initialThresholds = np.zeros((self._numNeurons,),
                                          dtype=config.floatX)
         self._thresholds = shared(value=initialThresholds, borrow=True)
 

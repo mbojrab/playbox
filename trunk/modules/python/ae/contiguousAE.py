@@ -51,12 +51,12 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
                                  initialWeights=initialHidThresh,
                                  activation=activation, 
                                  randomNumGen=randomNumGen)
-        AutoEncoder.__init__(contractionRate)
+        AutoEncoder.__init__(self, contractionRate)
         self._weightsBack = self._weights.T
 
         # setup initial values for the hidden thresholds
         if initialVisThresh is None :
-            initialVisThresh = np.zeros((self.inputSize[1],), 
+            initialVisThresh = np.zeros((self._inputSize[1],), 
                                         dtype=config.floatX)
         self._thresholdsBack = shared(value=initialVisThresh, borrow=True)
 
@@ -71,11 +71,11 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
 
         # compute the jacobian cost of the reconstructed input
         jacobianMat = t.reshape(self.output * (1 - self.output),
-                                (self.inputSize[0], 1, self.numNeurons)) * \
+                                (self._inputSize[0], 1, self._numNeurons)) * \
                       t.reshape(self._weights, 
-                                (1, self.numNeurons, self.inputSize[1]))
+                                (1, self._inputSize[1], self._numNeurons))
         self._jacobianCost = (t.mean(t.sum(jacobianMat ** 2) // 
-                             self.inputSize[0])) * self._contractionFactor
+                             self._inputSize[0])) * self._contractionRate
 
         # create the negative log likelihood function --
         # this is our cost function with respect to the original input
@@ -91,9 +91,9 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
         # TODO: this needs to be stackable and take the input to the first
         #       layer, not just the input of this layer. This will ensure
         #       the other layers are activated to get the input to this layer
-        self._trainLayer = t.function([self.input],
-                                      [self._jacobianCost, self._nll],
-                                      updates=self._updates)
+        self._trainLayer = function([self.input], 
+                                    [self._jacobianCost, self._nll],
+                                    updates=self._updates)
 
     def getWeights(self) :
         '''Update to account for the decode thresholds.'''
@@ -101,11 +101,22 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
     def getUpdates(self) :
         '''This allows the Stacker to build the layerwise training.'''
         return ([self._jacobianCost, self._nll], self._updates)
+
+    # DEBUG: For Debugging purposes only 
     def train(self, image) :
-        self._trainLayer(image)
+        return self._trainLayer(image)
+    # DEBUG: For Debugging purposes only 
+    def writeWeights(self) :
+        import PIL.Image as Image
+        from utils import tile_raster_images
+        img = Image.fromarray(tile_raster_images(
+        X=self._weights.get_value(borrow=True).T,
+        img_shape=(28, 28), tile_shape=(10, 10),
+        tile_spacing=(1, 1)))
+        img.save('cae_filters.png')
 
 if __name__ == '__main__' :
-    import argparse, logging
+    import argparse, logging, time
     from nn.datasetUtils import ingestImagery, pickleDataset
 
     parser = argparse.ArgumentParser()
@@ -113,11 +124,11 @@ if __name__ == '__main__' :
                         help='Specify log output file.')
     parser.add_argument('--level', dest='level', default='INFO', type=str, 
                         help='Log Level.')
-    parser.add_argument('--contraction', dest='contraction', default='INFO', 
-                        type=str, help='Rate of contraction.')
-    parser.add_argument('--learn', dest='learn', type=float, default=.0031,
+    parser.add_argument('--contraction', dest='contraction', default=0.1, 
+                        type=float, help='Rate of contraction.')
+    parser.add_argument('--learn', dest='learn', type=float, default=0.01,
                         help='Rate of learning on AutoEncoder.')
-    parser.add_argument('--neuron', dest='neuron', type=int, default=120,
+    parser.add_argument('--neuron', dest='neuron', type=int, default=500,
                         help='Number of Neurons in Hidden Layer.')
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
                                      'training and test sets')
@@ -135,15 +146,20 @@ if __name__ == '__main__' :
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
     train, test, labels = ingestImagery(pickleDataset(
-            options.data, batchSize=1, 
+            options.data, batchSize=100, 
             holdoutPercentage=0, log=log), shared=False, log=log)
-    vectorized = (train[0].shape[0], train[0].shape[3] * train[0].shape[4])
-    train[0] = np.reshape(train[0], vectorized)
-    print train[0].shape
+    vectorized = (train[0].shape[0], train[0].shape[1], 
+                  train[0].shape[3] * train[0].shape[4])
+    train = (np.reshape(train[0], vectorized), train[1])
 
-    input = t.fmatrix()
-    ae = ContractiveAutoEncoder('cae', input, options.neuron, options.learn,
+    index = t.lscalar()
+    ae = ContractiveAutoEncoder('cae', input, 
+                                (train[0].shape[1], train[0].shape[2]),
+                                options.neuron, options.learn,
                                 options.contraction)
     for ii in range(10) :
-        for jj in range(len(train[0])) :
+        start = time.time()
+        for jj in range(2) :
             ae.train(train[0][jj])
+        print 'Epoch [' + str(ii) + ']: ' + str(ae.train(train[0][0])) + \
+              ' ' + str(time.time() - start) + 's'

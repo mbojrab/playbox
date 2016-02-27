@@ -1,11 +1,6 @@
 import numpy as np
 from net import ClassifierNetwork
 
-def normalize(v) :
-    '''Normalize a vector.'''
-    minimum, maximum = np.amin(confidence), np.amax(confidence)
-    return (v - minimum) / (maximum - minimum)
-
 def createClassMap(network, image) :
     '''This is an exhaustive search algorithm which checks all available 
        sub-regions. This creates two matrices of the classifications and 
