@@ -104,23 +104,15 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         self._decodedInput = out if activation is None else activation(out)
         self._reconstruction = function([self.input], self._decodedInput)
 
-        # compute the jacobian cost of the reconstructed input
-        outSize = self.getOutputSize()
-        resizedOutput = (outSize[0] * outSize[1], 1, outSize[2], outSize[3])
-        jacobianMat = conv2d(t.reshape(self.output * (1 - self.output),
-                                       resizedOutput),
-                             self._weights, resizedOutput, 
-                             self.getKernelSize(), border_mode='valid')
-        self._jacobianCost = (t.mean(t.sum(jacobianMat ** 2) //
-                             self._inputSize[0])) * self._contractionRate
-
         # create the negative log likelihood function --
         # this is our cost function with respect to the original input
+        # NOTE: The jacobian was computed however takes much longer to process
+        #       and does not help convergence or regularization. It was removed
         self._nll = t.mean(-t.sum(self.input * t.log(self._decodedInput) +
                            (1 - self.input) * t.log(1 - self._decodedInput), 
                            axis=1))
 
-        gradients = t.grad(self._nll + self._jacobianCost, self.getWeights())
+        gradients = t.grad(self._nll, self.getWeights())
         self._updates = [(weights, weights - learningRate * gradient)
                          for weights, gradient in zip(self.getWeights(), 
                                                       gradients)]
@@ -128,8 +120,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # TODO: this needs to be stackable and take the input to the first
         #       layer, not just the input of this layer. This will ensure
         #       the other layers are activated to get the input to this layer
-        self._trainLayer = function([self.input], 
-                                    [self._jacobianCost, self._nll],
+        self._trainLayer = function([self.input], self._nll, 
                                     updates=self._updates)
 
     def getWeights(self) :
@@ -137,7 +128,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         return [self._weights, self._thresholds, self._thresholdsBack]
     def getUpdates(self) :
         '''This allows the Stacker to build the layerwise training.'''
-        return ([self._jacobianCost, self._nll], self._updates)
+        return (self._nll, self._updates)
 
     # DEBUG: For Debugging purposes only 
     def train(self, image) :
@@ -190,10 +181,20 @@ if __name__ == '__main__' :
     ae = ConvolutionalAutoEncoder('cae', input, train[0].shape[1:], 
                                   (options.kernel,train[0].shape[2],5,5), 
                                   (2,2))
-    for ii in range(15) :
+    ae.writeWeights(0)
+    for ii in range(100) :
         start = time.time()
         for jj in range(len(train[0])) :
             ae.train(train[0][jj])
-        ae.writeWeights(ii)
+        ae.writeWeights(ii+1)
+
+        import PIL.Image as Image
+        from utils import tile_raster_images
+        img = Image.fromarray(tile_raster_images(
+            X=ae.reconstruction(train[0][0]), img_shape=(28, 28), 
+            tile_shape=(10, 10), tile_spacing=(1, 1)))
+        img.save('cae_filters_reconstructed_nllOnly_' + str(ii+1) + '.png')
+
         print 'Epoch [' + str(ii) + ']: ' + str(ae.train(train[0][0])) + \
               ' ' + str(time.time() - start) + 's'
+
