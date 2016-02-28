@@ -1,14 +1,41 @@
 import numpy as np
-from theano import config, shared, dot, function
+from theano import config, shared, function
 import theano.tensor as t
 from ae.encoder import AutoEncoder
-from nn.contiguousLayer import ContiguousLayer
+from nn.convolutionalLayer import ConvolutionalLayer
+from theano.tensor.nnet.conv import conv2d
 
-class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
-    '''This class describes a Contractive AutoEncoder (CAE). This is a 
-       unsupervised learning technique which encodes an input (feedforward), 
-       and then decodes the output vector by sending backwards through the
-       layer. This attempts to reconstruct the original input. 
+
+def max_unpool_2d(input, upsampleFactor) :
+    '''Perform perforated upsample from paper : 
+       "Image Super-Resolution with Fast Approximate 
+        Convolutional Sparse Coding"
+    '''
+    output_shape = [
+        input.shape[1],
+        input.shape[2] * upsampleFactor[0],
+        input.shape[3] * upsampleFactor[1]
+    ]
+    stride = input.shape[2]
+    offset = input.shape[3]
+    in_dim = stride * offset
+    out_dim = in_dim * np.prod(upsampleFactor)
+
+    upsamp_matrix = t.zeros((in_dim, out_dim))
+    rows = t.arange(in_dim)
+    cols = rows * upsampleFactor[0] + \
+           (rows / stride * upsampleFactor[1] * offset)
+    upsamp_matrix = t.set_subtensor(upsamp_matrix[rows, cols], 1.)
+
+    flat = t.reshape(input, (input.shape[0], output_shape[0], 
+                             input.shape[2] * input.shape[3]))
+    up_flat = t.dot(flat, upsamp_matrix)
+    return t.reshape(up_flat, (input.shape[0], output_shape[0],
+                               output_shape[1], output_shape[2]))
+
+class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
+    '''This class describes a Contractive AutoEncoder (CAE) for a convolutional
+       layer. This differs from the normal CAE 
 
        If the decoded message matches the original input, the encoders is
        considered lossless. Otherwise the loss is calculated and the encoder 
@@ -24,12 +51,11 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
 
        layerID          : unique name identifier for this layer
        input            : the input buffer for this layer
-       inputSize        : number of elements in input buffer
-       numNeurons       : number of neurons in this layer
+       inputSize        : (batch size, channels, rows, columns)
+       kernelSize       : (number of kernels, channels, rows, columns)
+       downsampleFactor : (rowFactor, columnFactor)
        learningRate     : learning rate for all neurons
        contractionRate  : variance (dimensionality) reduction rate
-       initialWeights   : weights to initialize the network
-                          None generates random weights for the layer
        initialHidThresh : thresholds to initialize the forward network
                           None generates random thresholds for the layer
        initialVisThresh : thresholds to initialize the backward network
@@ -38,22 +64,27 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
                           this must be a function with a derivative form
        randomNumGen     : generator for the initial weight values
     '''
-    def __init__ (self, layerID, input, inputSize, numNeurons,
-                  learningRate=0.001, contractionRate=0.01,
+    def __init__ (self, layerID, input, inputSize, kernelSize, 
+                  downsampleFactor, learningRate=0.001, contractionRate=0.01,
                   initialWeights=None, initialHidThresh=None,
                   initialVisThresh=None, activation=t.nnet.sigmoid,
                   randomNumGen=None) :
-        ContiguousLayer.__init__(self, layerID=layerID,
-                                 input=input,
-                                 inputSize=inputSize,
-                                 numNeurons=numNeurons,
-                                 learningRate=learningRate,
-                                 initialWeights=initialWeights,
-                                 initialThresholds=initialHidThresh,
-                                 activation=activation, 
-                                 randomNumGen=randomNumGen)
+        ConvolutionalLayer.__init__(self, layerID=layerID,
+                                    input=input,
+                                    inputSize=inputSize,
+                                    kernelSize=kernelSize,
+                                    downsampleFactor=downsampleFactor,
+                                    learningRate=learningRate,
+                                    initialWeights=initialWeights,
+                                    initialThresholds=initialHidThresh,
+                                    activation=activation, 
+                                    randomNumGen=randomNumGen)
         AutoEncoder.__init__(self, contractionRate)
-        self._weightsBack = self._weights.T
+        kernelSize = self.getKernelSize()
+        kernelBackSize = (kernelSize[1], kernelSize[0], 
+                          kernelSize[2], kernelSize[3])
+        self._weightsBack = t.reshape(self._weights, 
+                                      (kernelBackSize))
 
         # setup initial values for the hidden thresholds
         if initialVisThresh is None :
@@ -66,16 +97,21 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
         # and runs the output back through the network in reverse. The net
         # effect is to reconstruct the input, and ultimately to see how well
         # the network is at encoding the message.
-        out = dot(self.output, self._weightsBack) + self._thresholdsBack
+        unpooling = max_unpool_2d(self.output, self._downsampleFactor)
+        deconvolve = conv2d(unpooling, self._weightsBack, self._inputSize, 
+                            self._kernelSize, border_mode='full')
+        out = deconvolve + self._thresholdsBack.dimshuffle('x', 0, 'x', 'x')
         self._decodedInput = out if activation is None else activation(out)
         self._reconstruction = function([self.input], self._decodedInput)
 
         # compute the jacobian cost of the reconstructed input
-        jacobianMat = t.reshape(self.output * (1 - self.output),
-                                (self._inputSize[0], 1, self._numNeurons)) * \
-                      t.reshape(self._weights, 
-                                (1, self._inputSize[1], self._numNeurons))
-        self._jacobianCost = (t.mean(t.sum(jacobianMat ** 2) // 
+        outSize = self.getOutputSize()
+        resizedOutput = (outSize[0] * outSize[1], 1, outSize[2], outSize[3])
+        jacobianMat = conv2d(t.reshape(self.output * (1 - self.output),
+                                       resizedOutput),
+                             self._weights, resizedOutput, 
+                             self.getKernelSize(), border_mode='valid')
+        self._jacobianCost = (t.mean(t.sum(jacobianMat ** 2) //
                              self._inputSize[0])) * self._contractionRate
 
         # create the negative log likelihood function --
@@ -107,14 +143,14 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
     def train(self, image) :
         return self._trainLayer(image)
     # DEBUG: For Debugging purposes only 
-    def writeWeights(self) :
+    def writeWeights(self, ii) :
         import PIL.Image as Image
         from utils import tile_raster_images
         img = Image.fromarray(tile_raster_images(
-        X=self._weights.get_value(borrow=True).T,
-        img_shape=(28, 28), tile_shape=(10, 10),
+        X=self._weights.get_value(borrow=True),
+        img_shape=(5, 5), tile_shape=(5, 10),
         tile_spacing=(1, 1)))
-        img.save('cae_filters.png')
+        img.save('cae_filters_' + str(ii) + '.png')
 
 if __name__ == '__main__' :
     import argparse, logging, time
@@ -129,8 +165,8 @@ if __name__ == '__main__' :
                         type=float, help='Rate of contraction.')
     parser.add_argument('--learn', dest='learn', type=float, default=0.01,
                         help='Rate of learning on AutoEncoder.')
-    parser.add_argument('--neuron', dest='neuron', type=int, default=500,
-                        help='Number of Neurons in Hidden Layer.')
+    parser.add_argument('--kernel', dest='kernel', type=int, default=6,
+                        help='Number of kernels in Convolutional Layer.')
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
                                      'training and test sets')
     options = parser.parse_args()
@@ -149,18 +185,15 @@ if __name__ == '__main__' :
     train, test, labels = ingestImagery(pickleDataset(
             options.data, batchSize=100, 
             holdoutPercentage=0, log=log), shared=False, log=log)
-    vectorized = (train[0].shape[0], train[0].shape[1], 
-                  train[0].shape[3] * train[0].shape[4])
-    train = (np.reshape(train[0], vectorized), train[1])
 
-    input = t.fmatrix()
-    ae = ContractiveAutoEncoder('cae', input, 
-                                (train[0].shape[1], train[0].shape[2]),
-                                options.neuron, options.learn,
-                                options.contraction)
-    for ii in range(10) :
+    input = t.ftensor4()
+    ae = ConvolutionalAutoEncoder('cae', input, train[0].shape[1:], 
+                                  (options.kernel,train[0].shape[2],5,5), 
+                                  (2,2))
+    for ii in range(15) :
         start = time.time()
-        for jj in range(2) :
+        for jj in range(len(train[0])) :
             ae.train(train[0][jj])
+        ae.writeWeights(ii)
         print 'Epoch [' + str(ii) + ']: ' + str(ae.train(train[0][0])) + \
               ' ' + str(time.time() - start) + 's'
