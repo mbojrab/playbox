@@ -48,7 +48,8 @@ class ConvolutionalLayer(Layer) :
             # create a rng if its needed
             if randomNumGen is None :
                from numpy.random import RandomState
-               randomNumGen = RandomState(1234)
+               from time import time
+               randomNumGen = RandomState(int(time()))
 
             # this creates optimal initial weights by randomizing them
             # to an appropriate range around zero, which leads to better

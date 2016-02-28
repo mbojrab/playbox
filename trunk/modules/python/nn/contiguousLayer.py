@@ -37,7 +37,8 @@ class ContiguousLayer(Layer) :
             # create a rng if its needed
             if randomNumGen is None :
                from numpy.random import RandomState
-               randomNumGen = RandomState(1234)
+               from time import time
+               randomNumGen = RandomState(int(time()))
 
             initialWeights = np.asarray(randomNumGen.uniform(
                 low=-np.sqrt(6. / (self._inputSize[1] + self._numNeurons)),
