@@ -67,25 +67,38 @@ class StackedAENetwork (Network) :
     def trainEpoch(self, layerIndex, globalEpoch, numEpochs=1) :
         '''Train the network against the pre-loaded inputs for a user-specified
            number of epochs.
+
+           layerIndex  : index of the layer to train
            globalEpoch : total number of epochs the network has previously 
                          trained
            numEpochs   : number of epochs to train this round before stopping
         '''
         globCost = []
         for localEpoch in range(numEpochs) :
-            self._startProfile('Running Epoch [' + 
-                               str(globalEpoch + localEpoch) + ']', 'info')
+            layerEpochStr = 'Layer[' + str(layerIndex) + '] Epoch[' + \
+                            str(globalEpoch + localEpoch) + ']'
+            self._startProfile('Running ' + layerEpochStr, 'info')
             locCost = []
             for ii in range(self._numTrainBatches//100) :
                 locCost.append(self.train(layerIndex, ii))
 
             locCost = np.mean(locCost, axis=0)
-            self._startProfile('Epoch Cost: ' + str(locCost[0]) + ' - '\
-                               'Epoch Jacob: ' + str(locCost[1]), 'info')
+            self._startProfile(layerEpochStr + ' Cost: ' + str(locCost[0]) + \
+                               ' - Jacob: ' + str(locCost[1]), 'info')
             globCost.append(locCost)
             self._endProfile()
             self._endProfile()
         return globalEpoch + numEpochs, globCost
+
+    def trainGreedyLayerwise(self, numEpochs=1) :
+        '''Train the entire network against the pre-loaded inputs for a 
+           user-specified number of epochs. This trains all layers for the
+           specified number of epochs before moving to the next layer.
+
+           numEpochs   : number of epochs to train this round before stopping
+        '''
+        for layerIndex in range(self.getNumLayers()) :
+            self.trainEpoch(layerIndex, 0, numEpochs)
 
     def writeWeights(self) :
         for layer in self._layers :
@@ -144,5 +157,5 @@ if __name__ == '__main__' :
     globalEpoch = 0
     for ii in range(100) :
         globalEpoch, globalCost = network.trainEpoch(0, globalEpoch)
-    network.writeWeights()
+    network.writeWeights(0)
     del network

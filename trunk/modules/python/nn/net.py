@@ -29,6 +29,8 @@ class Network () :
     def _listify(self, data) :
         if data is None : return []
         else : return data if isinstance(data, list) else [data]
+    def getNumLayers(self) :
+        return len(self._layers)
     def getNetworkInput(self) :
         '''Return the first layer's input'''
         if len(self._layers) == 0 :

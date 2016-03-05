@@ -1,5 +1,7 @@
 import theano.tensor as t
+from ae.net import StackedAENetwork as Net
 from ae.contiguousAE import ContractiveAutoEncoder
+from ae.convolutionalAE import ConvolutionalAutoEncoder
 from nn.datasetUtils import ingestImagery, pickleDataset, splitToShared
 import os, argparse, logging
 from time import time
@@ -19,14 +21,15 @@ if __name__ == '__main__' :
                         help='Rate of learning on Convolutional Layers.')
     parser.add_argument('--learnF', dest='learnF', type=float, default=.0015,
                         help='Rate of learning on Fully-Connected Layers.')
+    parser.add_argument('--contrF', dest='contrF', type=float, default=.01,
+                        help='Rate of contraction of the latent space on ' +
+                             'Fully-Connected Layers.')
     parser.add_argument('--kernel', dest='kernel', type=int, default=6,
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
                         help='Number of Neurons in Hidden Layer.')
-    parser.add_argument('--limit', dest='limit', type=int, default=5,
-                        help='Number of runs between validation checks.')
-    parser.add_argument('--stop', dest='stop', type=int, default=5,
-                        help='Number of inferior validation checks to end.')
+    parser.add_argument('--epoch', dest='numEpochs', type=int, default=15,
+                        help='Number of epochs to run per layer.')
     parser.add_argument('--holdout', dest='holdout', type=float, default=.05,
                         help='Percent of data to be held out for testing.')
     parser.add_argument('--batch', dest='batchSize', type=int, default=5,
@@ -68,11 +71,8 @@ if __name__ == '__main__' :
             holdoutPercentage=options.holdout, log=log),
         shared=False, log=log)
 
-    tr = splitToShared(train, borrow=True)
-    te = splitToShared(test,  borrow=True)
-
-    # create the network -- LeNet-5
-    network = Net(train, te, regType='', log=log)
+    # create the stacked network -- LeNet-5 (minus the output layer)
+    network = Net(splitToShared(train, borrow=True), log=log)
 
     if options.synapse is not None :
         # load a previously saved network
@@ -81,17 +81,23 @@ if __name__ == '__main__' :
         log.info('Initializing Network...')
         input = t.ftensor4('input')
 
-        # add convolutional layers
-        network.addLayer(ConvolutionalLayer(
+        network.addLayer(ContractiveAutoEncoder(
+            layerID='f3', input=input,
+            inputSize=(train[0].shape[1], train[0].shape[3] * train[0].shape[4]),
+            numNeurons=options.neuron, learningRate=options.learnF,
+            randomNumGen=rng))
+        '''# add convolutional layers
+        network.addLayer(ConvolutionalAutoEncoder(
             layerID='c1', input=input, 
-            inputSize=train[0].shape[1:], kernelSize=(options.kernel,1,5,5),
+            inputSize=train[0].shape[1:], 
+            kernelSize=(options.kernel,train[0].shape[2],5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             learningRate=options.learnC))
 
         # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
         # this way we don't combine the channels kernels we created in 
         # the first layer and destroy our dimensionality
-        network.addLayer(ConvolutionalLayer(
+        network.addLayer(ConvolutionalAutoEncoder(
             layerID='c2',
             input=network.getNetworkOutput(), 
             inputSize=network.getNetworkOutputSize(), 
@@ -100,58 +106,39 @@ if __name__ == '__main__' :
             learningRate=options.learnC))
 
         # add fully connected layers
-        network.addLayer(ContiguousLayer(
+        network.addLayer(ContractiveAutoEncoder(
             layerID='f3', input=network.getNetworkOutput().flatten(2),
             inputSize=(network.getNetworkOutputSize()[0], 
                        reduce(mul, network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, learningRate=options.learnF,
             randomNumGen=rng))
-        network.addLayer(ContiguousLayer(
-            layerID='f4', input=network.getNetworkOutput(),
-            inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
-            learningRate=options.learnF, randomNumGen=rng))
 
-    globalCount = lastBest = degradationCount = 0
-    numEpochs = options.limit
-    runningAccuracy = 0.0
+        '''# the final output layer is removed from the normal NN --
+        # the output layer is special, as it makes decisions about
+        # patterns identified in previous layers, so it should only
+        # be influenced/trained during supervised learning. 
+
+    # train each layer in sequence --
+    # first we pre-train the data and at each epoch, we save it to disk
     lastSave = ''
-    while True :
-        timer = time()
-
-        # run the specified number of epochs
-        globalCount = network.trainEpoch(globalCount, numEpochs)
-        # calculate the accuracy against the test set
-        curAcc = network.checkAccuracy()
-        log.info('Checking Accuracy - {0}s ' \
-                 '\n\tCorrect  : {1}% \n\tIncorrect  : {2}%'.format(
-                 time() - timer, curAcc, (100-curAcc)))
-
-        # check if we've done better
-        if curAcc > runningAccuracy :
-            # reset and save the network
-            degradationCount = 0
-            runningAccuracy = curAcc
-            lastBest = globalCount
-            lastSave = options.base + \
-                       '_learnC' + str(options.learnC) + \
-                       '_learnF' + str(options.learnF) + \
-                       '_momentum' + str(options.momentum) + \
-                       '_kernel' + str(options.kernel) + \
-                       '_neuron' + str(options.neuron) + \
-                       '_epoch' + str(lastBest) + '.pkl.gz'
-            network.save(lastSave)
-        else :
-            # increment the number of poor performing runs
-            degradationCount += 1
-
-        # stopping conditions for regularization
-        if degradationCount > int(options.stop) or runningAccuracy == 100. :
-            break
+    for layerIndex in range(network.getNumLayers()) :
+        globalEpoch = 0
+        globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 
+                                               options.numEpochs)
+        lastSave = options.base + \
+                   '_learnC' + str(options.learnC) + \
+                   '_learnF' + str(options.learnF) + \
+                   '_contrF' + str(options.contrF) + \
+                   '_kernel' + str(options.kernel) + \
+                   '_neuron' + str(options.neuron) + \
+                   '_layer' + str(layerIndex) + \
+                   '_epoch' + str(globalEpoch) + '.pkl.gz'
+        network.save(lastSave)
 
     # rename the network which achieved the highest accuracy
-    bestNetwork = options.base + '_FinalOnHoldOut_' + \
-                  os.path.basename(options.data) + '_epoch' + str(lastBest) + \
-                  '_acc' + str(runningAccuracy) + '.pkl.gz'
+    bestNetwork = options.base + '_PreTrained_' + \
+                  os.path.basename(options.data) + '_epoch' + \
+                  str(options.numEpochs) + '.pkl.gz'
     log.info('Renaming Best Network to [' + bestNetwork + ']')
     if os.path.exists(bestNetwork) :
         os.remove(bestNetwork)

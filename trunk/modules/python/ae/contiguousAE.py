@@ -107,14 +107,14 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
     def train(self, image) :
         return self._trainLayer(image)
     # DEBUG: For Debugging purposes only 
-    def writeWeights(self) :
+    def writeWeights(self, ii) :
         import PIL.Image as Image
-        from utils import tile_raster_images
+        from ae.utils import tile_raster_images
         img = Image.fromarray(tile_raster_images(
         X=self._weights.get_value(borrow=True).T,
         img_shape=(28, 28), tile_shape=(10, 10),
         tile_spacing=(1, 1)))
-        img.save('cae_filters.png')
+        img.save('cae_filters_' + str(ii) + '.png')
 
 if __name__ == '__main__' :
     import argparse, logging, time
@@ -158,9 +158,18 @@ if __name__ == '__main__' :
                                 (train[0].shape[1], train[0].shape[2]),
                                 options.neuron, options.learn,
                                 options.contraction)
-    for ii in range(10) :
+    for ii in range(15) :
         start = time.time()
-        for jj in range(2) :
+        for jj in range(len(train[0])) :
             ae.train(train[0][jj])
+            ae.writeWeights(ii+1)
+
+            import PIL.Image as Image
+            from ae.utils import tile_raster_images
+            img = Image.fromarray(tile_raster_images(
+                X=ae.reconstruction(train[0][0]), img_shape=(28, 28), 
+                tile_shape=(10, 10), tile_spacing=(1, 1)))
+            img.save('cae_filters_reconstructed_nllOnly_' + str(ii+1) + '.png')            
+
         print 'Epoch [' + str(ii) + ']: ' + str(ae.train(train[0][0])) + \
               ' ' + str(time.time() - start) + 's'
