@@ -1,5 +1,5 @@
 import theano.tensor as t
-from ae.net import StackedAENetwork as Net
+from ae.net import StackedAENetwork
 from ae.contiguousAE import ContractiveAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
 from nn.datasetUtils import ingestImagery, pickleDataset, splitToShared
@@ -70,9 +70,10 @@ if __name__ == '__main__' :
             options.data, batchSize=options.batchSize, 
             holdoutPercentage=options.holdout, log=log),
         shared=False, log=log)
+    trainShape = train[0].shape
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = Net(splitToShared(train, borrow=True), log=log)
+    network = StackedAENetwork(splitToShared(train, borrow=True), log=log)
 
     if options.synapse is not None :
         # load a previously saved network
@@ -81,16 +82,11 @@ if __name__ == '__main__' :
         log.info('Initializing Network...')
         input = t.ftensor4('input')
 
-        network.addLayer(ContractiveAutoEncoder(
-            layerID='f3', input=input,
-            inputSize=(train[0].shape[1], train[0].shape[3] * train[0].shape[4]),
-            numNeurons=options.neuron, learningRate=options.learnF,
-            randomNumGen=rng))
-        '''# add convolutional layers
+        # add convolutional layers
         network.addLayer(ConvolutionalAutoEncoder(
             layerID='c1', input=input, 
-            inputSize=train[0].shape[1:], 
-            kernelSize=(options.kernel,train[0].shape[2],5,5),
+            inputSize=trainShape[1:], 
+            kernelSize=(options.kernel,trainShape[2],5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             learningRate=options.learnC))
 
@@ -113,7 +109,7 @@ if __name__ == '__main__' :
             numNeurons=options.neuron, learningRate=options.learnF,
             randomNumGen=rng))
 
-        '''# the final output layer is removed from the normal NN --
+        # the final output layer is removed from the normal NN --
         # the output layer is special, as it makes decisions about
         # patterns identified in previous layers, so it should only
         # be influenced/trained during supervised learning. 

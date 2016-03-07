@@ -98,8 +98,9 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # effect is to reconstruct the input, and ultimately to see how well
         # the network is at encoding the message.
         unpooling = max_unpool_2d(self.output, self._downsampleFactor)
-        deconvolve = conv2d(unpooling, self._weightsBack, self._inputSize, 
-                            self._kernelSize, border_mode='full')
+        deconvolve = conv2d(unpooling, self._weightsBack,
+                            self.getFeatureSize(), kernelBackSize, 
+                            border_mode='full')
         out = deconvolve + self._thresholdsBack.dimshuffle('x', 0, 'x', 'x')
         self._decodedInput = out if activation is None else activation(out)
         self._reconstruction = function([self.input], self._decodedInput)
