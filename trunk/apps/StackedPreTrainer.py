@@ -139,3 +139,6 @@ if __name__ == '__main__' :
     if os.path.exists(bestNetwork) :
         os.remove(bestNetwork)
     os.rename(lastSave, bestNetwork)
+
+    # cleanup the network -- this ensures the profile is written
+    del network
