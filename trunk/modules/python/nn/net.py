@@ -29,6 +29,26 @@ class Network () :
     def _listify(self, data) :
         if data is None : return []
         else : return data if isinstance(data, list) else [data]
+    def save(self, filepath) :
+        '''Save the network to disk.
+           TODO: This should also support output to Synapse file
+        '''
+        self._startProfile('Saving network to disk ['+filepath+']', 'info')
+        if '.pkl.gz' in filepath :
+            with gzip.open(filepath, 'wb') as f :
+                f.write(cPickle.dumps(self.__getstate__(),
+                                      protocol=cPickle.HIGHEST_PROTOCOL))
+        self._endProfile()
+    def load(self, filepath) :
+        '''Load the network from disk.
+           TODO: This should also support input from Synapse file
+        '''
+        self._startProfile('Loading network from disk [' + str(filepath) +
+                           ']', 'info')
+        if '.pkl.gz' in filepath :
+            with gzip.open(filepath, 'rb') as f :
+                self.__setstate__(cPickle.load(f))
+        self._endProfile()
     def getNumLayers(self) :
         return len(self._layers)
     def getNetworkInput(self) :
@@ -95,16 +115,6 @@ class ClassifierNetwork (Network) :
         tmp = self._profiler
         self.__dict__.update(dict)
         self._profiler = tmp
-    def load(self, filepath) :
-        '''Load the network from disk.
-           TODO: This should also support input from Synapse file
-        '''
-        self._startProfile('Loading network from disk [' + str(filepath) +
-                           ']', 'info')
-        if '.pkl.gz' in filepath :
-            with gzip.open(filepath, 'rb') as f :
-                self.__setstate__(cPickle.load(f))
-        self._endProfile()
     def addLayer(self, layer) :
         '''Add a Layer to the network. It is the responsibility of the user
            to connect the current network's output as the input to the next
@@ -239,16 +249,6 @@ class TrainerNetwork (ClassifierNetwork) :
         tmp = self._profiler
         self.__dict__.update(dict)
         self._profiler = tmp
-    def save(self, filepath) :
-        '''Save the network to disk.
-           TODO: This should also support output to Synapse file
-        '''
-        self._startProfile('Saving network to disk ['+filepath+']', 'info')
-        if '.pkl.gz' in filepath :
-            with gzip.open(filepath, 'wb') as f :
-                f.write(cPickle.dumps(self.__getstate__(),
-                                      protocol=cPickle.HIGHEST_PROTOCOL))
-        self._endProfile()
     def finalizeNetwork(self) :
         '''Setup the network based on the current network configuration.
            This creates several network-wide functions so they will be

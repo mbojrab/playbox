@@ -1,5 +1,5 @@
 import theano.tensor as t
-import theano, cPickle, gzip
+import theano
 from nn.net import Network
 from ae.encoder import AutoEncoder
 import numpy as np
@@ -21,6 +21,34 @@ class StackedAENetwork (Network) :
         self._numTrainBatches = self._trainLabels.get_value(borrow=True).shape[0]
         self._greedyTrainer = []
 
+    def __getstate__(self) :
+        dict = self.__dict__.copy()
+        # remove the functions -- they will be rebuilt JIT
+        if '_indexVar' in dict : del dict['_indexVar']
+        if '_trainData' in dict : del dict['_trainData']
+        if '_trainLabels' in dict : del dict['_trainLabels']
+        if '_numTrainBatches' in dict : del dict['_numTrainBatches']
+        if '_greedyTrainer' in dict : del dict['_greedyTrainer']
+        # remove the profiler as it is not robust to distributed processing
+        dict['_profiler'] = None
+        return dict
+    def __setstate__(self, dict) :
+        # remove any current functions from the object so we force the
+        # theano functions to be rebuilt with the new buffers
+        if hasattr(self, '_greedyTrainer') : delattr(self, '_greedyTrainer')
+        self._greedyTrainer = []
+        # use the current constructor-supplied profiler --
+        # this ensures the profiler is setup for the current system
+        tmpProf = self._profiler
+        self.__dict__.update(dict)
+        self._profiler = tmpProf
+        # rebuild the network
+        for encoder in self._layers :
+            out, updates = encoder.getUpdates()
+            self._greedyTrainer.append(
+                theano.function([self._indexVar], out, updates=updates,
+                                givens={self.getNetworkInput() : 
+                                        self._trainData[self._indexVar]}))
     def addLayer(self, encoder) :
         '''Add an autoencoder to the network. It is the responsibility of the 
            user to connect the current network's output as the input to the 
@@ -79,12 +107,17 @@ class StackedAENetwork (Network) :
                             str(globalEpoch + localEpoch) + ']'
             self._startProfile('Running ' + layerEpochStr, 'info')
             locCost = []
-            for ii in range(self._numTrainBatches//100) :
+            for ii in range(self._numTrainBatches) :
                 locCost.append(self.train(layerIndex, ii))
 
             locCost = np.mean(locCost, axis=0)
-            self._startProfile(layerEpochStr + ' Cost: ' + str(locCost[0]) + \
-                               ' - Jacob: ' + str(locCost[1]), 'info')
+            if isinstance(locCost, tuple) :
+                self._startProfile(layerEpochStr + ' Cost: ' + \
+                                   str(locCost[0]) + ' - Jacob: ' + \
+                                   str(locCost[1]), 'info')
+            else :
+                self._startProfile(layerEpochStr + ' Cost: ' + \
+                                   str(locCost), 'info')
             globCost.append(locCost)
             self._endProfile()
             self._endProfile()
@@ -148,7 +181,7 @@ if __name__ == '__main__' :
                   train[0].shape[3] * train[0].shape[4])
     train = (np.reshape(train[0], vectorized), train[1])
 
-    network = StackedAENetwork(splitToShared(train), log)
+    network = StackedAENetwork(splitToShared(train, borrow=True), log)
     input = t.fmatrix('input')
     network.addLayer(ContractiveAutoEncoder(
         'cae', input, (vectorized[1], vectorized[2]),
