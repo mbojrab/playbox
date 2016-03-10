@@ -98,7 +98,8 @@ class ConvolutionalLayer(Layer) :
     def getFeatureSize (self) :
         '''This is the post convolution size of the output.
            (channels, rows, columns)'''
-        return (self._inputSize[0], self._kernelSize[0],
+        return (self._inputSize[0], 
+                self._kernelSize[0],
                 self._inputSize[2] - self._kernelSize[2] + 1,
                 self._inputSize[3] - self._kernelSize[3] + 1)
     def getOutputSize (self) :

@@ -64,7 +64,7 @@ class ContiguousLayer(Layer) :
         return [self._weights, self._thresholds]
     def getInputSize (self) :
         '''(numInputs, pattern size)'''
-        return self.inputSize
+        return self._inputSize
     def getOutputSize (self) :
         '''(numInputs, number of neurons)'''
-        return (self.inputSize[0], self.numNeurons)
+        return (self._inputSize[0], self._numNeurons)

@@ -71,6 +71,7 @@ if __name__ == '__main__' :
             options.data, batchSize=options.batchSize, 
             holdoutPercentage=options.holdout, log=log),
         shared=False, log=log)
+    trainSize = train[0].shape
 
     tr = splitToShared(train, borrow=True)
     te = splitToShared(test,  borrow=True)
@@ -88,7 +89,8 @@ if __name__ == '__main__' :
         # add convolutional layers
         network.addLayer(ConvolutionalLayer(
             layerID='c1', input=input, 
-            inputSize=train[0].shape[1:], kernelSize=(options.kernel,1,5,5),
+            inputSize=trainSize[1:], 
+            kernelSize=(options.kernel,trainSize[2],5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             learningRate=options.learnC))
 

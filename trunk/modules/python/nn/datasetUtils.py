@@ -94,9 +94,11 @@ def readImage(image, log=None) :
     if log is not None :
         log.debug('Openning Image [' + image + ']')
     img = Image.open(image)
+    img.load() # because PIL can be lazy
     if img.mode == 'RBG' or img.mode == 'RGB' :
         # channels are interleaved by band
-        a = numpy.concatenate((img.split()), dtype=theano.config.floatX)
+        a = numpy.asarray(numpy.concatenate(img.split()), 
+                          dtype=theano.config.floatX)
         a = numpy.resize(normalize(a), (3, img.size[1], img.size[0]))
         return a if img.mode == 'RGB' else a[[0,2,1],:,:]
     elif img.mode == 'L' :
