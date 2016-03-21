@@ -82,21 +82,37 @@ def ingestImagery(filepath=None, shared=False, log=None) :
     else :
         return train, test, labels
 
-def readImage(image, log=None) :
+def normalize(v) :
+    '''Normalize a vector.'''
+    minimum, maximum = numpy.amin(v), numpy.amax(v)
+    return (v - minimum) / (maximum - minimum)
+
+def readImage(image, floatingPoint=True, log=None) :
     '''Load the image into memory. It can be any type supported by PIL
     '''
     from PIL import Image
     if log is not None :
         log.debug('Openning Image [' + image + ']')
     img = Image.open(image)
+    img.load() # because PIL can be lazy
     if img.mode == 'RBG' or img.mode == 'RGB' :
-        # channels are interleaved by band
-        a = numpy.concatenate((img.split()), dtype=theano.config.floatX)
+        if floatingPoint :
+            # channels are interleaved by band
+            a = numpy.asarray(numpy.concatenate(img.split()), 
+                              dtype=theano.config.floatX)
+            a = normalize(a)
+        else :
+            a = numpy.asarray(numpy.concatenate(img.split()), dtype='uint8')
         a = numpy.resize(a, (3, img.size[1], img.size[0]))
         return a if img.mode == 'RGB' else a[[0,2,1],:,:]
     elif img.mode == 'L' :
-        # just one channel
-        a = numpy.asarray(img.getdata(), dtype=theano.config.floatX)
+        if floatingPoint :
+            # just one channel
+            a = numpy.asarray(img.getdata(), dtype=theano.config.floatX)
+            a = normalize(a)
+        else :
+            # just one channel
+            a = numpy.asarray(img.getdata(), dtype='uint8')
         return numpy.resize(a, (1, img.size[1], img.size[0]))
 
 def makeMiniBatch(x, batchSize=1, log=None) :
