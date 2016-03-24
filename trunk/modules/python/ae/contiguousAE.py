@@ -110,11 +110,14 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
     def writeWeights(self, ii) :
         import PIL.Image as Image
         from ae.utils import tile_raster_images
+        kernelSize = self._weights.get_value(borrow=True).shape
         img = Image.fromarray(tile_raster_images(
-        X=self._weights.get_value(borrow=True).T,
-        img_shape=(28, 28), tile_shape=(10, 10),
+        X=np.resize(self._weights.get_value(borrow=True).T, 
+                    (1, kernelSize[1], kernelSize[0])),
+        img_shape=(kernelSize[1], kernelSize[0]),
+        tile_shape=(1, 1),
         tile_spacing=(1, 1)))
-        img.save('cae_filters_' + str(ii) + '.png')
+        img.save(self.layerID + '_cae_filters_' + str(ii) + '.png')
 
 if __name__ == '__main__' :
     import argparse, logging, time

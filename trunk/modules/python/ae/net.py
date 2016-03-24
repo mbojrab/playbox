@@ -63,7 +63,8 @@ class StackedAENetwork (Network) :
         self._layers.append(encoder)
 
         # all layers start with the input original input, however are updated
-        # in a layerwise manner.
+        # in a layerwise manner. --
+        # NOTE: this uses theano.shared variables for optimized GPU execution
         out, updates = encoder.getUpdates()
         self._greedyTrainer.append(
             theano.function([self._indexVar], out, updates=updates,
@@ -133,9 +134,9 @@ class StackedAENetwork (Network) :
         for layerIndex in range(self.getNumLayers()) :
             self.trainEpoch(layerIndex, 0, numEpochs)
 
-    def writeWeights(self) :
+    def writeWeights(self, ii) :
         for layer in self._layers :
-            layer.writeWeights()
+            layer.writeWeights(ii)
 
 
 if __name__ == '__main__' :

@@ -162,6 +162,8 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
         log.info('Reading the directory structure')
     train, test, labels = [], [], []
     for root, dirs, files in os.walk(rootpath) :
+        if root == rootpath :
+            continue
         # don't add it if there are no files
         if len(files) == 0 :
             if log is not None :

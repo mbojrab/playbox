@@ -113,6 +113,7 @@ if __name__ == '__main__' :
         # the output layer is special, as it makes decisions about
         # patterns identified in previous layers, so it should only
         # be influenced/trained during supervised learning. 
+    network.writeWeights(-1)
 
     # train each layer in sequence --
     # first we pre-train the data and at each epoch, we save it to disk
@@ -121,6 +122,7 @@ if __name__ == '__main__' :
         globalEpoch = 0
         globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 
                                                options.numEpochs)
+        network.writeWeights(globalEpoch)
         lastSave = options.base + \
                    '_learnC' + str(options.learnC) + \
                    '_learnF' + str(options.learnF) + \
