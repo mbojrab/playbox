@@ -71,11 +71,11 @@ class ConvolutionalLayer(Layer) :
         self._thresholds = shared(value=initialThresholds, borrow=True)
 
         # create a function to perform the convolution
-        self._convolve = conv2d(self.input, self._weights,
-                                self._inputSize, self._kernelSize)
+        convolve = conv2d(self.input, self._weights,
+                          self._inputSize, self._kernelSize)
 
         # create a function to perform the max pooling
-        pooling = max_pool_2d(self._convolve, self._downsampleFactor, True)
+        pooling = max_pool_2d(convolve, self._downsampleFactor, True)
 
         # the output buffer is now connected to a sequence of operations
         out = pooling + self._thresholds.dimshuffle('x', 0, 'x', 'x')
