@@ -1,6 +1,6 @@
 import os, sys
 
-resizeDims = (40,40)
+resizeDims = (30,30)
 
 def resize(image) :
     from PIL import Image

@@ -18,6 +18,7 @@ class ClassifierNetwork () :
                                   'NeuralNet', 
                                   './NeuralNet-Profile.xml') if \
                                   log is not None else None
+        self._stringLabels = []
         self._layers = []
         self._weights = []
         self._learningRates = []
@@ -53,6 +54,10 @@ class ClassifierNetwork () :
     def _listify(self, data) :
         if data is None : return []
         else : return data if isinstance(data, list) else [data]
+
+    def getNetworkLabels(self) :
+        '''Return the labels used to train the network.'''
+        return self._stringLabels
 
     def getNetworkInput(self) :
         '''Return the first layer's input'''
@@ -190,8 +195,10 @@ class TrainerNetwork (ClassifierNetwork) :
                   'None' creates randomized weighting
        log      : Logger to use
     '''
-    def __init__ (self, train, test, regType='L2', filepath=None, log=None) :
+    def __init__ (self, train, test, labels, 
+                  regType='L2', filepath=None, log=None) :
         ClassifierNetwork.__init__(self, filepath=filepath, log=log)
+        self._stringLabels = labels
         self._trainData, self._trainLabels = train
         self._testData, self._testLabels = test
         self._numTrainBatches = self._trainLabels.shape[0]

@@ -75,9 +75,10 @@ if __name__ == '__main__' :
 
     tr = splitToShared(train, borrow=True)
     te = splitToShared(test,  borrow=True)
+    #print labels
 
     # create the network -- LeNet-5
-    network = Net(train, te, regType='', log=log)
+    network = Net(train, te, labels, regType='', log=log)
 
     if options.synapse is not None :
         # load a previously saved network

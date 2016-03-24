@@ -87,14 +87,11 @@ def normalize(v) :
     minimum, maximum = numpy.amin(v), numpy.amax(v)
     return (v - minimum) / (maximum - minimum)
 
-def readImage(image, floatingPoint=True, log=None) :
-    '''Load the image into memory. It can be any type supported by PIL
+def convertImageToNumpy (img, floatingPoint=True) :
+    '''This retrieves a numpy array of the image. If the image is 
+       multi-channel, the pixels are deinterleaved to bands. Lastly there is
+       an option to convert it to float which also normalizes the data.
     '''
-    from PIL import Image
-    if log is not None :
-        log.debug('Openning Image [' + image + ']')
-    img = Image.open(image)
-    img.load() # because PIL can be lazy
     if img.mode == 'RBG' or img.mode == 'RGB' :
         if floatingPoint :
             # channels are interleaved by band
@@ -114,6 +111,16 @@ def readImage(image, floatingPoint=True, log=None) :
             # just one channel
             a = numpy.asarray(img.getdata(), dtype='uint8')
         return numpy.resize(a, (1, img.size[1], img.size[0]))
+
+def readImage(image, floatingPoint=True, log=None) :
+    '''Load the image into memory. It can be any type supported by PIL
+    '''
+    from PIL import Image
+    if log is not None :
+        log.debug('Openning Image [' + image + ']')
+    img = Image.open(image)
+    img.load() # because PIL can be lazy
+    return convertImageToNumpy(img, floatingPoint)
 
 def makeMiniBatch(x, batchSize=1, log=None) :
     '''Deinterleave the data and labels. Resize so we can use batched learning.
@@ -147,7 +154,7 @@ def makeMiniBatch(x, batchSize=1, log=None) :
     return tempData, tempLabel
 
 def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
-                  batchSize=1, log=None) :
+                  floatingPoint=True, batchSize=1, log=None) :
     '''Create a pickle out of a directory structure. The directory structure
        is assumed to be a series of directories, each contain imagery assigned
        assigned the label of the directory name.
@@ -171,6 +178,8 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
         log.info('Reading the directory structure')
     train, test, labels = [], [], []
     for root, dirs, files in os.walk(rootpath) :
+        if root == rootpath :
+            continue
         # don't add it if there are no files
         if len(files) == 0 :
             if log is not None :
@@ -194,7 +203,9 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
                       str(len(files)) + ']')
         for ii in range(len(files)) :
             try :
-                imgLabel = readImage(os.path.join(root, files[ii]), log), labelIndx
+                imgLabel = readImage(os.path.join(root, files[ii]),
+                                     floatingPoint=floatingPoint, 
+                                     log=log), labelIndx
                 if ii % holdout == 0 : 
                     test.append(imgLabel)
                 else :
