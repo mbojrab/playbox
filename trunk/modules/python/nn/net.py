@@ -10,11 +10,13 @@ class Network () :
                                   log is not None else None
         self._layers = []
     def __getstate__(self) :
+        '''Save network pickle'''
         dict = self.__dict__.copy()
         # remove the profiler as it is not robust to distributed processing
         dict['_profiler'] = None
         return dict
     def __setstate__(self, dict) :
+        '''Load network pickle'''
         # use the current constructor-supplied profiler --
         # this ensures the profiler is setup for the current system
         tmp = self._profiler
@@ -46,6 +48,7 @@ class Network () :
         self._startProfile('Loading network from disk [' + str(filepath) +
                            ']', 'info')
         if '.pkl.gz' in filepath :
+            print filepath
             with gzip.open(filepath, 'rb') as f :
                 self.__setstate__(cPickle.load(f))
         self._endProfile()
@@ -90,31 +93,43 @@ class ClassifierNetwork (Network) :
     '''
     def __init__ (self, filepath=None, log=None) :
         Network.__init__(self, log)
+        self._networkLabels = []
         self._weights = []
         self._learningRates = []
         if filepath is not None :
             self.load(filepath)
 
     def __getstate__(self) :
-        dict = self.__dict__.copy()
+        '''Save network pickle'''
+        dict = Network.__getstate__(self)
         # remove the functions -- they will be rebuilt JIT
+        if '_out' in dict : del dict['_out']
+        if '_outClass' in dict : del dict['_outClass']
         if '_classify' in dict : del dict['_classify']
         if '_classifyAndSoftmax' in dict : del dict['_classifyAndSoftmax']
-        # remove the profiler as it is not robust to distributed processing
-        dict['_profiler'] = None
         return dict
     def __setstate__(self, dict) :
+        '''Load network pickle'''
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
+        if hasattr(self, '_out') : 
+            delattr(self, '_out')
+        if hasattr(self, '_outClass') : 
+            delattr(self, '_outClass')
         if hasattr(self, '_classify') : 
             delattr(self, '_classify')
         if hasattr(self, '_classifyAndSoftmax') : 
             delattr(self, '_classifyAndSoftmax')
-        # use the current constructor-supplied profiler --
-        # this ensures the profiler is setup for the current system
-        tmp = self._profiler
-        self.__dict__.update(dict)
-        self._profiler = tmp
+        Network.__setstate__(self, dict)
+    def getNetworkLabels(self) :
+        '''Return the Labels for the network. All other interactions with
+           training and accuracy deal with the label index, so this decodes
+           it into a string classification.
+        '''
+        return self._networkLabels
+    def convertToLabels(self, labelIndices) :
+        '''Return the string labels for a vector of indices.'''
+        return [self._networkLabels[ii] for ii in self._networkLabels]
     def addLayer(self, layer) :
         '''Add a Layer to the network. It is the responsibility of the user
            to connect the current network's output as the input to the next
@@ -215,8 +230,11 @@ class TrainerNetwork (ClassifierNetwork) :
                   'None' creates randomized weighting
        log      : Logger to use
     '''
-    def __init__ (self, train, test, regType='L2', filepath=None, log=None) :
+    def __init__ (self, train, test, labels, regType='L2', 
+                  filepath=None, log=None) :
         ClassifierNetwork.__init__(self, filepath=filepath, log=log)
+        if filepath is None :
+            self._networkLabels = labels
         self._trainData, self._trainLabels = train
         self._testData, self._testLabels = test
         self._numTrainBatches = self._trainLabels.shape[0]
@@ -228,27 +246,39 @@ class TrainerNetwork (ClassifierNetwork) :
         #    name='expectedOutputs')
         self._regularization = regType
     def __getstate__(self) :
-        dict = self.__dict__.copy()
+        '''Save network pickle'''
+        dict = ClassifierNetwork.__getstate__(self)
+        # remove the training and test datasets before pickling. This both
+        # saves disk space, and makes trained networks allow transfer learning
+        if '_trainData' in dict : del dict['_trainData']
+        if '_trainLabels' in dict : del dict['_trainLabels']
+        if '_testData' in dict : del dict['_testData']
+        if '_testLabels' in dict : del dict['_testLabels']
+        if '_numTrainBatches' in dict : del dict['_numTrainBatches']
+        if '_numTestBatches' in dict : del dict['_numTestBatches']
+        if '_numTestSize' in dict : del dict['_numTestSize']
+        if '_regularization' in dict : del dict['_regularization']
         # remove the functions -- they will be rebuilt JIT
-        if '_classify' in dict : del dict['_classify']
-        if '_cost' in dict : del dict['_cost']
-        if '_trainNetwork' in dict : del dict['_trainNetwork']
+        if '_checkAccuracyNP' in dict : del dict['_checkAccuracyNP']
         if '_checkAccuracy' in dict : del dict['_checkAccuracy']
-        # remove the profiler as it is not robust to distributed processing
-        dict['_profiler'] = None
+        if '_createBatchExpectedOutput' in dict :
+            del dict['_createBatchExpectedOutput']
+        if '_cost' in dict : del dict['_cost']
+        if '_trainNetworkNP' in dict : del dict['_trainNetworkNP']
         return dict
     def __setstate__(self, dict) :
+        '''Load network pickle'''
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
-        if hasattr(self, '_classify') : delattr(self, '_classify')
+        if hasattr(self, '_checkAccuracyNP') :
+            delattr(self, '_checkAccuracyNP')
+        if hasattr(self, '_checkAccuracy') :
+            delattr(self, '_checkAccuracy')
+        if hasattr(self, '_createBatchExpectedOutput') :
+            delattr(self, '_createBatchExpectedOutput')
         if hasattr(self, '_cost') : delattr(self, '_cost')
-        if hasattr(self, '_trainNetwork') : delattr(self, '_trainNetwork')
-        if hasattr(self, '_checkAccuracy') : delattr(self, '_checkAccuracy')
-        # use the current constructor-supplied profiler --
-        # this ensures the profiler is setup for the current system
-        tmp = self._profiler
-        self.__dict__.update(dict)
-        self._profiler = tmp
+        if hasattr(self, '_trainNetworkNP') : delattr(self, '_trainNetworkNP')
+        ClassifierNetwork.__setstate__(self, dict)
     def finalizeNetwork(self) :
         '''Setup the network based on the current network configuration.
            This creates several network-wide functions so they will be
