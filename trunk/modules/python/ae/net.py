@@ -22,26 +22,23 @@ class StackedAENetwork (Network) :
         self._greedyTrainer = []
 
     def __getstate__(self) :
-        dict = self.__dict__.copy()
+        '''Save network pickle'''
+        dict = Network.__getstate__(self)
         # remove the functions -- they will be rebuilt JIT
         if '_indexVar' in dict : del dict['_indexVar']
         if '_trainData' in dict : del dict['_trainData']
         if '_trainLabels' in dict : del dict['_trainLabels']
         if '_numTrainBatches' in dict : del dict['_numTrainBatches']
         if '_greedyTrainer' in dict : del dict['_greedyTrainer']
-        # remove the profiler as it is not robust to distributed processing
-        dict['_profiler'] = None
         return dict
+
     def __setstate__(self, dict) :
+        '''Load network pickle'''
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
         if hasattr(self, '_greedyTrainer') : delattr(self, '_greedyTrainer')
         self._greedyTrainer = []
-        # use the current constructor-supplied profiler --
-        # this ensures the profiler is setup for the current system
-        tmpProf = self._profiler
-        self.__dict__.update(dict)
-        self._profiler = tmpProf
+        Network.__setstate__(self, dict)
         # rebuild the network
         for encoder in self._layers :
             out, updates = encoder.getUpdates()

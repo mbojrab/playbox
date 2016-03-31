@@ -121,15 +121,18 @@ class ClassifierNetwork (Network) :
         if hasattr(self, '_classifyAndSoftmax') : 
             delattr(self, '_classifyAndSoftmax')
         Network.__setstate__(self, dict)
+
     def getNetworkLabels(self) :
         '''Return the Labels for the network. All other interactions with
            training and accuracy deal with the label index, so this decodes
            it into a string classification.
         '''
         return self._networkLabels
+
     def convertToLabels(self, labelIndices) :
         '''Return the string labels for a vector of indices.'''
         return [self._networkLabels[ii] for ii in self._networkLabels]
+
     def addLayer(self, layer) :
         '''Add a Layer to the network. It is the responsibility of the user
            to connect the current network's output as the input to the next
@@ -148,6 +151,7 @@ class ClassifierNetwork (Network) :
         self._learningRates = [layer.getLearningRate()] * 2 + \
                               self._learningRates
         self._endProfile()
+
     def finalizeNetwork(self) :
         '''Setup the network based on the current network configuration.
            This is used to create several network-wide functions so they will
@@ -165,13 +169,14 @@ class ClassifierNetwork (Network) :
         # output prediction, which emphasizes significant neural responses.
         # This takes as its input, the first layer's input, and uses the final
         # layer's output as the function (ie the network classification).
-        self._out = t.nnet.softmax(self._layers[-1].output)
+        self._out = t.nnet.softmax(self.getNetworkOutput())
         self._outClass = t.argmax(self._out, axis=1)
-        self._classify = theano.function([self._layers[0].input],
+        self._classify = theano.function([self.getNetworkInput()], 
                                          self._outClass)
-        self._classifyAndSoftmax = theano.function([self._layers[0].input],
+        self._classifyAndSoftmax = theano.function([self.getNetworkInput()],
                                                    [self._outClass, self._out])
         self._endProfile()
+
     def classify (self, inputs) :
         '''Classify the given inputs. The input is assumed to be 
            numpy.ndarray with dimensions specified by the first layer of the 
@@ -186,6 +191,7 @@ class ClassifierNetwork (Network) :
         classIndex = self._classify(inputs)
         self._endProfile()
         return classIndex
+
     def classifyAndSoftmax (self, inputs) :
         '''Classify the given inputs. The input is assumed to be 
            numpy.ndarray with dimensions specified by the first layer of the 
@@ -245,6 +251,7 @@ class TrainerNetwork (ClassifierNetwork) :
         #    value=numpy.zeros(self.getNetworkOutputSize(), dtype='int32'), 
         #    name='expectedOutputs')
         self._regularization = regType
+
     def __getstate__(self) :
         '''Save network pickle'''
         dict = ClassifierNetwork.__getstate__(self)
@@ -266,6 +273,7 @@ class TrainerNetwork (ClassifierNetwork) :
         if '_cost' in dict : del dict['_cost']
         if '_trainNetworkNP' in dict : del dict['_trainNetworkNP']
         return dict
+
     def __setstate__(self, dict) :
         '''Load network pickle'''
         # remove any current functions from the object so we force the
@@ -279,6 +287,7 @@ class TrainerNetwork (ClassifierNetwork) :
         if hasattr(self, '_cost') : delattr(self, '_cost')
         if hasattr(self, '_trainNetworkNP') : delattr(self, '_trainNetworkNP')
         ClassifierNetwork.__setstate__(self, dict)
+
     def finalizeNetwork(self) :
         '''Setup the network based on the current network configuration.
            This creates several network-wide functions so they will be
@@ -300,14 +309,14 @@ class TrainerNetwork (ClassifierNetwork) :
         index = t.lscalar('index')
         expectedLabels = t.ivector('expectedLabels')
         numCorrect = t.sum(t.eq(self._outClass, expectedLabels))
-        # NOTE: the 'input' variable name was create elsewhere and provided as
+        # NOTE: the 'input' variable name was created elsewhere and provided as
         #       input to the first layer. We now use that object to connect
         #       our shared buffers.
         self._checkAccuracyNP = theano.function(
-            [self._layers[0].input, expectedLabels], numCorrect)
+            [self.getNetworkInput(), expectedLabels], numCorrect)
         self._checkAccuracy = theano.function(
             [index], numCorrect, 
-            givens={self._layers[0].input: self._testData[index],
+            givens={self.getNetworkInput(): self._testData[index],
                     expectedLabels: self._testLabels[index]})
 
         # setup a looping function to JIT create the expected output vectors --
@@ -359,10 +368,10 @@ class TrainerNetwork (ClassifierNetwork) :
         #       input to the first layer. We now use that object to connect
         #       our shared buffers.
         self._trainNetworkNP = theano.function(
-            [self._layers[0].input, expectedOutputs], nll, updates=updates)
+            [self.getNetworkInput(), expectedOutputs], nll, updates=updates)
         #self._trainNetwork = theano.function(
         #    [index], nll, updates=updates,
-        #    givens={self._layers[0].input: self._trainData[index],
+        #    givens={self.getNetworkInput(): self._trainData[index],
         #            expectedOutputs: self._trainLabels[index]})
         self._endProfile()
 
@@ -390,6 +399,7 @@ class TrainerNetwork (ClassifierNetwork) :
         #self._trainNetwork(index)
 
         self._endProfile()
+
     def trainEpoch(self, globalEpoch, numEpochs=1) :
         '''Train the network against the pre-loaded inputs for a user-specified
            number of epochs.
@@ -404,6 +414,7 @@ class TrainerNetwork (ClassifierNetwork) :
                 self.train(ii, self._trainData[ii], self._trainLabels[ii])
             self._endProfile()
         return globalEpoch + numEpochs
+
     def checkAccuracy(self) :
         '''Check the accuracy against the pre-compiled the given inputs.
            This runs against the entire test set in a single call and returns
@@ -438,7 +449,7 @@ if __name__ == "__main__" :
     import numpy
     labelVect = numpy.asarray([1, 2, 0], dtype=numpy.int32)
     print(createBatchExpectedOutput(labelVect, 5))
-    
+
     '''
     location = t.ivector("location")
     output_model = t.fvector("output_model")
@@ -451,7 +462,7 @@ if __name__ == "__main__" :
     assign_values_at_positions = theano.function(
         inputs=[location, output_model], 
         outputs=result)
-    
+
     # test
     import numpy
     test_locations = numpy.asarray([1, 2, 0], dtype=numpy.int32)
@@ -484,7 +495,7 @@ if __name__ == "__main__" :
     labels = np.asarray([1,0,3,4,5], dtype='int32')
     updateExpectedMatrix(labels, 1.)
     print expectedOutputs.type
-    
+
     print expectedOutputs.type
     theano.function([expectedOutputs], )
     print dir(t.set_subtensor(expectedOutputs[0], 1.))
@@ -518,7 +529,7 @@ if __name__ == "__main__" :
     dim = 1000
     numNeurons = 10
     numRuns = 10000
-    
+
     # this is intentionally getting one of the inputs labels incorrect to
     # prove the checkAccuracy call is working.
     trainArr = (numpy.asarray([[range(dim)]], dtype='float32'), 
