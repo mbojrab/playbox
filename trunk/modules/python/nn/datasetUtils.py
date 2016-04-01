@@ -2,12 +2,25 @@ import theano, numpy, cPickle, gzip, os
 import theano.tensor as t
 
 def loadShared(x, borrow=True) :
+    '''Transfer numpy.array to theano.shared variable.
+       NOTE: Shared variables allow for optimized GPU execution
+    '''
     if not isinstance(x, numpy.ndarray) :
         x = numpy.asarray(x, dtype=theano.config.floatX)
     return theano.shared(x, borrow=borrow)
+
 def splitToShared(x, borrow=True) :
+    '''Create shared variables for both the input and expectedOutcome vectors.
+       x      : This can be a vector list of inputs and expectedOutputs. It is
+                assumed they are of the same length.
+                    Format - (data, label)
+       borrow : Should the theano vector accept responsibility for the memory
+       return : Shared Variable equivalents for these items
+                    Format - (data, label)
+    '''
     data, label = x
     return (loadShared(data), t.cast(loadShared(label), 'int32'))
+
 def ingestImagery(filepath=None, shared=False, log=None) :
     '''Load the dataset provided by the user.
        filepath : This can be a cPickle, a path to the directory structure,
@@ -88,8 +101,7 @@ def normalize(v) :
     return (v - minimum) / (maximum - minimum)
 
 def readImage(image, log=None) :
-    '''Load the image into memory. It can be any type supported by PIL
-    '''
+    '''Load the image into memory. It can be any type supported by PIL.'''
     from PIL import Image
     if log is not None :
         log.debug('Openning Image [' + image + ']')
@@ -223,7 +235,6 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
 
     # return the output filename
     return outputFile
-
 
 if __name__ == '__main__' :
     import logging
