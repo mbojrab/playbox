@@ -102,6 +102,33 @@ def normalize(v) :
 
 def readImage(image, log=None) :
     '''Load the image into memory. It can be any type supported by PIL.'''
+    imageLower = image.lower()
+    if imageLower.endswith('.nitf') or imageLower.endswith('.ntf') :
+        from nitf import *
+        handle = IOHandle(image)
+        reader = Reader()
+        record = reader.read(handle)
+        if log is not None :
+            log.debug('Openning Image [' + image + ']')
+
+        # there could be multiple images per nitf --
+        # for now just read the first.
+        # TODO: we could read each image separately, but its unlikely to
+        #       encounter a multi-image file in the wild.
+        segment = record.getImages()[0]
+        imageReader = reader.newImageReader(0)
+        window = SubWindow()
+        window.numRows = segment.subheader['numRows'].intValue()
+        window.numCols = segment.subheader['numCols'].intValue()
+        window.bandList = range(segment.subheader.getBandCount())
+
+        # read the bands and interleave them by band
+        a = numpy.asarray(numpy.concatenate(imageReader.read(window)),
+                          dtype=theano.config.floatX)
+        a = numpy.resize(normalize(a), (segment.subheader.getBandCount(),
+                                        window.numRows, window.numCols))
+        handle.close()
+
     from PIL import Image
     if log is not None :
         log.debug('Openning Image [' + image + ']')

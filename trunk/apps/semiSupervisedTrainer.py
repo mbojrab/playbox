@@ -9,6 +9,17 @@ import os, argparse, logging
 from time import time
 
 def trainUnsupervised(network, options) :
+    '''This trains a stacked autoencoder in a greedy layer-wise manner. This
+       starts by train each layer in sequence for the specified number of
+       epochs, then returns the network. This can be used to initialize a
+       Neural Network into a decent initial state.
+       
+       network : StackedAENetwork to used for training
+       options : Options passed into the application
+
+       return  : Path to the trained network. This will be used as a 
+                 pre-trainer for the Neural Network
+    '''
     # train each layer in sequence --
     # first we pre-train the data and at each epoch, we save it to disk
     lastSave = ''
@@ -37,12 +48,66 @@ def trainUnsupervised(network, options) :
     os.rename(lastSave, bestNetwork)
     return bestNetwork
 
-'''This is an example Stacked AutoEncoder used for unsupervised pre-training.
-   The network topology should match that of the finalize Neural Network
-   without having the output layer attached.
-'''
-if __name__ == '__main__' :
+def trainSupervised(network, options) :
+    '''Train the Neural Network to classify'''
+    lastSave = ''
+    
+    globalCount = lastBest = degradationCount = 0
+    numEpochs = options.limit
+    runningAccuracy = 0.0
+    lastSave = ''
+    while True :
+        timer = time()
 
+        # run the specified number of epochs
+        globalCount = network.trainEpoch(globalCount, numEpochs)
+        # calculate the accuracy against the test set
+        curAcc = network.checkAccuracy()
+        log.info('Checking Accuracy - {0}s ' \
+                 '\n\tCorrect  : {1}% \n\tIncorrect  : {2}%'.format(
+                 time() - timer, curAcc, (100-curAcc)))
+
+        # check if we've done better
+        if curAcc > runningAccuracy :
+            # reset and save the network
+            degradationCount = 0
+            runningAccuracy = curAcc
+            lastBest = globalCount
+            lastSave = options.base + \
+                       '_learnC' + str(options.learnC) + \
+                       '_learnF' + str(options.learnF) + \
+                       '_momentum' + str(options.momentum) + \
+                       '_kernel' + str(options.kernel) + \
+                       '_neuron' + str(options.neuron) + \
+                       '_epoch' + str(lastBest) + '.pkl.gz'
+            network.save(lastSave)
+        else :
+            # increment the number of poor performing runs
+            degradationCount += 1
+
+        # stopping conditions for regularization
+        if degradationCount > int(options.stop) or runningAccuracy == 100. :
+            break
+
+    # rename the network which achieved the highest accuracy
+    bestNetwork = options.base + '_FinalOnHoldOut_' + \
+                  os.path.basename(options.data) + '_epoch' + str(lastBest) + \
+                  '_acc' + str(runningAccuracy) + '.pkl.gz'
+    log.info('Renaming Best Network to [' + bestNetwork + ']')
+    if os.path.exists(bestNetwork) :
+        os.remove(bestNetwork)
+    os.rename(lastSave, bestNetwork)
+    return bestNetwork
+
+if __name__ == '__main__' :
+    '''This application runs semi-supervised training on a given dataset. The
+       utimate goal is to setup the early layers of the Neural Network to
+       identify pattern in the data unsupervised learning. Here we used a 
+       Stacked Autoencoder (SAE) and greedy training.
+       We then translate the SAE to a Neural Network (NN) and add a 
+       classification layer. From there we use supervised training to fine-tune
+       the weights to classify objects we select as important.
+    '''
     parser = argparse.ArgumentParser()
     parser.add_argument('--log', dest='logfile', type=str, default=None,
                         help='Specify log output file.')
@@ -121,7 +186,7 @@ if __name__ == '__main__' :
             downsampleFactor=(2,2), randomNumGen=rng,
             learningRate=options.learnC))
 
-        # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
+        # refactor the output to be (numImages*numKernels,1,numRows,numCols)
         # this way we don't combine the channels kernels we created in 
         # the first layer and destroy our dimensionality
         network.addLayer(ConvolutionalAutoEncoder(
