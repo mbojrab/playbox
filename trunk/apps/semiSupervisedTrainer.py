@@ -162,7 +162,7 @@ if __name__ == '__main__' :
         inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
         learningRate=options.learnF, randomNumGen=rng))
 
-    bestNetwork = trainUnsupervised(network, options)
+    bestNetwork = trainSupervised(network, options)
     
 
     # cleanup the network -- this ensures the profile is written
