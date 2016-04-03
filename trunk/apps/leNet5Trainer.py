@@ -89,7 +89,7 @@ if __name__ == '__main__' :
         # add convolutional layers
         network.addLayer(ConvolutionalLayer(
             layerID='c1', input=input, 
-            inputSize=trainSize[1:], 
+            inputSize=trainSize[1:],
             kernelSize=(options.kernel,trainSize[2],5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             learningRate=options.learnC))

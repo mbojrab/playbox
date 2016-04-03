@@ -96,42 +96,94 @@ def ingestImagery(filepath=None, shared=False, log=None) :
         return train, test, labels
 
 def normalize(v) :
-    '''Normalize a vector.'''
+    '''Normalize a vector in a naive manner.
+       TODO: For SAR products, the data is Rayleigh distributed for the 
+             amplitude component, so it may be best to perform a more rigorous
+             remap here. Amplitude recognition can be affected greatly by the
+             strength of Rayleigh distribution.
+    '''
     minimum, maximum = numpy.amin(v), numpy.amax(v)
     return (v - minimum) / (maximum - minimum)
 
-def readImage(image, log=None) :
-    '''Load the image into memory. It can be any type supported by PIL.'''
-    imageLower = image.lower()
-    if imageLower.endswith('.nitf') or imageLower.endswith('.ntf') :
-        from nitf import *
-        handle = IOHandle(image)
-        reader = Reader()
-        record = reader.read(handle)
-        if log is not None :
-            log.debug('Openning Image [' + image + ']')
+def convertPhaseAmp(imData, log=None) :
+    '''Extract the phase and amplitude components of a complex number.
+       This is assumed to be a better classifier than the raw IQ image.
+       TODO: the amplitude components are Rayleigh distributed and may need to
+             be remapped (using histoEq) to better fit the bit range. The 
+             NN weights may also correct for this.
+       TODO: Research other possible feature spaces which could elicit better
+             learning or augment the phase/amp components.
+    '''
+    if imData.dtype != numpy.complex64 :
+        raise ValueError('The array must be of type numpy.complex64.')
+    imageDims = imData.shape
+    a = numpy.asarray(numpy.concatenate((normalize(numpy.angle(imData)), 
+                                         normalize(numpy.absolute(imData)))),
+                      dtype=theano.config.floatX)
+    return numpy.resize(a, (2, imageDims[0], imageDims[1]))
 
-        # there could be multiple images per nitf --
-        # for now just read the first.
-        # TODO: we could read each image separately, but its unlikely to
-        #       encounter a multi-image file in the wild.
-        segment = record.getImages()[0]
-        imageReader = reader.newImageReader(0)
-        window = SubWindow()
-        window.numRows = segment.subheader['numRows'].intValue()
-        window.numCols = segment.subheader['numCols'].intValue()
-        window.bandList = range(segment.subheader.getBandCount())
+'''TODO: These methods may need to be implemented as derived classes.'''
+def readSICD(image, log=None) :
+    '''This method should read a prepare the data for training or testing.'''
+    import pysix.six_sicd
 
-        # read the bands and interleave them by band
-        a = numpy.asarray(numpy.concatenate(imageReader.read(window)),
-                          dtype=theano.config.floatX)
-        a = numpy.resize(normalize(a), (segment.subheader.getBandCount(),
-                                        window.numRows, window.numCols))
-        handle.close()
+    # setup the schema validation if the user has it specified
+    schemaPaths = pysix.six_sicd.VectorString()
+    if os.environ.has_key('SIX_SCHEMA_PATH') :
+        schemaPaths.push_back(os.environ['SIX_SCHEMA_PATH'])
 
+    # read the image components --
+    # wbData    : the raw IQ image data
+    # cmplxData : the struct for sicd metadata
+    wbData, cmplxData = pysix.six_sicd.read(image, schemaPaths)
+    return convertPhaseAmp(wbData, log)
+
+def readSIDD(image, log=None) :
+    '''This method should read a prepare the data for training or testing.'''
+    raise NotImplementedError('Implement the datasetUtils.readSIDD() method')
+
+def readSIO(image, log=None) :
+    import coda.sio_lite
+    imData = coda.sio_lite.read(image)
+    if imData.dtype == numpy.complex64 :
+        return convertPhaseAmp(imData, log)
+    else :
+        # TODO: this assumes the imData is already band-interleaved
+        return imData
+
+def readNITF(image, log=None) :
+    import nitf
+
+    # read the nitf
+    reader, record = nitf.read(image)
+
+    # there could be multiple images per nitf --
+    # for now just read the first.
+    # TODO: we could read each image separately, but its unlikely to
+    #       encounter a multi-image file in the wild.
+    segment = record.getImages()[0]
+    imageReader = reader.newImageReader(0)
+    window = nitf.SubWindow()
+    window.numRows = segment.subheader['numRows'].intValue()
+    window.numCols = segment.subheader['numCols'].intValue()
+    window.bandList = range(segment.subheader.getBandCount())
+
+    # read the bands and interleave them by band --
+    # this assumes the image is non-complex and treats bands as color.
+    a = numpy.concatenate(imageReader.read(window))
+
+    a = numpy.resize(normalize(a), (segment.subheader.getBandCount(),
+                                    window.numRows, window.numCols))
+    # explicitly close the handle -- for peace of mind
+    reader.io.close()
+    return a
+
+def readPILImage(image, log=None) :
+    '''This method should be used for all regular image formats from JPEG,
+       PNG, TIFF, etc. A PIL error may originate from this method if the image
+       format is unsupported.
+    '''
     from PIL import Image
-    if log is not None :
-        log.debug('Openning Image [' + image + ']')
     img = Image.open(image)
     img.load() # because PIL can be lazy
     if img.mode == 'RBG' or img.mode == 'RGB' :
@@ -144,6 +196,26 @@ def readImage(image, log=None) :
         # just one channel
         a = numpy.asarray(img.getdata(), dtype=theano.config.floatX)
         return numpy.resize(normalize(a), (1, img.size[1], img.size[0]))
+
+def readImage(image, log=None) :
+    '''Load the image into memory. It can be any type supported by PIL.'''
+    if log is not None :
+        log.debug('Openning Image [' + image + ']')
+    imageLower = image.lower()
+    # TODO: Images are named differently and this is not a great measure for
+    #       for image types. Change this in the future to a try/catch and 
+    #       allow the library decide what it is (or pass in a parameter for
+    #       optimized performance).
+    if 'sicd' in imageLower :
+        return readSICD(image, log)
+    elif 'sidd' in imageLower :
+        return readSIDD(image, log)
+    elif imageLower.endswith('.nitf') or imageLower.endswith('.ntf') :
+        return readNITF(image, log)
+    elif imageLower.endswith('.sio') :
+        return readSIO(image, log)
+    else :
+        return readPILImage(image, log)
 
 def makeMiniBatch(x, batchSize=1, log=None) :
     '''Deinterleave the data and labels. Resize so we can use batched learning.

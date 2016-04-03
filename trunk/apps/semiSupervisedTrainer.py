@@ -120,12 +120,21 @@ if __name__ == '__main__' :
     parser.add_argument('--contrF', dest='contrF', type=float, default=.01,
                         help='Rate of contraction of the latent space on ' +
                              'Fully-Connected Layers.')
+    parser.add_argument('--momentum', dest='momentum', type=float, default=.3,
+                        help='Momentum rate all layers.')
     parser.add_argument('--kernel', dest='kernel', type=int, default=6,
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
                         help='Number of Neurons in Hidden Layer.')
     parser.add_argument('--epoch', dest='numEpochs', type=int, default=15,
-                        help='Number of epochs to run per layer.')
+                        help='Number of epochs to run per layer during ' +
+                             'unsupervised pre-training.')
+    parser.add_argument('--limit', dest='limit', type=int, default=5,
+                        help='Number of runs between validation checks ' +
+                             'during supervised learning.')
+    parser.add_argument('--stop', dest='stop', type=int, default=5,
+                        help='Number of inferior validation checks to end ' +
+                             'the supervised learning session.')
     parser.add_argument('--holdout', dest='holdout', type=float, default=.05,
                         help='Percent of data to be held out for testing.')
     parser.add_argument('--batch', dest='batchSize', type=int, default=5,
@@ -210,6 +219,7 @@ if __name__ == '__main__' :
         # patterns identified in previous layers, so it should only
         # be influenced/trained during supervised learning. 
 
+    # train the SAE for unsupervised patter recognition
     bestNetwork = trainUnsupervised(network, options)
 
     # cleanup the network -- this ensures the profile is written
@@ -218,17 +228,17 @@ if __name__ == '__main__' :
     # translate into a neural network --
     # this transfers our unsupervised pre-training into a decent
     # starting condition for our supervised learning
-    network = TrainerNetwork(train, test, labels,
+    network = TrainerNetwork(train, splitToShared(test,  borrow=True), labels,
                              filepath=bestNetwork, log=log)
 
     # add the classification layer
     network.addLayer(ContiguousLayer(
         layerID='f4', input=network.getNetworkOutput(),
         inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
-        learningRate=options.learnF, randomNumGen=rng))
+        learningRate=options.learnF*10, randomNumGen=rng))
 
+    # train the NN for supervised classification
     bestNetwork = trainSupervised(network, options)
-    
 
     # cleanup the network -- this ensures the profile is written
     del network
