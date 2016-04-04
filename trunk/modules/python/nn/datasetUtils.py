@@ -292,17 +292,27 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
         # a small percentage of the data is held out to verify our training
         # isn't getting overfitted. We will randomize the input later.
         numTest = max(minTest, int(holdoutPercentage * len(files)))
-        holdout = int(1. / (float(numTest) / float(len(files))))
+
+        # this is updated to at least holdout a few images for testing
+        holdoutPercentage = (float(numTest) / float(len(files)))
+        holdoutTest  = int(1. / holdoutPercentage)
+        holdoutTrain = int(1. / (1.-holdoutPercentage))
         if log is not None :
             log.debug('Holding out [' + str(numTest) + '] of [' + \
                       str(len(files)) + ']')
+
+        # this loop ensures a good sampling is held out across our entire
+        # dataset. if holdoutPercentage is <.5 this takes the if, otherwise
+        # uses the else.
         for ii in range(len(files)) :
             try :
                 imgLabel = readImage(os.path.join(root, files[ii]), log), labelIndx
-                if ii % holdout == 0 : 
-                    test.append(imgLabel)
+                if holdoutTest > 1 :
+                    test.append(imgLabel) if ii % holdoutTest == 0 else \
+                        train.append(imgLabel)
                 else :
-                    train.append(imgLabel)
+                    train.append(imgLabel) if ii % holdoutTrain == 0 else \
+                        test.append(imgLabel)
             except IOError :
                 # continue on if image cannot be read
                 pass
