@@ -3,42 +3,62 @@ import logging
 import os
 import theano
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 options = None
 windowName = 'Kirtland AF Base'
 thumbOrig = None
-mouseLocation = None
+refLocation = None
+misLocation = None
 referenceVector = None
 network = None
+matchSelect = False
+likeness = None
+
+def convertImageToNP(image) :
+    from nn.datasetUtils import normalize
+
+    # convert to np array
+    imageNP = normalize(np.asarray(image.getdata(), 
+                                   dtype=theano.config.floatX))
+    return np.resize(imageNP, (1, image.size[0], image.size[1]))
 
 def selectRegion (event, x, y, flags, param) :
     if event == cv2.EVENT_LBUTTONDBLCLK :
         # record the mouse click
-        global mouseLocation, referenceVector
+        global refLocation, misLocation, referenceVector, matchSelect, likeness
         halfBox = options.chipSize / 2
-        mouseLocation = [(x-halfBox, y-halfBox), (x+halfBox, y+halfBox)]
 
         # chip and find the reference encoded vector
-        referenceVector = network.classifyAndSoftmax(
-            np.array(thumbOrig.crop(
-                (mouseLocation[0][0], mouseLocation[0][1], 
-                 mouseLocation[1][0], mouseLocation[1][1]))))
-        print referenceVector
+        if matchSelect == False :
+            refLocation = [(x-halfBox, y-halfBox), (x+halfBox, y+halfBox)]
+            referenceVector = network.classifyAndSoftmax(
+                np.resize(np.array(thumbOrig.crop(
+                    (refLocation[0][0], refLocation[0][1], 
+                     refLocation[1][0], refLocation[1][1]))),
+                    (1, 1, options.chipSize, options.chipSize)))[1][0]
+        else :
+            misLocation = [(x-halfBox, y-halfBox), (x+halfBox, y+halfBox)]
+            matchVector = network.classifyAndSoftmax(
+                np.resize(np.array(thumbOrig.crop(
+                    (misLocation[0][0], misLocation[0][1], 
+                     misLocation[1][0], misLocation[1][1]))),
+                    (1, 1, options.chipSize, options.chipSize)))[1][0]
+            if refLocation == None :
+                print "Please select a reference region!"
+            else :
+                likeness = np.dot(referenceVector, matchVector)
 
 def subdivideImage(image, chipSize, stepFactor=1, 
                    batchSize=1, shuffle=False, log=None) :
     import math
     import random
-    from nn.datasetUtils import normalize
 
     if log is not None :
         log.info('Subdividing the Image...')
 
     # convert to np array
-    imageNP = normalize(np.asarray(image.getdata(), 
-                                   dtype=theano.config.floatX))
-    imageNP = np.resize(imageNP, (1, image.size[0], image.size[1]))
+    imageNP = convertImageToNP(image)
 
     # setup a grid of chips
     trainingChips = []
@@ -61,6 +81,7 @@ def subdivideImage(image, chipSize, stepFactor=1,
     # create a mini-batch of the data
     numBatches = int(math.floor(float(len(trainingChips)) / float(batchSize)))
     trainingChips = np.concatenate(trainingChips)
+
     return np.resize(np.concatenate(trainingChips[::2]), 
                      (numBatches,batchSize,1,numRows,numCols)), \
            np.resize(np.concatenate(trainingChips[1::2]),
@@ -96,14 +117,18 @@ def createNetwork(image, log=None) :
         chips, regions = subdivideImage(image, options.chipSize, 
                                         options.chipSize / 2,
                                         options.batchSize, True)
+        chips = np.resize(chips, 
+                          (chips.shape[0], chips.shape[1], 
+                           chips.shape[2]*chips.shape[3]*chips.shape[4]))
 
         if log is not None :
             log.info('Intializing the SAE...')
 
         # create the SAE
         network = StackedAENetwork((loadShared(chips, True), None), log=log)
-        input = t.ftensor4('input')
+        input = t.fmatrix('input')
 
+        '''
         # add convolutional layers
         network.addLayer(ConvolutionalAutoEncoder(
             layerID='c1', input=input,
@@ -111,7 +136,6 @@ def createNetwork(image, log=None) :
             kernelSize=(options.kernel,chips.shape[2],5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             learningRate=options.learnC))
-        '''
         network.addLayer(ConvolutionalAutoEncoder(
             layerID='c2',
             input=network.getNetworkOutput(), 
@@ -119,7 +143,6 @@ def createNetwork(image, log=None) :
             kernelSize=(options.kernel,options.kernel,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             learningRate=options.learnC))
-        '''
 
         # add fully connected layers
         numInputs = reduce(mul, network.getNetworkOutputSize()[1:])
@@ -128,23 +151,43 @@ def createNetwork(image, log=None) :
             inputSize=(network.getNetworkOutputSize()[0], numInputs),
             numNeurons=int(options.hidden*1.5),
             learningRate=options.learnF, randomNumGen=rng))
+        '''
+        network.addLayer(ContractiveAutoEncoder(
+            layerID='f1', input=input,
+            inputSize=(chips.shape[1], reduce(mul, chips.shape[2:])),
+            numNeurons=500, learningRate=options.learnF,
+            contractionRate=options.contrF, randomNumGen=rng))
+        network.addLayer(ContractiveAutoEncoder(
+            layerID='f2', input=network.getNetworkOutput(),
+            inputSize=network.getNetworkOutputSize(),
+            numNeurons=200, learningRate=options.learnF,
+            contractionRate=options.contrF, randomNumGen=rng))
+        network.addLayer(ContractiveAutoEncoder(
+            layerID='f3', input=network.getNetworkOutput(),
+            inputSize=network.getNetworkOutputSize(),
+            numNeurons=100, learningRate=options.learnF,
+            contractionRate=options.contrF, randomNumGen=rng))
         network.addLayer(ContractiveAutoEncoder(
             layerID='f4', input=network.getNetworkOutput(),
             inputSize=network.getNetworkOutputSize(),
-            numNeurons=options.hidden, learningRate=options.learnF,
-            randomNumGen=rng))
-        network.addLayer(ContractiveAutoEncoder(
-            layerID='f5', input=network.getNetworkOutput(),
-            inputSize=network.getNetworkOutputSize(),
-            numNeurons=options.neuron, learningRate=options.learnF,
-            randomNumGen=rng))
+            numNeurons=50, learningRate=options.learnF,
+            contractionRate=options.contrF, randomNumGen=rng))
 
         if log is not None :
             log.info('Entering Training...')
 
+        network.writeWeights(0, -1)
         # TODO: this could make for a great demo visual to create a blinking
         #       image of the chips which are currently being activated
-        network.trainGreedyLayerwise(options.numEpochs)
+        globalEpoch = 0
+        for layerIndex in range(network.getNumLayers()) :
+            for ii in range(100) :
+                globalEpoch, globalCost = network.trainEpoch(
+                    layerIndex, globalEpoch, options.numEpochs)
+                network.save('kirtland_afb_neurons500_layer' + \
+                             str(layerIndex) + '_epoch' + str(globalEpoch) + \
+                             '.pkl.gz')
+        #network.trainGreedyLayerwise(options.numEpochs)
 
         # save trained network -- just in case
         if log is not None :
@@ -160,7 +203,7 @@ def createNetwork(image, log=None) :
 
 
 if __name__ == '__main__' :
-    global network
+    global options, thumbOrig, network, matchSelect
 
     import argparse
     parser = argparse.ArgumentParser()
@@ -197,10 +240,6 @@ if __name__ == '__main__' :
     parser.add_argument('image', help='Input image to train.')
     options = parser.parse_args()
 
-    # setup mouse input
-    cv2.namedWindow(windowName)
-    cv2.setMouseCallback(windowName, selectRegion)
-
     # setup the logger
     log = logging.getLogger('likenessFinder')
     log.setLevel(options.level.upper())
@@ -229,34 +268,41 @@ if __name__ == '__main__' :
 
     # load a network from disk or train a new network
     network = createNetwork(thumbOrig, log)
-    
-    print network.classifyAndSoftmax(
-        np.resize(np.array(thumbOrig.crop((0, 0, 30, 30))), (1,1,30,30)))
 
     '''
-
     # grab the image chips
     chips, regions = subdivideImage(imageFromDisk, options.chipSize, 
                                     options.chipSize / 2, options.batchSize)
-
     regionsShape = regions.shape
     regions /= options.scale
     regions.astype('int32')
     '''
 
+    # setup mouse input
+    cv2.imshow(windowName, np.array(thumbOrig))
+    cv2.setMouseCallback(windowName, selectRegion)
+
     # allow user input
     count = 0
     while True :
-        global mouseLocation, referenceVector
         thumb = thumbOrig.convert('RGB')
-        if mouseLocation is not None :
-            draw = ImageDraw.Draw(thumb, mode='RGBA')
-            draw.rectangle([mouseLocation[0], mouseLocation[1]], 
+
+        draw = ImageDraw.Draw(thumb, mode='RGBA')
+        if refLocation is not None :
+            draw.rectangle([refLocation[0], refLocation[1]], 
                            fill=(0,255,0,100))
+        if misLocation is not None :
+            draw.rectangle([misLocation[0], misLocation[1]], 
+                           fill=(0,255,255,100))
+        if likeness != None :
+            font = ImageFont.truetype("arial.ttf", 50)
+            draw.text([20, 850], "Likeness: " + str(likeness),
+                      font=font, fill=(150,0,200))
+
         '''
-        draw = ImageDraw.Draw(thumb)
-        [draw.rectangle([(i[0], i[1]), (i[2], i[3])], outline=(0,150,0)) \
-            for i in regions[count % len(regions)]]
+        for i in regions[count % len(regions)] :
+            draw.rectangle([(i[0], i[1]), (i[2], i[3])], outline=(0,150,0))
+            count += 1
         '''
         cv2.imshow(windowName, np.array(thumb))
 
@@ -267,3 +313,7 @@ if __name__ == '__main__' :
             # cleanup
             cv2.destroyWindow(windowName)
             break
+        elif ch == 'd' :
+            matchSelect = True
+        elif ch == 'f' :
+            matchSelect = False
