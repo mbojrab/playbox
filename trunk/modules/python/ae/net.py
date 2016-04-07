@@ -18,8 +18,15 @@ class StackedAENetwork (Network) :
         Network.__init__ (self, log)
         self._indexVar = t.lscalar('index')
         self._trainData, self._trainLabels = train
-        self._numTrainBatches = self._trainLabels.get_value(borrow=True).shape[0]
+        self._numTrainBatches = self._trainData.get_value(borrow=True).shape[0]
         self._greedyTrainer = []
+
+    def __buildAE(self, encoder) :
+        out, updates = encoder.getUpdates()
+        self._greedyTrainer.append(
+            theano.function([self._indexVar], out, updates=updates,
+                            givens={self.getNetworkInput() : 
+                                    self._trainData[self._indexVar]}))
 
     def __getstate__(self) :
         '''Save network pickle'''
@@ -41,11 +48,8 @@ class StackedAENetwork (Network) :
         Network.__setstate__(self, dict)
         # rebuild the network
         for encoder in self._layers :
-            out, updates = encoder.getUpdates()
-            self._greedyTrainer.append(
-                theano.function([self._indexVar], out, updates=updates,
-                                givens={self.getNetworkInput() : 
-                                        self._trainData[self._indexVar]}))
+            self.__buildAE(encoder)
+
     def addLayer(self, encoder) :
         '''Add an autoencoder to the network. It is the responsibility of the 
            user to connect the current network's output as the input to the 
@@ -62,11 +66,7 @@ class StackedAENetwork (Network) :
         # all layers start with the input original input, however are updated
         # in a layerwise manner. --
         # NOTE: this uses theano.shared variables for optimized GPU execution
-        out, updates = encoder.getUpdates()
-        self._greedyTrainer.append(
-            theano.function([self._indexVar], out, updates=updates,
-                            givens={self.getNetworkInput() : 
-                                    self._trainData[self._indexVar]}))
+        self.__buildAE(encoder)
         self._endProfile()
 
     def train(self, layerIndex, index) :
@@ -119,6 +119,8 @@ class StackedAENetwork (Network) :
             globCost.append(locCost)
             self._endProfile()
             self._endProfile()
+
+            #self.writeWeights(layerIndex, globalEpoch + localEpoch)
         return globalEpoch + numEpochs, globCost
 
     def trainGreedyLayerwise(self, numEpochs=1) :
@@ -131,9 +133,8 @@ class StackedAENetwork (Network) :
         for layerIndex in range(self.getNumLayers()) :
             self.trainEpoch(layerIndex, 0, numEpochs)
 
-    def writeWeights(self, ii) :
-        for layer in self._layers :
-            layer.writeWeights(ii)
+    def writeWeights(self, layerIndex, epoch) :
+        self._layers[layerIndex].writeWeights(epoch)
 
 
 if __name__ == '__main__' :
