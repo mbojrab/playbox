@@ -36,14 +36,14 @@ def selectRegion (event, x, y, flags, param) :
                 np.resize(np.array(thumbOrig.crop(
                     (refLocation[0][0], refLocation[0][1], 
                      refLocation[1][0], refLocation[1][1]))),
-                    (1, 1, options.chipSize, options.chipSize)))[1][0]
+                    (1, options.chipSize*options.chipSize)))[1][0]
         else :
             misLocation = [(x-halfBox, y-halfBox), (x+halfBox, y+halfBox)]
             matchVector = network.classifyAndSoftmax(
                 np.resize(np.array(thumbOrig.crop(
                     (misLocation[0][0], misLocation[0][1], 
                      misLocation[1][0], misLocation[1][1]))),
-                    (1, 1, options.chipSize, options.chipSize)))[1][0]
+                    (1, options.chipSize*options.chipSize)))[1][0]
             if refLocation == None :
                 print "Please select a reference region!"
             else :
@@ -82,7 +82,7 @@ def subdivideImage(image, chipSize, stepFactor=1,
     numBatches = int(math.floor(float(len(trainingChips)) / float(batchSize)))
     trainingChips = np.concatenate(trainingChips)
 
-    return np.resize(np.concatenate(trainingChips[::2]), 
+    return np.resize(np.concatenate(trainingChips[::2]),
                      (numBatches,batchSize,1,numRows,numCols)), \
            np.resize(np.concatenate(trainingChips[1::2]),
                      (numBatches,batchSize,4))
@@ -90,11 +90,56 @@ def subdivideImage(image, chipSize, stepFactor=1,
 def createNetwork(image, log=None) :
     from nn.net import ClassifierNetwork
 
+    # divide the image into chips
+    chips, regions = subdivideImage(image, options.chipSize, 
+                                    options.chipSize / 2,
+                                    options.batchSize, True)
+    chips = np.resize(chips, 
+                      (chips.shape[0], chips.shape[1], 
+                       chips.shape[2]*chips.shape[3]*chips.shape[4]))
+
     # load a previously created network
     if options.synapse is not None :
         if log is not None :
             log.info('Loading Network from Disk...')
         network = ClassifierNetwork(options.synapse, log)
+
+        '''
+        if log is not None :
+            log.info('Entering Training...')
+
+        # TODO: this could make for a great demo visual to create a blinking
+        #       image of the chips which are currently being activated
+        globalEpoch = 0
+        for layerIndex in range(1,network.getNumLayers()) :
+            #network.writeWeights(layerIndex, 00)
+            for ii in range(100) :
+                #globalEpoch, globalCost = network.trainEpoch(
+                #    layerIndex, globalEpoch, options.numEpochs)
+                globCost = []
+                for localEpoch in range(options.numEpochs) :
+                    layerEpochStr = 'Layer[' + str(layerIndex) + '] Epoch[' + \
+                                    str(globalEpoch + localEpoch) + ']'
+                    print 'Running ' + layerEpochStr
+                    locCost = []
+                    for ii in range(chips.shape[0]) :
+                        locCost.append(network.train(layerIndex, ii))
+
+                    locCost = np.mean(locCost, axis=0)
+                    if isinstance(locCost, tuple) :
+                        print layerEpochStr + ' Cost: ' + \
+                              str(locCost[0]) + ' - Jacob: ' + \
+                              str(locCost[1])
+                    else :
+                        print layerEpochStr + ' Cost: ' + str(locCost)
+                    globCost.append(locCost)
+
+                #network.writeWeights(layerIndex, globalEpoch + localEpoch)
+                globalEpoch = globalEpoch + options.numEpochs
+                network.save('kirtland_afb_neurons500_layer' + \
+                             str(layerIndex) + '_epoch' + str(globalEpoch) + \
+                             '.pkl.gz')
+        '''
 
     # create a newly trained network on the specified image
     else :
@@ -112,14 +157,6 @@ def createNetwork(image, log=None) :
 
         # create a random number generator for efficiency
         rng = RandomState(int(time.time()))
-
-        # divide the image into chips
-        chips, regions = subdivideImage(image, options.chipSize, 
-                                        options.chipSize / 2,
-                                        options.batchSize, True)
-        chips = np.resize(chips, 
-                          (chips.shape[0], chips.shape[1], 
-                           chips.shape[2]*chips.shape[3]*chips.shape[4]))
 
         if log is not None :
             log.info('Intializing the SAE...')
@@ -176,14 +213,36 @@ def createNetwork(image, log=None) :
         if log is not None :
             log.info('Entering Training...')
 
-        network.writeWeights(0, -1)
+        #network.writeWeights(0, -1)
         # TODO: this could make for a great demo visual to create a blinking
         #       image of the chips which are currently being activated
         globalEpoch = 0
         for layerIndex in range(network.getNumLayers()) :
-            for ii in range(100) :
+            for ii in range(4) :
+                '''
                 globalEpoch, globalCost = network.trainEpoch(
                     layerIndex, globalEpoch, options.numEpochs)
+                '''
+                globCost = []
+                for localEpoch in range(options.numEpochs) :
+                    layerEpochStr = 'Layer[' + str(layerIndex) + '] Epoch[' + \
+                                    str(globalEpoch + localEpoch) + ']'
+                    print 'Running ' + layerEpochStr
+                    locCost = []
+                    for ii in range(chips.shape[0]) :
+                        locCost.append(network.train(layerIndex, ii))
+
+                    locCost = np.mean(locCost, axis=0)
+                    if isinstance(locCost, tuple) :
+                        print layerEpochStr + ' Cost: ' + \
+                              str(locCost[0]) + ' - Jacob: ' + \
+                              str(locCost[1])
+                    else :
+                        print layerEpochStr + ' Cost: ' + str(locCost)
+                    globCost.append(locCost)
+
+                    #network.writeWeights(layerIndex, globalEpoch + localEpoch)
+                globalEpoch = globalEpoch + options.numEpochs
                 network.save('kirtland_afb_neurons500_layer' + \
                              str(layerIndex) + '_epoch' + str(globalEpoch) + \
                              '.pkl.gz')
