@@ -9,7 +9,8 @@ class ContiguousLayer(Layer) :
        
        layerID           : unique name identifier for this layer
        input             : the input buffer for this layer
-       inputSize         : number of elements in input buffer
+       inputSize         : number of elements in input buffer. This can also
+                           be a tuple of size (batch size, input vector length)
        numNeurons        : number of neurons in this layer
        learningRate      : learning rate for all neurons
        initialWeights    : weights to initialize the network
