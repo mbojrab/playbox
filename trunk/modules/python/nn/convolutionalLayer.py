@@ -97,14 +97,14 @@ class ConvolutionalLayer(Layer) :
         return self._kernelSize
     def getFeatureSize (self) :
         '''This is the post convolution size of the output.
-           (channels, rows, columns)'''
+           (batch size, number of kernels, rows, columns)'''
         return (self._inputSize[0], 
                 self._kernelSize[0],
                 self._inputSize[2] - self._kernelSize[2] + 1,
                 self._inputSize[3] - self._kernelSize[3] + 1)
     def getOutputSize (self) :
         '''This is the post downsample size of the output.
-           (numImages, channels, rows, columns)'''
+           (batch size, number of kernels, rows, columns)'''
         fShape = self.getFeatureSize()
         return (fShape[0], fShape[1],
                 fShape[2] / self._downsampleFactor[0],
