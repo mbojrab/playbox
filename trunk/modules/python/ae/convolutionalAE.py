@@ -4,7 +4,7 @@ import theano.tensor as t
 from ae.encoder import AutoEncoder
 from nn.convolutionalLayer import ConvolutionalLayer
 from theano.tensor.nnet.conv import conv2d
-
+from nn.costUtils import crossEntropyLoss, meanSquaredLoss, leastSquares
 
 def max_unpool_2d(input, upsampleFactor) :
     '''Perform perforated upsample from paper : 
@@ -56,6 +56,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
        downsampleFactor : (rowFactor, columnFactor)
        learningRate     : learning rate for all neurons
        contractionRate  : variance (dimensionality) reduction rate
+                          None uses '1 / numNeurons'
        initialHidThresh : thresholds to initialize the forward network
                           None generates random thresholds for the layer
        initialVisThresh : thresholds to initialize the backward network
@@ -79,7 +80,10 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                                     initialThresholds=initialHidThresh,
                                     activation=activation, 
                                     randomNumGen=randomNumGen)
-        AutoEncoder.__init__(self, contractionRate)
+        AutoEncoder.__init__(self, 1. / np.prod(kernelSize[:]) if \
+                                   contractionRate is None else \
+                                   contractionRate)
+
         kernelSize = self.getKernelSize()
         kernelBackSize = (kernelSize[1], kernelSize[0], 
                           kernelSize[2], kernelSize[3])
@@ -103,17 +107,29 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                             border_mode='full')
         out = deconvolve + self._thresholdsBack.dimshuffle('x', 0, 'x', 'x')
         self._decodedInput = out if activation is None else activation(out)
-        self._reconstruction = function([self.input], self._decodedInput)
+        self.reconstruction = function([self.input], self._decodedInput)
+
+        # compute the jacobian cost of the output --
+        # This works as a sparsity constraint in case the hidden vector is
+        # larger than the input vector.
+        jacobianMat = conv2d(unpooling * (1 - unpooling), self._weightsBack,
+                             self.getFeatureSize(), kernelBackSize, 
+                             border_mode='full')
+        self._jacobianCost = t.mean(t.sum(jacobianMat ** 2) // 
+                             self._inputSize[0]) * self._contractionRate                             
+        #self._jacobianCost = leastSquares(jacobianMat, self._inputSize[0], 
+        #                                  self._contractionRate)
 
         # create the negative log likelihood function --
         # this is our cost function with respect to the original input
         # NOTE: The jacobian was computed however takes much longer to process
         #       and does not help convergence or regularization. It was removed
-        self._nll = t.mean(-t.sum(self.input * t.log(self._decodedInput) +
-                           (1 - self.input) * t.log(1 - self._decodedInput), 
-                           axis=1))
+        if activation == t.nnet.sigmoid :
+            self._cost = crossEntropyLoss(self.input, self._decodedInput, 1)
+        else :
+            self._cost = meanSquaredLoss(self.input, self._decodedInput)
 
-        gradients = t.grad(self._nll, self.getWeights())
+        gradients = t.grad(self._cost + self._jacobianCost, self.getWeights())
         self._updates = [(weights, weights - learningRate * gradient)
                          for weights, gradient in zip(self.getWeights(), 
                                                       gradients)]
@@ -121,7 +137,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # TODO: this needs to be stackable and take the input to the first
         #       layer, not just the input of this layer. This will ensure
         #       the other layers are activated to get the input to this layer
-        self._trainLayer = function([self.input], self._nll, 
+        self._trainLayer = function([self.input], 
+                                    [self._cost, self._jacobianCost],
                                     updates=self._updates)
 
     def getWeights(self) :
@@ -129,8 +146,14 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         return [self._weights, self._thresholds, self._thresholdsBack]
     def getUpdates(self) :
         '''This allows the Stacker to build the layerwise training.'''
-        return (self._nll, self._updates)
+        return ([self._cost, self._jacobianCost], self._updates)
 
+    # DEBUG: For Debugging purposes only
+    def saveReconstruction(self, image, ii) :
+        import ae.utils
+        ae.utils.saveNormalizedImage(
+            np.resize(self.reconstruction(image), (30, 30)),
+            'chip_' + str(ii) + '_reconst.png')
     # DEBUG: For Debugging purposes only 
     def train(self, image) :
         return self._trainLayer(image)

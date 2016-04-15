@@ -133,6 +133,9 @@ class StackedAENetwork (Network) :
         for layerIndex in range(self.getNumLayers()) :
             self.trainEpoch(layerIndex, 0, numEpochs)
 
+    # TODO: these should both be removed!
+    def getLayer(self, layerIndex) :
+        return self._layers[layerIndex]
     def writeWeights(self, layerIndex, epoch) :
         self._layers[layerIndex].writeWeights(epoch)
 

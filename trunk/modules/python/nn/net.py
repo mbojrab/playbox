@@ -48,7 +48,6 @@ class Network () :
         self._startProfile('Loading network from disk [' + str(filepath) +
                            ']', 'info')
         if '.pkl.gz' in filepath :
-            print filepath
             with gzip.open(filepath, 'rb') as f :
                 self.__setstate__(cPickle.load(f))
         self._endProfile()
@@ -293,6 +292,8 @@ class TrainerNetwork (ClassifierNetwork) :
            This creates several network-wide functions so they will be
            pre-compiled and optimized when we need them.
         '''
+        from nn.costUtils import crossEntropyLoss
+        from nn.costUtils import leastAbsoluteDeviation, leastSquares
         if len(self._layers) == 0 :
             raise IndexError('Network must have at least one layer' +
                              'to call getNetworkInput().')
@@ -339,12 +340,9 @@ class TrainerNetwork (ClassifierNetwork) :
         # Brown will hit you with a time machine.
         expectedOutputs = t.imatrix('expectedOutputs')
 
-        nll = t.mean(-expectedOutputs * t.log(self._out) - 
-                     (1-expectedOutputs) * t.log(1-self._out))
-        nllPer = t.mean(-expectedOutputs * t.log(self._out) - 
-                        (1-expectedOutputs) * t.log(1-self._out), axis=0)
+        xEntropy = crossEntropyLoss(expectedOutputs, self._out, 1)
         self._cost = theano.function([self._layers[0].input, expectedOutputs],
-                                     nllPer)
+                                     xEntropy)
 
         # calculate a regularization term -- if desired
         reg = 0.0
@@ -352,15 +350,17 @@ class TrainerNetwork (ClassifierNetwork) :
         # L1-norm provides 'Least Absolute Deviation' --
         # built for sparse outputs and is resistent to outliers
         if self._regularization == 'L1' :
-            reg = sum([abs(w).sum() for w in self._weights]) * regSF
+            reg = sum([leastAbsoluteDeviation(w, self._numTestBatches, regSF) \
+                       for w in self._weights])
         # L2-norm provides 'Least Squares' --
         # built for dense outputs and is computationally stable at small errors
         elif self._regularization == 'L2' :
-            reg = sum([abs(w ** 2).sum() for w in self._weights]) * regSF
+            reg = sum([leastSquares(w, self._numTestBatches, regSF) \
+                       for w in self._weights])
 
         # create the function for back propagation of all layers --
         # this is combined for convenience
-        gradients = t.grad(nll + reg, self._weights)
+        gradients = t.grad(xEntropy + reg, self._weights)
         updates = [(weights, weights - learningRate * gradient)
                    for weights, gradient, learningRate in \
                        zip(self._weights, gradients, self._learningRates)]
@@ -368,9 +368,10 @@ class TrainerNetwork (ClassifierNetwork) :
         #       input to the first layer. We now use that object to connect
         #       our shared buffers.
         self._trainNetworkNP = theano.function(
-            [self.getNetworkInput(), expectedOutputs], nll, updates=updates)
+            [self.getNetworkInput(), expectedOutputs], 
+             xEntropy, updates=updates)
         #self._trainNetwork = theano.function(
-        #    [index], nll, updates=updates,
+        #    [index], xEntropy, updates=updates,
         #    givens={self.getNetworkInput(): self._trainData[index],
         #            expectedOutputs: self._trainLabels[index]})
         self._endProfile()
