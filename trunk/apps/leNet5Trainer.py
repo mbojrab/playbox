@@ -115,7 +115,7 @@ if __name__ == '__main__' :
         network.addLayer(ContiguousLayer(
             layerID='f4', input=network.getNetworkOutput(),
             inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
-            learningRate=options.learnF, randomNumGen=rng))
+            learningRate=options.learnF, activation=None, randomNumGen=rng))
 
     globalCount = lastBest = degradationCount = 0
     numEpochs = options.limit
@@ -129,7 +129,7 @@ if __name__ == '__main__' :
         # calculate the accuracy against the test set
         curAcc = network.checkAccuracy()
         log.info('Checking Accuracy - {0}s ' \
-                 '\n\tCorrect  : {1}% \n\tIncorrect  : {2}%'.format(
+                 '\n\tCorrect   : {1}% \n\tIncorrect : {2}%'.format(
                  time() - timer, curAcc, (100-curAcc)))
 
         # check if we've done better
