@@ -115,10 +115,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         jacobianMat = conv2d(unpooling * (1 - unpooling), self._weightsBack,
                              self.getFeatureSize(), kernelBackSize, 
                              border_mode='full')
-        self._jacobianCost = t.mean(t.sum(jacobianMat ** 2) // 
-                             self._inputSize[0]) * self._contractionRate                             
-        #self._jacobianCost = leastSquares(jacobianMat, self._inputSize[0], 
-        #                                  self._contractionRate)
+        self._jacobianCost = leastSquares(jacobianMat, self._inputSize[0], 
+                                          self._contractionRate)
 
         # create the negative log likelihood function --
         # this is our cost function with respect to the original input
@@ -152,7 +150,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
     def saveReconstruction(self, image, ii) :
         import ae.utils
         ae.utils.saveNormalizedImage(
-            np.resize(self.reconstruction(image), (30, 30)),
+            np.resize(self.reconstruction(image), (30, 90)),
             'chip_' + str(ii) + '_reconst.png')
     # DEBUG: For Debugging purposes only 
     def train(self, image) :
@@ -164,7 +162,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         kernelSize = self._weights.get_value(borrow=True).shape
         img = Image.fromarray(tile_raster_images(
         X=np.resize(self._weights.get_value(borrow=True),
-                    (kernelSize[0] * kernelSize[1],
+                    (kernelSize[0], kernelSize[1],
                      kernelSize[2], kernelSize[3])),
         img_shape=(kernelSize[2], kernelSize[3]), 
         tile_shape=(kernelSize[0], kernelSize[1]),

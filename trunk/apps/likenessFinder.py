@@ -15,14 +15,6 @@ network = None
 matchSelect = False
 likeness = None
 
-def convertImageToNP(image) :
-    from nn.datasetUtils import normalize
-
-    # convert to np array
-    imageNP = normalize(np.asarray(image.getdata(), 
-                                   dtype=theano.config.floatX))
-    return np.resize(imageNP, (1, image.size[0], image.size[1]))
-
 def selectRegion (event, x, y, flags, param) :
     if event == cv2.EVENT_LBUTTONDBLCLK :
         # record the mouse click
@@ -53,19 +45,20 @@ def subdivideImage(image, chipSize, stepFactor=1,
                    batchSize=1, shuffle=False, log=None) :
     import math
     import random
+    from nn.datasetUtils import makePILImageBandContiguous
 
     if log is not None :
         log.info('Subdividing the Image...')
 
     # convert to np array
-    imageNP = convertImageToNP(image)
+    imageNP = makePILImageBandContiguous(image)
 
     # setup a grid of chips
     trainingChips = []
 
     # grab an overlapped grid of chips -- 
     # we are forcing the chips to be square here
-    numRows, numCols = chipSize, chipSize
+    numRows, numCols, numChannels = chipSize, chipSize, imageNP.shape[0]
     for ii in range(0, image.size[0] - chipSize, stepFactor) :
         for jj in range(0, image.size[1] - chipSize, stepFactor) :
             trainingChips.append(
@@ -83,7 +76,7 @@ def subdivideImage(image, chipSize, stepFactor=1,
     trainingChips = np.concatenate(trainingChips)
 
     return np.resize(np.concatenate(trainingChips[::2]),
-                     (numBatches,batchSize,1,numRows,numCols)), \
+                     (numBatches,batchSize,numChannels,numRows,numCols)), \
            np.resize(np.concatenate(trainingChips[1::2]),
                      (numBatches,batchSize,4))
 
@@ -106,7 +99,6 @@ def createNetwork(image, log=None) :
             log.info('Loading Network from Disk...')
         network = ClassifierNetwork(options.synapse, log)
 
-        '''
         from nn.datasetUtils import loadShared
         from ae.net import StackedAENetwork
         network = StackedAENetwork((loadShared(chips, True), None), log=log)
@@ -114,12 +106,12 @@ def createNetwork(image, log=None) :
         for ii in range(0, chips.shape[0], 50) :
             import ae.utils
             ae.utils.saveNormalizedImage(
-                np.resize(chips[ii], (30, 30)),
+                np.resize(chips[ii], (90, 30)),
                 'chip_' + str(ii) + '.png')
             network.getLayer(0).saveReconstruction(chips[ii], ii)
         import sys
         sys.exit(0)
-        '''
+
     # create a newly trained network on the specified image
     else :
         import time
@@ -227,8 +219,8 @@ def createNetwork(image, log=None) :
                     if ii == 0 :
                         network.writeWeights(layerIndex, globalEpoch + localEpoch)
                 globalEpoch = globalEpoch + options.numEpochs
-                network.save('kirtland_afb_neurons500_layer' + \
-                             str(layerIndex) + '_epoch' + str(globalEpoch) + \
+                network.save(options.base + str(layerIndex) + \
+                             '_epoch' + str(globalEpoch) + \
                              '.pkl.gz')
         #network.trainGreedyLayerwise(options.numEpochs)
 
@@ -337,8 +329,8 @@ if __name__ == '__main__' :
             draw.rectangle([misLocation[0], misLocation[1]], 
                            fill=(0,255,255,100))
         if likeness != None :
-            font = ImageFont.truetype("arial.ttf", 50)
-            draw.text([20, 850], "Likeness: " + str(likeness),
+            font = ImageFont.truetype("arial.ttf", 16)
+            draw.text([20, 20], "Likeness: " + str(likeness),
                       font=font, fill=(150,0,200))
 
         '''

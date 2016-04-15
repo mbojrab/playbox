@@ -90,7 +90,7 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
         if activation == t.nnet.sigmoid :
             self._cost = crossEntropyLoss(self.input, self._decodedInput, 1)
         else :
-            self._cost = meanSquaredLoss(self.input, self._decodedInput, 1)
+            self._cost = meanSquaredLoss(self.input, self._decodedInput)
 
         gradients = t.grad(self._cost + self._jacobianCost, self.getWeights())
         self._updates = [(weights, weights - learningRate * gradient)

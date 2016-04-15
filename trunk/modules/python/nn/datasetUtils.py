@@ -178,14 +178,11 @@ def readNITF(image, log=None) :
     reader.io.close()
     return a
 
-def readPILImage(image, log=None) :
-    '''This method should be used for all regular image formats from JPEG,
-       PNG, TIFF, etc. A PIL error may originate from this method if the image
-       format is unsupported.
+def makePILImageBandContiguous(img, log=None) :
+    '''This will split the image so each channel will be contigous in memory.
+       The resultant format is (channels, rows, cols), where channels are
+       ordered in [Red, Green. Blue] for three channel products.
     '''
-    from PIL import Image
-    img = Image.open(image)
-    img.load() # because PIL can be lazy
     if img.mode == 'RBG' or img.mode == 'RGB' :
         # channels are interleaved by band
         a = numpy.asarray(numpy.concatenate(img.split()), 
@@ -196,6 +193,16 @@ def readPILImage(image, log=None) :
         # just one channel
         a = numpy.asarray(img.getdata(), dtype=theano.config.floatX)
         return numpy.resize(normalize(a), (1, img.size[1], img.size[0]))
+
+def readPILImage(image, log=None) :
+    '''This method should be used for all regular image formats from JPEG,
+       PNG, TIFF, etc. A PIL error may originate from this method if the image
+       format is unsupported.
+    '''
+    from PIL import Image
+    img = Image.open(image)
+    img.load() # because PIL can be lazy
+    return makePILImageBandContiguous(img)
 
 def readImage(image, log=None) :
     '''Load the image into memory. It can be any type supported by PIL.'''
