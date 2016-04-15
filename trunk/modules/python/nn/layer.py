@@ -15,12 +15,6 @@ class Layer () :
     def getLearningRate(self) :
         return self._learningRate
 
-    def activate (self, input) :
-        raise NotImplementedError('Implement the activate() method')
-
-    def backPropagate (self, input, errorGrad, backError) :
-        raise NotImplementedError('Implement the backPropagate() method')
-
     def getInputSize (self) :
         raise NotImplementedError('Implement the getInputSize() method')
 

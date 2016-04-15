@@ -2,12 +2,25 @@ import theano, numpy, cPickle, gzip, os
 import theano.tensor as t
 
 def loadShared(x, borrow=True) :
+    '''Transfer numpy.array to theano.shared variable.
+       NOTE: Shared variables allow for optimized GPU execution
+    '''
     if not isinstance(x, numpy.ndarray) :
         x = numpy.asarray(x, dtype=theano.config.floatX)
     return theano.shared(x, borrow=borrow)
+
 def splitToShared(x, borrow=True) :
+    '''Create shared variables for both the input and expectedOutcome vectors.
+       x      : This can be a vector list of inputs and expectedOutputs. It is
+                assumed they are of the same length.
+                    Format - (data, label)
+       borrow : Should the theano vector accept responsibility for the memory
+       return : Shared Variable equivalents for these items
+                    Format - (data, label)
+    '''
     data, label = x
     return (loadShared(data), t.cast(loadShared(label), 'int32'))
+
 def ingestImagery(filepath=None, shared=False, log=None) :
     '''Load the dataset provided by the user.
        filepath : This can be a cPickle, a path to the directory structure,
@@ -82,22 +95,127 @@ def ingestImagery(filepath=None, shared=False, log=None) :
     else :
         return train, test, labels
 
-def readImage(image, log=None) :
-    '''Load the image into memory. It can be any type supported by PIL
+def normalize(v) :
+    '''Normalize a vector in a naive manner.
+       TODO: For SAR products, the data is Rayleigh distributed for the 
+             amplitude component, so it may be best to perform a more rigorous
+             remap here. Amplitude recognition can be affected greatly by the
+             strength of Rayleigh distribution.
+    '''
+    minimum, maximum = numpy.amin(v), numpy.amax(v)
+    return (v - minimum) / (maximum - minimum)
+
+def convertPhaseAmp(imData, log=None) :
+    '''Extract the phase and amplitude components of a complex number.
+       This is assumed to be a better classifier than the raw IQ image.
+       TODO: the amplitude components are Rayleigh distributed and may need to
+             be remapped (using histoEq) to better fit the bit range. The 
+             NN weights may also correct for this.
+       TODO: Research other possible feature spaces which could elicit better
+             learning or augment the phase/amp components.
+    '''
+    if imData.dtype != numpy.complex64 :
+        raise ValueError('The array must be of type numpy.complex64.')
+    imageDims = imData.shape
+    a = numpy.asarray(numpy.concatenate((normalize(numpy.angle(imData)), 
+                                         normalize(numpy.absolute(imData)))),
+                      dtype=theano.config.floatX)
+    return numpy.resize(a, (2, imageDims[0], imageDims[1]))
+
+'''TODO: These methods may need to be implemented as derived classes.'''
+def readSICD(image, log=None) :
+    '''This method should read a prepare the data for training or testing.'''
+    import pysix.six_sicd
+
+    # setup the schema validation if the user has it specified
+    schemaPaths = pysix.six_sicd.VectorString()
+    if os.environ.has_key('SIX_SCHEMA_PATH') :
+        schemaPaths.push_back(os.environ['SIX_SCHEMA_PATH'])
+
+    # read the image components --
+    # wbData    : the raw IQ image data
+    # cmplxData : the struct for sicd metadata
+    wbData, cmplxData = pysix.six_sicd.read(image, schemaPaths)
+    return convertPhaseAmp(wbData, log)
+
+def readSIDD(image, log=None) :
+    '''This method should read a prepare the data for training or testing.'''
+    raise NotImplementedError('Implement the datasetUtils.readSIDD() method')
+
+def readSIO(image, log=None) :
+    import coda.sio_lite
+    imData = coda.sio_lite.read(image)
+    if imData.dtype == numpy.complex64 :
+        return convertPhaseAmp(imData, log)
+    else :
+        # TODO: this assumes the imData is already band-interleaved
+        return imData
+
+def readNITF(image, log=None) :
+    import nitf
+
+    # read the nitf
+    reader, record = nitf.read(image)
+
+    # there could be multiple images per nitf --
+    # for now just read the first.
+    # TODO: we could read each image separately, but its unlikely to
+    #       encounter a multi-image file in the wild.
+    segment = record.getImages()[0]
+    imageReader = reader.newImageReader(0)
+    window = nitf.SubWindow()
+    window.numRows = segment.subheader['numRows'].intValue()
+    window.numCols = segment.subheader['numCols'].intValue()
+    window.bandList = range(segment.subheader.getBandCount())
+
+    # read the bands and interleave them by band --
+    # this assumes the image is non-complex and treats bands as color.
+    a = numpy.concatenate(imageReader.read(window))
+
+    a = numpy.resize(normalize(a), (segment.subheader.getBandCount(),
+                                    window.numRows, window.numCols))
+    # explicitly close the handle -- for peace of mind
+    reader.io.close()
+    return a
+
+def readPILImage(image, log=None) :
+    '''This method should be used for all regular image formats from JPEG,
+       PNG, TIFF, etc. A PIL error may originate from this method if the image
+       format is unsupported.
     '''
     from PIL import Image
-    if log is not None :
-        log.debug('Openning Image [' + image + ']')
     img = Image.open(image)
+    img.load() # because PIL can be lazy
     if img.mode == 'RBG' or img.mode == 'RGB' :
         # channels are interleaved by band
-        a = numpy.concatenate((img.split()), dtype=theano.config.floatX)
-        a = numpy.resize(a, (3, img.size[1], img.size[0]))
+        a = numpy.asarray(numpy.concatenate(img.split()), 
+                          dtype=theano.config.floatX)
+        a = numpy.resize(normalize(a), (3, img.size[1], img.size[0]))
         return a if img.mode == 'RGB' else a[[0,2,1],:,:]
     elif img.mode == 'L' :
         # just one channel
         a = numpy.asarray(img.getdata(), dtype=theano.config.floatX)
-        return numpy.resize(a, (1, img.size[1], img.size[0]))
+        return numpy.resize(normalize(a), (1, img.size[1], img.size[0]))
+
+def readImage(image, log=None) :
+    '''Load the image into memory. It can be any type supported by PIL.'''
+    if log is not None :
+        log.debug('Openning Image [' + image + ']')
+    imageLower = image.lower()
+    # TODO: Images are named differently and this is not a great measure for
+    #       for image types. Change this in the future to a try/catch and 
+    #       allow the library decide what it is (or pass in a parameter for
+    #       optimized performance).
+    if 'sicd' in imageLower :
+        return readSICD(image, log)
+    elif 'sidd' in imageLower :
+        return readSIDD(image, log)
+    elif imageLower.endswith('.nitf') or imageLower.endswith('.ntf') :
+        return readNITF(image, log)
+    elif imageLower.endswith('.sio') :
+        return readSIO(image, log)
+    else :
+        return readPILImage(image, log)
 
 def makeMiniBatch(x, batchSize=1, log=None) :
     '''Deinterleave the data and labels. Resize so we can use batched learning.
@@ -155,6 +273,8 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
         log.info('Reading the directory structure')
     train, test, labels = [], [], []
     for root, dirs, files in os.walk(rootpath) :
+        if root == rootpath :
+            continue
         # don't add it if there are no files
         if len(files) == 0 :
             if log is not None :
@@ -172,17 +292,27 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
         # a small percentage of the data is held out to verify our training
         # isn't getting overfitted. We will randomize the input later.
         numTest = max(minTest, int(holdoutPercentage * len(files)))
-        holdout = int(1. / (float(numTest) / float(len(files))))
+
+        # this is updated to at least holdout a few images for testing
+        holdoutPercentage = (float(numTest) / float(len(files)))
+        holdoutTest  = int(1. / holdoutPercentage)
+        holdoutTrain = int(1. / (1.-holdoutPercentage))
         if log is not None :
             log.debug('Holding out [' + str(numTest) + '] of [' + \
                       str(len(files)) + ']')
+
+        # this loop ensures a good sampling is held out across our entire
+        # dataset. if holdoutPercentage is <.5 this takes the if, otherwise
+        # uses the else.
         for ii in range(len(files)) :
             try :
                 imgLabel = readImage(os.path.join(root, files[ii]), log), labelIndx
-                if ii % holdout == 0 : 
-                    test.append(imgLabel)
+                if holdoutTest > 1 :
+                    test.append(imgLabel) if ii % holdoutTest == 0 else \
+                        train.append(imgLabel)
                 else :
-                    train.append(imgLabel)
+                    train.append(imgLabel) if ii % holdoutTrain == 0 else \
+                        test.append(imgLabel)
             except IOError :
                 # continue on if image cannot be read
                 pass
@@ -214,7 +344,6 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
 
     # return the output filename
     return outputFile
-
 
 if __name__ == '__main__' :
     import logging

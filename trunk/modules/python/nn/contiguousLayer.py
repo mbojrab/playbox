@@ -9,7 +9,8 @@ class ContiguousLayer(Layer) :
        
        layerID           : unique name identifier for this layer
        input             : the input buffer for this layer
-       inputSize         : number of elements in input buffer
+       inputSize         : number of elements in input buffer. This can also
+                           be a tuple of size (batch size, input vector length)
        numNeurons        : number of neurons in this layer
        learningRate      : learning rate for all neurons
        initialWeights    : weights to initialize the network
@@ -27,20 +28,23 @@ class ContiguousLayer(Layer) :
 
         # store the input buffer
         self.input = input
-        self.inputSize = inputSize if len(inputSize) == 2 else (1, inputSize)
-        self.numNeurons = numNeurons
+        self._inputSize = inputSize
+        if isinstance(self._inputSize, long) or len(self._inputSize) is not 2 :
+            self._inputSize = (1, inputSize)
+        self._numNeurons = numNeurons
 
         # setup initial values for the weights
         if initialWeights is None :
             # create a rng if its needed
             if randomNumGen is None :
                from numpy.random import RandomState
-               randomNumGen = RandomState(1234)
+               from time import time
+               randomNumGen = RandomState(int(time()))
 
             initialWeights = np.asarray(randomNumGen.uniform(
-                low=-np.sqrt(6. / (self.inputSize[1] + self.numNeurons)),
-                high=np.sqrt(6. / (self.inputSize[1] + self.numNeurons)),
-                size=(self.inputSize[1], self.numNeurons)),
+                low=-np.sqrt(6. / (self._inputSize[1] + self._numNeurons)),
+                high=np.sqrt(6. / (self._inputSize[1] + self._numNeurons)),
+                size=(self._inputSize[1], self._numNeurons)),
                 dtype=config.floatX)
             if activation == sigmoid :
                 initialWeights *= 4.
@@ -48,59 +52,20 @@ class ContiguousLayer(Layer) :
 
         # setup initial values for the thresholds
         if initialThresholds is None :
-            initialThresholds = np.zeros((self.numNeurons,),
+            initialThresholds = np.zeros((self._numNeurons,),
                                          dtype=config.floatX)
         self._thresholds = shared(value=initialThresholds, borrow=True)
 
         out = dot(self.input, self._weights) + self._thresholds
         self.output = out if activation is None else activation(out)
-        self.activation = function([self.input], self.output)
+        self.activate = function([self.input], self.output)
 
     def getWeights(self) :
         '''This allows the network backprop all layers efficiently.'''
         return [self._weights, self._thresholds]
     def getInputSize (self) :
         '''(numInputs, pattern size)'''
-        return self.inputSize
+        return self._inputSize
     def getOutputSize (self) :
         '''(numInputs, number of neurons)'''
-        return (self.inputSize[0], self.numNeurons)
-    def activate (self, input) :
-        '''activate the neural layer'''
-        return self.activation(input)
-    def backPropagate (self, cost) :
-        '''Update the weights and thresholds. The grad() method will calculate
-           the error gradient automatically with respect to these weights from
-           the final output. No need to keep track of this for each layer.
-        '''
-        from theano.tensor import grad
-        self._weights -= self._learningRate * grad(cost, self._weights)
-        self._thresholds -= self._learningRate * grad(cost, self._thresholds)
-
-if __name__ == '__main__' :
-    from theano import tensor
-    x = tensor.fmatrix('x')
-    y = tensor.fvector('y')
-
-    imageSize = (28,28)
-    inputSize = np.prod(imageSize)
-    layer = ContiguousLayer('layer0', x, inputSize, 10, .001)
-
-    from numpy.random import RandomState
-    randomNumGen = RandomState(1234)
-    x1 = randomNumGen.uniform(low=-1., high=1.,
-                              size=(1, inputSize)).astype(config.floatX)
-
-    # time the activation
-    from time import time
-    t = time()
-    for i in range(100000) :
-        out = layer.activate(x1)
-    print "total time: " + str(time() - t) + "s"
-
-
-    # time the training
-    t = time()
-    for i in range(100000) :
-        layer.activate(x1)
-    print "total time: " + str(time() - t) + "s"
+        return (self._inputSize[0], self._numNeurons)

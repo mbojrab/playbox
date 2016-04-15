@@ -3,42 +3,20 @@ from profiler import Profiler
 import theano.tensor as t
 import theano, cPickle, gzip
 
-class ClassifierNetwork () :
-    '''The ClassifierNetwork object allows the user to build multi-layer neural
-       networks of various topologies easily. This class provides users with 
-       functionality to load a trained Network from disk and begin classifying
-       inputs. 
-
-       filepath : Path to an already trained network on disk 
-                  'None' creates randomized weighting
-       log      : Logger to use
-    '''
-    def __init__ (self, filepath=None, log=None) :
-        self._profiler = Profiler(log,
-                                  'NeuralNet', 
+class Network () :
+    def __init__ (self, log=None) :
+        self._profiler = Profiler(log, 'NeuralNet', 
                                   './NeuralNet-Profile.xml') if \
                                   log is not None else None
         self._layers = []
-        self._weights = []
-        self._learningRates = []
-        if filepath is not None :
-            self.load(filepath)
-
     def __getstate__(self) :
+        '''Save network pickle'''
         dict = self.__dict__.copy()
-        # remove the functions -- they will be rebuilt JIT
-        if '_classify' in dict : del dict['_classify']
-        if '_classifyAndSoftmax' in dict : del dict['_classifyAndSoftmax']
         # remove the profiler as it is not robust to distributed processing
         dict['_profiler'] = None
         return dict
     def __setstate__(self, dict) :
-        # remove any current functions from the object so we force the
-        # theano functions to be rebuilt with the new buffers
-        if hasattr(self, '_classify') : 
-            delattr(self, '_classify')
-        if hasattr(self, '_classifyAndSoftmax') : 
-            delattr(self, '_classifyAndSoftmax')
+        '''Load network pickle'''
         # use the current constructor-supplied profiler --
         # this ensures the profiler is setup for the current system
         tmp = self._profiler
@@ -53,7 +31,28 @@ class ClassifierNetwork () :
     def _listify(self, data) :
         if data is None : return []
         else : return data if isinstance(data, list) else [data]
-
+    def save(self, filepath) :
+        '''Save the network to disk.
+           TODO: This should also support output to Synapse file
+        '''
+        self._startProfile('Saving network to disk ['+filepath+']', 'info')
+        if '.pkl.gz' in filepath :
+            with gzip.open(filepath, 'wb') as f :
+                f.write(cPickle.dumps(self.__getstate__(),
+                                      protocol=cPickle.HIGHEST_PROTOCOL))
+        self._endProfile()
+    def load(self, filepath) :
+        '''Load the network from disk.
+           TODO: This should also support input from Synapse file
+        '''
+        self._startProfile('Loading network from disk [' + str(filepath) +
+                           ']', 'info')
+        if '.pkl.gz' in filepath :
+            with gzip.open(filepath, 'rb') as f :
+                self.__setstate__(cPickle.load(f))
+        self._endProfile()
+    def getNumLayers(self) :
+        return len(self._layers)
     def getNetworkInput(self) :
         '''Return the first layer's input'''
         if len(self._layers) == 0 :
@@ -80,16 +79,59 @@ class ClassifierNetwork () :
             raise IndexError('Network must have at least one layer' +
                              'to call getNetworkOutputSize().')
         return self._layers[-1].getOutputSize()
-    def load(self, filepath) :
-        '''Load the network from disk.
-           TODO: This should also support input from Synapse file
+
+class ClassifierNetwork (Network) :
+    '''The ClassifierNetwork object allows the user to build multi-layer neural
+       networks of various topologies easily. This class provides users with 
+       functionality to load a trained Network from disk and begin classifying
+       inputs. 
+
+       filepath : Path to an already trained network on disk 
+                  'None' creates randomized weighting
+       log      : Logger to use
+    '''
+    def __init__ (self, filepath=None, log=None) :
+        Network.__init__(self, log)
+        self._networkLabels = []
+        self._weights = []
+        self._learningRates = []
+        if filepath is not None :
+            self.load(filepath)
+
+    def __getstate__(self) :
+        '''Save network pickle'''
+        dict = Network.__getstate__(self)
+        # remove the functions -- they will be rebuilt JIT
+        if '_out' in dict : del dict['_out']
+        if '_outClass' in dict : del dict['_outClass']
+        if '_classify' in dict : del dict['_classify']
+        if '_classifyAndSoftmax' in dict : del dict['_classifyAndSoftmax']
+        return dict
+    def __setstate__(self, dict) :
+        '''Load network pickle'''
+        # remove any current functions from the object so we force the
+        # theano functions to be rebuilt with the new buffers
+        if hasattr(self, '_out') : 
+            delattr(self, '_out')
+        if hasattr(self, '_outClass') : 
+            delattr(self, '_outClass')
+        if hasattr(self, '_classify') : 
+            delattr(self, '_classify')
+        if hasattr(self, '_classifyAndSoftmax') : 
+            delattr(self, '_classifyAndSoftmax')
+        Network.__setstate__(self, dict)
+
+    def getNetworkLabels(self) :
+        '''Return the Labels for the network. All other interactions with
+           training and accuracy deal with the label index, so this decodes
+           it into a string classification.
         '''
-        self._startProfile('Loading network from disk [' + str(filepath) +
-                           ']', 'info')
-        if '.pkl.gz' in filepath :
-            with gzip.open(filepath, 'rb') as f :
-                self.__setstate__(cPickle.load(f))
-        self._endProfile()
+        return self._networkLabels
+
+    def convertToLabels(self, labelIndices) :
+        '''Return the string labels for a vector of indices.'''
+        return [self._networkLabels[ii] for ii in self._networkLabels]
+
     def addLayer(self, layer) :
         '''Add a Layer to the network. It is the responsibility of the user
            to connect the current network's output as the input to the next
@@ -108,6 +150,7 @@ class ClassifierNetwork () :
         self._learningRates = [layer.getLearningRate()] * 2 + \
                               self._learningRates
         self._endProfile()
+
     def finalizeNetwork(self) :
         '''Setup the network based on the current network configuration.
            This is used to create several network-wide functions so they will
@@ -125,13 +168,14 @@ class ClassifierNetwork () :
         # output prediction, which emphasizes significant neural responses.
         # This takes as its input, the first layer's input, and uses the final
         # layer's output as the function (ie the network classification).
-        self._out = t.nnet.softmax(self._layers[-1].output)
+        self._out = t.nnet.softmax(self.getNetworkOutput())
         self._outClass = t.argmax(self._out, axis=1)
-        self._classify = theano.function([self._layers[0].input],
+        self._classify = theano.function([self.getNetworkInput()], 
                                          self._outClass)
-        self._classifyAndSoftmax = theano.function([self._layers[0].input],
+        self._classifyAndSoftmax = theano.function([self.getNetworkInput()],
                                                    [self._outClass, self._out])
         self._endProfile()
+
     def classify (self, inputs) :
         '''Classify the given inputs. The input is assumed to be 
            numpy.ndarray with dimensions specified by the first layer of the 
@@ -146,6 +190,7 @@ class ClassifierNetwork () :
         classIndex = self._classify(inputs)
         self._endProfile()
         return classIndex
+
     def classifyAndSoftmax (self, inputs) :
         '''Classify the given inputs. The input is assumed to be 
            numpy.ndarray with dimensions specified by the first layer of the 
@@ -190,8 +235,11 @@ class TrainerNetwork (ClassifierNetwork) :
                   'None' creates randomized weighting
        log      : Logger to use
     '''
-    def __init__ (self, train, test, regType='L2', filepath=None, log=None) :
+    def __init__ (self, train, test, labels, regType='L2', 
+                  filepath=None, log=None) :
         ClassifierNetwork.__init__(self, filepath=filepath, log=log)
+        if filepath is None :
+            self._networkLabels = labels
         self._trainData, self._trainLabels = train
         self._testData, self._testLabels = test
         self._numTrainBatches = self._trainLabels.shape[0]
@@ -202,43 +250,50 @@ class TrainerNetwork (ClassifierNetwork) :
         #    value=numpy.zeros(self.getNetworkOutputSize(), dtype='int32'), 
         #    name='expectedOutputs')
         self._regularization = regType
+
     def __getstate__(self) :
-        dict = self.__dict__.copy()
+        '''Save network pickle'''
+        dict = ClassifierNetwork.__getstate__(self)
+        # remove the training and test datasets before pickling. This both
+        # saves disk space, and makes trained networks allow transfer learning
+        if '_trainData' in dict : del dict['_trainData']
+        if '_trainLabels' in dict : del dict['_trainLabels']
+        if '_testData' in dict : del dict['_testData']
+        if '_testLabels' in dict : del dict['_testLabels']
+        if '_numTrainBatches' in dict : del dict['_numTrainBatches']
+        if '_numTestBatches' in dict : del dict['_numTestBatches']
+        if '_numTestSize' in dict : del dict['_numTestSize']
+        if '_regularization' in dict : del dict['_regularization']
         # remove the functions -- they will be rebuilt JIT
-        if '_classify' in dict : del dict['_classify']
-        if '_cost' in dict : del dict['_cost']
-        if '_trainNetwork' in dict : del dict['_trainNetwork']
+        if '_checkAccuracyNP' in dict : del dict['_checkAccuracyNP']
         if '_checkAccuracy' in dict : del dict['_checkAccuracy']
-        # remove the profiler as it is not robust to distributed processing
-        dict['_profiler'] = None
+        if '_createBatchExpectedOutput' in dict :
+            del dict['_createBatchExpectedOutput']
+        if '_cost' in dict : del dict['_cost']
+        if '_trainNetworkNP' in dict : del dict['_trainNetworkNP']
         return dict
+
     def __setstate__(self, dict) :
+        '''Load network pickle'''
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
-        if hasattr(self, '_classify') : delattr(self, '_classify')
+        if hasattr(self, '_checkAccuracyNP') :
+            delattr(self, '_checkAccuracyNP')
+        if hasattr(self, '_checkAccuracy') :
+            delattr(self, '_checkAccuracy')
+        if hasattr(self, '_createBatchExpectedOutput') :
+            delattr(self, '_createBatchExpectedOutput')
         if hasattr(self, '_cost') : delattr(self, '_cost')
-        if hasattr(self, '_trainNetwork') : delattr(self, '_trainNetwork')
-        if hasattr(self, '_checkAccuracy') : delattr(self, '_checkAccuracy')
-        # use the current constructor-supplied profiler --
-        # this ensures the profiler is setup for the current system
-        tmp = self._profiler
-        self.__dict__.update(dict)
-        self._profiler = tmp
-    def save(self, filepath) :
-        '''Save the network to disk.
-           TODO: This should also support output to Synapse file
-        '''
-        self._startProfile('Saving network to disk ['+filepath+']', 'info')
-        if '.pkl.gz' in filepath :
-            with gzip.open(filepath, 'wb') as f :
-                f.write(cPickle.dumps(self.__getstate__(),
-                                      protocol=cPickle.HIGHEST_PROTOCOL))
-        self._endProfile()
+        if hasattr(self, '_trainNetworkNP') : delattr(self, '_trainNetworkNP')
+        ClassifierNetwork.__setstate__(self, dict)
+
     def finalizeNetwork(self) :
         '''Setup the network based on the current network configuration.
            This creates several network-wide functions so they will be
            pre-compiled and optimized when we need them.
         '''
+        from nn.costUtils import crossEntropyLoss
+        from nn.costUtils import leastAbsoluteDeviation, leastSquares
         if len(self._layers) == 0 :
             raise IndexError('Network must have at least one layer' +
                              'to call getNetworkInput().')
@@ -255,14 +310,14 @@ class TrainerNetwork (ClassifierNetwork) :
         index = t.lscalar('index')
         expectedLabels = t.ivector('expectedLabels')
         numCorrect = t.sum(t.eq(self._outClass, expectedLabels))
-        # NOTE: the 'input' variable name was create elsewhere and provided as
+        # NOTE: the 'input' variable name was created elsewhere and provided as
         #       input to the first layer. We now use that object to connect
         #       our shared buffers.
         self._checkAccuracyNP = theano.function(
-            [self._layers[0].input, expectedLabels], numCorrect)
+            [self.getNetworkInput(), expectedLabels], numCorrect)
         self._checkAccuracy = theano.function(
             [index], numCorrect, 
-            givens={self._layers[0].input: self._testData[index],
+            givens={self.getNetworkInput(): self._testData[index],
                     expectedLabels: self._testLabels[index]})
 
         # setup a looping function to JIT create the expected output vectors --
@@ -284,13 +339,10 @@ class TrainerNetwork (ClassifierNetwork) :
         # classification labeling. If the expectedOutput is not [0,1], Doc
         # Brown will hit you with a time machine.
         expectedOutputs = t.imatrix('expectedOutputs')
-    
-        nll = t.mean(-expectedOutputs * t.log(self._out) - 
-                     (1-expectedOutputs) * t.log(1-self._out))
-        nllPer = t.mean(-expectedOutputs * t.log(self._out) - 
-                        (1-expectedOutputs) * t.log(1-self._out), axis=0)
+
+        xEntropy = crossEntropyLoss(expectedOutputs, self._out, 1)
         self._cost = theano.function([self._layers[0].input, expectedOutputs],
-                                     nllPer)
+                                     xEntropy)
 
         # calculate a regularization term -- if desired
         reg = 0.0
@@ -298,15 +350,17 @@ class TrainerNetwork (ClassifierNetwork) :
         # L1-norm provides 'Least Absolute Deviation' --
         # built for sparse outputs and is resistent to outliers
         if self._regularization == 'L1' :
-            reg = sum([abs(w).sum() for w in self._weights]) * regSF
+            reg = sum([leastAbsoluteDeviation(w, self._numTestBatches, regSF) \
+                       for w in self._weights])
         # L2-norm provides 'Least Squares' --
         # built for dense outputs and is computationally stable at small errors
         elif self._regularization == 'L2' :
-            reg = sum([abs(w ** 2).sum() for w in self._weights]) * regSF
+            reg = sum([leastSquares(w, self._numTestBatches, regSF) \
+                       for w in self._weights])
 
         # create the function for back propagation of all layers --
         # this is combined for convenience
-        gradients = t.grad(nll + reg, self._weights)
+        gradients = t.grad(xEntropy + reg, self._weights)
         updates = [(weights, weights - learningRate * gradient)
                    for weights, gradient, learningRate in \
                        zip(self._weights, gradients, self._learningRates)]
@@ -314,10 +368,11 @@ class TrainerNetwork (ClassifierNetwork) :
         #       input to the first layer. We now use that object to connect
         #       our shared buffers.
         self._trainNetworkNP = theano.function(
-            [self._layers[0].input, expectedOutputs], nll, updates=updates)
+            [self.getNetworkInput(), expectedOutputs], 
+             xEntropy, updates=updates)
         #self._trainNetwork = theano.function(
-        #    [index], nll, updates=updates,
-        #    givens={self._layers[0].input: self._trainData[index],
+        #    [index], xEntropy, updates=updates,
+        #    givens={self.getNetworkInput(): self._trainData[index],
         #            expectedOutputs: self._trainLabels[index]})
         self._endProfile()
 
@@ -345,6 +400,7 @@ class TrainerNetwork (ClassifierNetwork) :
         #self._trainNetwork(index)
 
         self._endProfile()
+
     def trainEpoch(self, globalEpoch, numEpochs=1) :
         '''Train the network against the pre-loaded inputs for a user-specified
            number of epochs.
@@ -359,6 +415,7 @@ class TrainerNetwork (ClassifierNetwork) :
                 self.train(ii, self._trainData[ii], self._trainLabels[ii])
             self._endProfile()
         return globalEpoch + numEpochs
+
     def checkAccuracy(self) :
         '''Check the accuracy against the pre-compiled the given inputs.
            This runs against the entire test set in a single call and returns
@@ -393,7 +450,7 @@ if __name__ == "__main__" :
     import numpy
     labelVect = numpy.asarray([1, 2, 0], dtype=numpy.int32)
     print(createBatchExpectedOutput(labelVect, 5))
-    
+
     '''
     location = t.ivector("location")
     output_model = t.fvector("output_model")
@@ -406,7 +463,7 @@ if __name__ == "__main__" :
     assign_values_at_positions = theano.function(
         inputs=[location, output_model], 
         outputs=result)
-    
+
     # test
     import numpy
     test_locations = numpy.asarray([1, 2, 0], dtype=numpy.int32)
@@ -439,7 +496,7 @@ if __name__ == "__main__" :
     labels = np.asarray([1,0,3,4,5], dtype='int32')
     updateExpectedMatrix(labels, 1.)
     print expectedOutputs.type
-    
+
     print expectedOutputs.type
     theano.function([expectedOutputs], )
     print dir(t.set_subtensor(expectedOutputs[0], 1.))
@@ -473,7 +530,7 @@ if __name__ == "__main__" :
     dim = 1000
     numNeurons = 10
     numRuns = 10000
-    
+
     # this is intentionally getting one of the inputs labels incorrect to
     # prove the checkAccuracy call is working.
     trainArr = (numpy.asarray([[range(dim)]], dtype='float32'), 

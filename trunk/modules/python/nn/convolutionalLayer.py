@@ -2,7 +2,6 @@ from layer import Layer
 import numpy as np
 from theano.tensor import tanh
 from theano import shared, config, function
-from theano.tensor import grad
 
 class ConvolutionalLayer(Layer) :
     '''This class describes a Convolutional Neural Layer which specifies
@@ -40,42 +39,43 @@ class ConvolutionalLayer(Layer) :
 
         # theano variables don't actually preserve buffer sizing
         self.input = input
-        self.inputSize = inputSize
-        self.kernelSize = kernelSize
-        self.downsampleFactor = downsampleFactor
+        self._inputSize = inputSize
+        self._kernelSize = kernelSize
+        self._downsampleFactor = downsampleFactor
 
         # setup initial values for the weights -- if necessary
         if initialWeights is None :
             # create a rng if its needed
             if randomNumGen is None :
                from numpy.random import RandomState
-               randomNumGen = RandomState(1234)
+               from time import time
+               randomNumGen = RandomState(int(time()))
 
             # this creates optimal initial weights by randomizing them
             # to an appropriate range around zero, which leads to better
             # convergence.
-            downRate = np.prod(self.downsampleFactor)
-            fanIn = np.prod(self.kernelSize[1:])
-            fanOut = self.kernelSize[0] * \
-                     np.prod(self.kernelSize[2:]) / downRate
+            downRate = np.prod(self._downsampleFactor)
+            fanIn = np.prod(self._kernelSize[1:])
+            fanOut = self._kernelSize[0] * \
+                     np.prod(self._kernelSize[2:]) / downRate
             scaleFactor = np.sqrt(6. / (fanIn + fanOut))
             initialWeights = np.asarray(randomNumGen.uniform(
-                    low=-scaleFactor, high=scaleFactor, size=self.kernelSize),
+                    low=-scaleFactor, high=scaleFactor, size=self._kernelSize),
                     dtype=config.floatX)
         self._weights = shared(value=initialWeights, borrow=True)
 
         # setup initial values for the thresholds -- if necessary
         if initialThresholds is None :
-            initialThresholds = np.zeros((self.kernelSize[0],),
+            initialThresholds = np.zeros((self._kernelSize[0],),
                                          dtype=config.floatX)
         self._thresholds = shared(value=initialThresholds, borrow=True)
 
         # create a function to perform the convolution
         convolve = conv2d(self.input, self._weights,
-                          self.inputSize, self.kernelSize)
+                          self._inputSize, self._kernelSize)
 
         # create a function to perform the max pooling
-        pooling = max_pool_2d(convolve, self.downsampleFactor, True)
+        pooling = max_pool_2d(convolve, self._downsampleFactor, True)
 
         # the output buffer is now connected to a sequence of operations
         out = pooling + self._thresholds.dimshuffle('x', 0, 'x', 'x')
@@ -90,28 +90,22 @@ class ConvolutionalLayer(Layer) :
     def getInputSize (self) :
         '''The initial input size provided at construction. This is sized
            (batch size, channels, rows, columns)'''
-        return self.inputSize
+        return self._inputSize
     def getKernelSize (self) :
         '''The initial kernel size provided at construction. This is sized
            (number of kernels, channels, rows, columns)'''
-        return self.kernelSize
+        return self._kernelSize
     def getFeatureSize (self) :
         '''This is the post convolution size of the output.
-           (channels, rows, columns)'''
-        return (self.inputSize[0], self.kernelSize[0],
-                self.inputSize[2] - self.kernelSize[2] + 1,
-                self.inputSize[3] - self.kernelSize[3] + 1)
+           (batch size, number of kernels, rows, columns)'''
+        return (self._inputSize[0], 
+                self._kernelSize[0],
+                self._inputSize[2] - self._kernelSize[2] + 1,
+                self._inputSize[3] - self._kernelSize[3] + 1)
     def getOutputSize (self) :
         '''This is the post downsample size of the output.
-           (numImages, channels, rows, columns)'''
+           (batch size, number of kernels, rows, columns)'''
         fShape = self.getFeatureSize()
         return (fShape[0], fShape[1],
-                fShape[2] / self.downsampleFactor[0],
-                fShape[3] / self.downsampleFactor[1])
-
-    def activate (self, input) :
-        self.activate(input)
-        return self.output
-
-    def buildBackPropagate (self, cost) :
-        self.grads = grad(cost, [self.W, self.b])
+                fShape[2] / self._downsampleFactor[0],
+                fShape[3] / self._downsampleFactor[1])

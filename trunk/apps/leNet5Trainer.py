@@ -71,12 +71,13 @@ if __name__ == '__main__' :
             options.data, batchSize=options.batchSize, 
             holdoutPercentage=options.holdout, log=log),
         shared=False, log=log)
+    trainSize = train[0].shape
 
     tr = splitToShared(train, borrow=True)
     te = splitToShared(test,  borrow=True)
 
     # create the network -- LeNet-5
-    network = Net(train, te, regType='', log=log)
+    network = Net(train, te, labels, regType='', log=log)
 
     if options.synapse is not None :
         # load a previously saved network
@@ -88,7 +89,8 @@ if __name__ == '__main__' :
         # add convolutional layers
         network.addLayer(ConvolutionalLayer(
             layerID='c1', input=input, 
-            inputSize=train[0].shape[1:], kernelSize=(options.kernel,1,5,5),
+            inputSize=trainSize[1:],
+            kernelSize=(options.kernel,trainSize[2],5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             learningRate=options.learnC))
 
@@ -113,7 +115,7 @@ if __name__ == '__main__' :
         network.addLayer(ContiguousLayer(
             layerID='f4', input=network.getNetworkOutput(),
             inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
-            learningRate=options.learnF, randomNumGen=rng))
+            learningRate=options.learnF, activation=None, randomNumGen=rng))
 
     globalCount = lastBest = degradationCount = 0
     numEpochs = options.limit
@@ -127,7 +129,7 @@ if __name__ == '__main__' :
         # calculate the accuracy against the test set
         curAcc = network.checkAccuracy()
         log.info('Checking Accuracy - {0}s ' \
-                 '\n\tCorrect  : {1}% \n\tIncorrect  : {2}%'.format(
+                 '\n\tCorrect   : {1}% \n\tIncorrect : {2}%'.format(
                  time() - timer, curAcc, (100-curAcc)))
 
         # check if we've done better
