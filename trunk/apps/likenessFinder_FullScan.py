@@ -3,7 +3,7 @@ import logging
 import os
 import theano
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 from nn.datasetUtils import normalize
 
 options = None
@@ -102,9 +102,9 @@ def createNetwork(image, log=None) :
     global chips, regions
 
     # divide the image into chips
-    chips, regions = subdivideImage(image, options.chipSize, 
-                                    options.chipSize / 2,
-                                    options.batchSize, True)
+    chips, regions = subdivideImage(image, options.chipSize, 5,
+                                    options.batchSize, False)
+    print 'Chips Cut: ' + str(chips.shape)
 
     # load a previously created network
     if options.synapse is not None :
@@ -160,31 +160,32 @@ def createNetwork(image, log=None) :
             numNeurons=int(options.hidden*1.5),
             learningRate=options.learnF, randomNumGen=rng))
         '''
+        from theano.tensor import tanh
         network.addLayer(ContractiveAutoEncoder(
             layerID='f1', input=input,
             inputSize=(chips.shape[1], reduce(mul, chips.shape[2:])),
-            numNeurons=500, learningRate=options.learnF,
+            numNeurons=500, learningRate=options.learnF, activation=tanh,
             contractionRate=options.contrF, randomNumGen=rng))
         network.addLayer(ContractiveAutoEncoder(
             layerID='f2', input=network.getNetworkOutput(),
             inputSize=network.getNetworkOutputSize(),
-            numNeurons=200, learningRate=options.learnF,
+            numNeurons=200, learningRate=options.learnF, activation=tanh,
             contractionRate=options.contrF, randomNumGen=rng))
         network.addLayer(ContractiveAutoEncoder(
             layerID='f3', input=network.getNetworkOutput(),
             inputSize=network.getNetworkOutputSize(),
-            numNeurons=100, learningRate=options.learnF,
+            numNeurons=100, learningRate=options.learnF, activation=tanh,
             contractionRate=options.contrF, randomNumGen=rng))
         network.addLayer(ContractiveAutoEncoder(
             layerID='f4', input=network.getNetworkOutput(),
             inputSize=network.getNetworkOutputSize(),
-            numNeurons=50, learningRate=options.learnF,
+            numNeurons=50, learningRate=options.learnF, activation=tanh,
             contractionRate=options.contrF, randomNumGen=rng))
 
         if log is not None :
             log.info('Entering Training...')
 
-        #network.writeWeights(0, -1)
+        network.writeWeights(0, -1)
         # TODO: this could make for a great demo visual to create a blinking
         #       image of the chips which are currently being activated
         globalEpoch = 0
@@ -211,8 +212,10 @@ def createNetwork(image, log=None) :
                     else :
                         print layerEpochStr + ' Cost: ' + str(locCost)
                     globCost.append(locCost)
-        
-                    #network.writeWeights(layerIndex, globalEpoch + localEpoch)
+
+                    if layerIndex == 0 :
+                        network.writeWeights(layerIndex, 
+                                             globalEpoch + localEpoch)
                 globalEpoch = globalEpoch + options.numEpochs
                 network.save('kirtland_afb_neurons500_layer' + \
                              str(layerIndex) + '_epoch' + str(globalEpoch) + \

@@ -34,16 +34,16 @@ def selectRegion (event, x, y, flags, param) :
             refLocation = [(x-halfBox, y-halfBox), (x+halfBox, y+halfBox)]
             referenceVector = network.classifyAndSoftmax(
                 np.resize(np.array(thumbOrig.crop(
-                    (refLocation[0][0], refLocation[0][1], 
+                    (refLocation[0][0], refLocation[0][1],
                      refLocation[1][0], refLocation[1][1]))),
-                    (1, options.chipSize*options.chipSize)))[1][0]
+                    (1, 1, options.chipSize, options.chipSize)))[1][0]
         else :
             misLocation = [(x-halfBox, y-halfBox), (x+halfBox, y+halfBox)]
             matchVector = network.classifyAndSoftmax(
                 np.resize(np.array(thumbOrig.crop(
                     (misLocation[0][0], misLocation[0][1], 
                      misLocation[1][0], misLocation[1][1]))),
-                    (1, options.chipSize*options.chipSize)))[1][0]
+                    (1, 1, options.chipSize, options.chipSize)))[1][0]
             if refLocation == None :
                 print "Please select a reference region!"
             else :
@@ -94,9 +94,11 @@ def createNetwork(image, log=None) :
     chips, regions = subdivideImage(image, options.chipSize, 
                                     options.chipSize / 2,
                                     options.batchSize, True)
+    '''
     chips = np.resize(chips, 
                       (chips.shape[0], chips.shape[1], 
                        chips.shape[2]*chips.shape[3]*chips.shape[4]))
+    '''
 
     # load a previously created network
     if options.synapse is not None :
@@ -105,42 +107,19 @@ def createNetwork(image, log=None) :
         network = ClassifierNetwork(options.synapse, log)
 
         '''
-        if log is not None :
-            log.info('Entering Training...')
-
-        # TODO: this could make for a great demo visual to create a blinking
-        #       image of the chips which are currently being activated
-        globalEpoch = 0
-        for layerIndex in range(1,network.getNumLayers()) :
-            #network.writeWeights(layerIndex, 00)
-            for ii in range(100) :
-                #globalEpoch, globalCost = network.trainEpoch(
-                #    layerIndex, globalEpoch, options.numEpochs)
-                globCost = []
-                for localEpoch in range(options.numEpochs) :
-                    layerEpochStr = 'Layer[' + str(layerIndex) + '] Epoch[' + \
-                                    str(globalEpoch + localEpoch) + ']'
-                    print 'Running ' + layerEpochStr
-                    locCost = []
-                    for ii in range(chips.shape[0]) :
-                        locCost.append(network.train(layerIndex, ii))
-
-                    locCost = np.mean(locCost, axis=0)
-                    if isinstance(locCost, tuple) :
-                        print layerEpochStr + ' Cost: ' + \
-                              str(locCost[0]) + ' - Jacob: ' + \
-                              str(locCost[1])
-                    else :
-                        print layerEpochStr + ' Cost: ' + str(locCost)
-                    globCost.append(locCost)
-
-                #network.writeWeights(layerIndex, globalEpoch + localEpoch)
-                globalEpoch = globalEpoch + options.numEpochs
-                network.save('kirtland_afb_neurons500_layer' + \
-                             str(layerIndex) + '_epoch' + str(globalEpoch) + \
-                             '.pkl.gz')
+        from nn.datasetUtils import loadShared
+        from ae.net import StackedAENetwork
+        network = StackedAENetwork((loadShared(chips, True), None), log=log)
+        network.load(options.synapse)
+        for ii in range(0, chips.shape[0], 50) :
+            import ae.utils
+            ae.utils.saveNormalizedImage(
+                np.resize(chips[ii], (30, 30)),
+                'chip_' + str(ii) + '.png')
+            network.getLayer(0).saveReconstruction(chips[ii], ii)
+        import sys
+        sys.exit(0)
         '''
-
     # create a newly trained network on the specified image
     else :
         import time
@@ -163,9 +142,9 @@ def createNetwork(image, log=None) :
 
         # create the SAE
         network = StackedAENetwork((loadShared(chips, True), None), log=log)
-        input = t.fmatrix('input')
+        #input = t.fmatrix('input')
+        input = t.ftensor4('input')
 
-        '''
         # add convolutional layers
         network.addLayer(ConvolutionalAutoEncoder(
             layerID='c1', input=input,
@@ -173,6 +152,7 @@ def createNetwork(image, log=None) :
             kernelSize=(options.kernel,chips.shape[2],5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             learningRate=options.learnC))
+        '''
         network.addLayer(ConvolutionalAutoEncoder(
             layerID='c2',
             input=network.getNetworkOutput(), 
@@ -180,15 +160,17 @@ def createNetwork(image, log=None) :
             kernelSize=(options.kernel,options.kernel,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             learningRate=options.learnC))
+        '''
 
         # add fully connected layers
         numInputs = reduce(mul, network.getNetworkOutputSize()[1:])
         network.addLayer(ContractiveAutoEncoder(
             layerID='f3', input=network.getNetworkOutput().flatten(2),
             inputSize=(network.getNetworkOutputSize()[0], numInputs),
-            numNeurons=int(options.hidden*1.5),
+            numNeurons=options.hidden,
             learningRate=options.learnF, randomNumGen=rng))
         '''
+
         network.addLayer(ContractiveAutoEncoder(
             layerID='f1', input=input,
             inputSize=(chips.shape[1], reduce(mul, chips.shape[2:])),
@@ -209,11 +191,12 @@ def createNetwork(image, log=None) :
             inputSize=network.getNetworkOutputSize(),
             numNeurons=50, learningRate=options.learnF,
             contractionRate=options.contrF, randomNumGen=rng))
+        '''
 
         if log is not None :
             log.info('Entering Training...')
 
-        #network.writeWeights(0, -1)
+        network.writeWeights(0, -1)
         # TODO: this could make for a great demo visual to create a blinking
         #       image of the chips which are currently being activated
         globalEpoch = 0
@@ -241,7 +224,8 @@ def createNetwork(image, log=None) :
                         print layerEpochStr + ' Cost: ' + str(locCost)
                     globCost.append(locCost)
 
-                    #network.writeWeights(layerIndex, globalEpoch + localEpoch)
+                    if ii == 0 :
+                        network.writeWeights(layerIndex, globalEpoch + localEpoch)
                 globalEpoch = globalEpoch + options.numEpochs
                 network.save('kirtland_afb_neurons500_layer' + \
                              str(layerIndex) + '_epoch' + str(globalEpoch) + \
@@ -259,7 +243,6 @@ def createNetwork(image, log=None) :
         network.__class__ = ClassifierNetwork
 
     return network
-
 
 if __name__ == '__main__' :
     global options, thumbOrig, network, matchSelect
