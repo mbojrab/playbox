@@ -64,7 +64,7 @@ def trainSupervised(network, options) :
         # calculate the accuracy against the test set
         curAcc = network.checkAccuracy()
         log.info('Checking Accuracy - {0}s ' \
-                 '\n\tCorrect  : {1}% \n\tIncorrect  : {2}%'.format(
+                 '\n\tCorrect   : {1}% \n\tIncorrect : {2}%'.format(
                  time() - timer, curAcc, (100-curAcc)))
 
         # check if we've done better
