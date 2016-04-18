@@ -1,6 +1,6 @@
 from layer import Layer
 import numpy as np
-from theano.tensor import tanh
+from theano.tensor import tanh, switch
 from theano import shared, config, function
 
 class ConvolutionalLayer(Layer) :
@@ -13,17 +13,23 @@ class ConvolutionalLayer(Layer) :
        kernelSize        : (number of kernels, channels, rows, columns)
        downsampleFactor  : (rowFactor, columnFactor)
        learningRate      : learning rate for all neurons
+       dropout           : rate of retention in a given neuron during training
+                           NOTE: input layers should be around .8 or .9
+                                 hidden layers should be around .5 or .6
+                                 output layers should always be 1.
        initialWeights    : weights to initialize the network
                            None generates random weights for the layer
        initialThresholds : thresholds to initialize the network
                            None generates random thresholds for the layer
        activation        : the sigmoid function to use for activation
                            this must be a function with a derivative form
-       randomNumGen      : generator for the initial weight values
+       randomNumGen      : generator for the initial weight values - 
+                           type is numpy.random.RandomState
     '''
     def __init__ (self, layerID, input, inputSize, kernelSize, 
-                  downsampleFactor, learningRate=0.001, initialWeights=None, 
-                  initialThresholds=None, activation=tanh, randomNumGen=None) :
+                  downsampleFactor, learningRate=0.001, dropout=None,
+                  initialWeights=None, initialThresholds=None, activation=tanh,
+                  randomNumGen=None) :
         Layer.__init__(self, layerID, learningRate)
 
         # TODO: this check is likely unnecessary
@@ -38,7 +44,8 @@ class ConvolutionalLayer(Layer) :
         from theano.tensor.signal.downsample import max_pool_2d
 
         # theano variables don't actually preserve buffer sizing
-        self.input = input
+        self.input = input if isinstance(input, tuple) else (input, input)
+
         self._inputSize = inputSize
         self._kernelSize = kernelSize
         self._downsampleFactor = downsampleFactor
@@ -47,9 +54,9 @@ class ConvolutionalLayer(Layer) :
         if initialWeights is None :
             # create a rng if its needed
             if randomNumGen is None :
-               from numpy.random import RandomState
-               from time import time
-               randomNumGen = RandomState(int(time()))
+                from numpy.random import RandomState
+                from time import time
+                randomNumGen = RandomState(int(time()))
 
             # this creates optimal initial weights by randomizing them
             # to an appropriate range around zero, which leads to better
@@ -70,19 +77,48 @@ class ConvolutionalLayer(Layer) :
                                          dtype=config.floatX)
         self._thresholds = shared(value=initialThresholds, borrow=True)
 
-        # create a function to perform the convolution
-        convolve = conv2d(self.input, self._weights,
-                          self._inputSize, self._kernelSize)
+        def findLogits(input, weights, 
+                       inputSize, kernelSize, downsampleFactor, thresholds) :
+            # create a function to perform the convolution
+            convolve = conv2d(input, weights, inputSize, kernelSize)
 
-        # create a function to perform the max pooling
-        pooling = max_pool_2d(convolve, self._downsampleFactor, True)
+            # create a function to perform the max pooling
+            pooling = max_pool_2d(convolve, downsampleFactor, True)
 
-        # the output buffer is now connected to a sequence of operations
-        out = pooling + self._thresholds.dimshuffle('x', 0, 'x', 'x')
-        self.output = out if activation is None else activation(out)
+            # the output buffer is now connected to a sequence of operations
+            return pooling + thresholds.dimshuffle('x', 0, 'x', 'x')
+
+        outClass = findLogits(self.input[0], self._weights,
+                              self._inputSize, self._kernelSize,
+                              self._downsampleFactor, self._thresholds)
+        outTrain = findLogits(self.input[1], self._weights,
+                              self._inputSize, self._kernelSize,
+                              self._downsampleFactor, self._thresholds)
+
+        # determine dropout if requested
+        if dropout is not None :
+            # here there are two possible paths --
+            # outClass : path of execution intended for classification. Here
+            #            all neurons are present and weights must be scaled by
+            #            the dropout factor. This ensures resultant 
+            #            probabilities fall within intended bounds when all
+            #            neurons are present.
+            # outTrain : path of execution for training with dropout. Here each
+            #            neuron's output goes through a Bernoulli Trial. This
+            #            retains a neuron with the probability specified by the
+            #            dropout factor.
+            outClass = outClass / dropout
+            outTrain = switch(self._randStream.binomial(
+                size=self.getOutputSize()[1:], p=1-dropout), outTrain, 0)
+
+        # activate the layer --
+        # output is a tuple to represent two possible paths through the
+        # computation graph. 
+        self.output = (outClass, outTrain) if activation is None else \
+                      (activation(outClass), activation(outTrain))
 
         # we can call this method to activate the layer
-        self.activate = function([self.input], self.output)
+        self.activate = function([self.input[0]], self.output[0])
 
     def getWeights(self) :
         '''This allows the network backprop all layers efficiently.'''

@@ -92,7 +92,7 @@ if __name__ == '__main__' :
             inputSize=trainSize[1:],
             kernelSize=(options.kernel,trainSize[2],5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
-            learningRate=options.learnC))
+            dropout=.8, learningRate=options.learnC))
 
         # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
         # this way we don't combine the channels kernels we created in 
@@ -103,15 +103,15 @@ if __name__ == '__main__' :
             inputSize=network.getNetworkOutputSize(), 
             kernelSize=(options.kernel,options.kernel,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
-            learningRate=options.learnC))
+            dropout=.5, learningRate=options.learnC))
 
         # add fully connected layers
         network.addLayer(ContiguousLayer(
-            layerID='f3', input=network.getNetworkOutput().flatten(2),
+            layerID='f3', input=network.getNetworkOutput(),
             inputSize=(network.getNetworkOutputSize()[0], 
                        reduce(mul, network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, learningRate=options.learnF,
-            randomNumGen=rng))
+            dropout=.5, randomNumGen=rng))
         network.addLayer(ContiguousLayer(
             layerID='f4', input=network.getNetworkOutput(),
             inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),

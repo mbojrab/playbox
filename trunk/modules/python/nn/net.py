@@ -102,8 +102,9 @@ class ClassifierNetwork (Network) :
         '''Save network pickle'''
         dict = Network.__getstate__(self)
         # remove the functions -- they will be rebuilt JIT
-        if '_out' in dict : del dict['_out']
-        if '_outClass' in dict : del dict['_outClass']
+        if '_outClassSoft' in dict : del dict['_outClassSoft']
+        if '_outTrainSoft' in dict : del dict['_outTrainSoft']
+        if '_outClassMax' in dict : del dict['_outClassMax']
         if '_classify' in dict : del dict['_classify']
         if '_classifyAndSoftmax' in dict : del dict['_classifyAndSoftmax']
         return dict
@@ -111,10 +112,12 @@ class ClassifierNetwork (Network) :
         '''Load network pickle'''
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
-        if hasattr(self, '_out') : 
-            delattr(self, '_out')
-        if hasattr(self, '_outClass') : 
-            delattr(self, '_outClass')
+        if hasattr(self, '_outClassSoft') : 
+            delattr(self, '_outClassSoft')
+        if hasattr(self, '_outTrainSoft') : 
+            delattr(self, '_outTrainSoft')
+        if hasattr(self, '_outClassMax') : 
+            delattr(self, '_outClassMax')
         if hasattr(self, '_classify') : 
             delattr(self, '_classify')
         if hasattr(self, '_classifyAndSoftmax') : 
@@ -168,12 +171,15 @@ class ClassifierNetwork (Network) :
         # output prediction, which emphasizes significant neural responses.
         # This takes as its input, the first layer's input, and uses the final
         # layer's output as the function (ie the network classification).
-        self._out = t.nnet.softmax(self.getNetworkOutput())
-        self._outClass = t.argmax(self._out, axis=1)
-        self._classify = theano.function([self.getNetworkInput()], 
-                                         self._outClass)
-        self._classifyAndSoftmax = theano.function([self.getNetworkInput()],
-                                                   [self._outClass, self._out])
+        outClass, outTrain = self.getNetworkOutput()
+        self._outClassSoft = t.nnet.softmax(outClass)
+        self._outTrainSoft = t.nnet.softmax(outTrain)
+        self._outClassMax = t.argmax(self._outClassSoft, axis=1)
+        self._classify = theano.function([self.getNetworkInput()[0]], 
+                                         self._outClassMax)
+        self._classifyAndSoftmax = theano.function(
+            [self.getNetworkInput()[0]], 
+            [self._outClassMax, self._outClassSoft])
         self._endProfile()
 
     def classify (self, inputs) :
@@ -309,15 +315,15 @@ class TrainerNetwork (ClassifierNetwork) :
         # create a function to quickly check the accuracy against the test set
         index = t.lscalar('index')
         expectedLabels = t.ivector('expectedLabels')
-        numCorrect = t.sum(t.eq(self._outClass, expectedLabels))
+        numCorrect = t.sum(t.eq(self._outClassMax, expectedLabels))
         # NOTE: the 'input' variable name was created elsewhere and provided as
         #       input to the first layer. We now use that object to connect
         #       our shared buffers.
         self._checkAccuracyNP = theano.function(
-            [self.getNetworkInput(), expectedLabels], numCorrect)
+            [self.getNetworkInput()[0], expectedLabels], numCorrect)
         self._checkAccuracy = theano.function(
             [index], numCorrect, 
-            givens={self.getNetworkInput(): self._testData[index],
+            givens={self.getNetworkInput()[0] : self._testData[index],
                     expectedLabels: self._testLabels[index]})
 
         # setup a looping function to JIT create the expected output vectors --
@@ -340,9 +346,9 @@ class TrainerNetwork (ClassifierNetwork) :
         # Brown will hit you with a time machine.
         expectedOutputs = t.imatrix('expectedOutputs')
 
-        xEntropy = crossEntropyLoss(expectedOutputs, self._out, 1)
-        self._cost = theano.function([self._layers[0].input, expectedOutputs],
-                                     xEntropy)
+        xEntropy = crossEntropyLoss(expectedOutputs, self._outTrainSoft, 1)
+        self._cost = theano.function(
+            [self.getNetworkInput()[1], expectedOutputs], xEntropy)
 
         # calculate a regularization term -- if desired
         reg = 0.0
@@ -368,11 +374,11 @@ class TrainerNetwork (ClassifierNetwork) :
         #       input to the first layer. We now use that object to connect
         #       our shared buffers.
         self._trainNetworkNP = theano.function(
-            [self.getNetworkInput(), expectedOutputs], 
+            [self.getNetworkInput()[1], expectedOutputs], 
              xEntropy, updates=updates)
         #self._trainNetwork = theano.function(
         #    [index], xEntropy, updates=updates,
-        #    givens={self.getNetworkInput(): self._trainData[index],
+        #    givens={self.getNetworkInput()[1]: self._trainData[index],
         #            expectedOutputs: self._trainLabels[index]})
         self._endProfile()
 
