@@ -334,7 +334,11 @@ class TrainerNetwork (ClassifierNetwork) :
         self._createBatchExpectedOutput = theano.function(
             inputs=[expectedLabels, outputSize], outputs=result)
 
-        # create the negative log likelihood function --
+        # protect the loss function against producing NaNs
+        self._out = t.switch(self._out < 0.0001, 0.0001, self._out)
+        self._out = t.switch(self._out > 0.9999, 0.9999, self._out)
+
+        # create the cross entropy function --
         # This is the cost function for the network, and it assumes [0,1]
         # classification labeling. If the expectedOutput is not [0,1], Doc
         # Brown will hit you with a time machine.
