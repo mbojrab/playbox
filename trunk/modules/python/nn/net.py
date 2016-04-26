@@ -341,8 +341,10 @@ class TrainerNetwork (ClassifierNetwork) :
             inputs=[expectedLabels, outputSize], outputs=result)
 
         # protect the loss function against producing NaNs
-        self._out = t.switch(self._out < 0.0001, 0.0001, self._out)
-        self._out = t.switch(self._out > 0.9999, 0.9999, self._out)
+        self._outTrainSoft = t.switch(self._outTrainSoft < 0.0001, 0.0001, 
+                                      self._outTrainSoft)
+        self._outTrainSoft = t.switch(self._outTrainSoft > 0.9999, 0.9999,
+                                      self._outTrainSoft)
 
         # create the cross entropy function --
         # This is the cost function for the network, and it assumes [0,1]
