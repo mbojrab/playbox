@@ -25,7 +25,7 @@ class StackedAENetwork (Network) :
         out, updates = encoder.getUpdates()
         self._greedyTrainer.append(
             theano.function([self._indexVar], out, updates=updates,
-                            givens={self.getNetworkInput() : 
+                            givens={self.getNetworkInput()[1] : 
                                     self._trainData[self._indexVar]}))
 
     def __getstate__(self) :

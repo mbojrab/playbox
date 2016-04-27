@@ -11,27 +11,23 @@ def max_unpool_2d(input, upsampleFactor) :
        "Image Super-Resolution with Fast Approximate 
         Convolutional Sparse Coding"
     '''
-    output_shape = [
-        input.shape[1],
-        input.shape[2] * upsampleFactor[0],
-        input.shape[3] * upsampleFactor[1]
-    ]
-    stride = input.shape[2]
-    offset = input.shape[3]
-    in_dim = stride * offset
-    out_dim = in_dim * np.prod(upsampleFactor)
+    outputShape = [input.shape[1],
+                   input.shape[2] * upsampleFactor[0],
+                   input.shape[3] * upsampleFactor[1]]
+    numElems = input.shape[2] * input.shape[3]
+    upsampNumElems = numElems * np.prod(upsampleFactor)
 
-    upsamp_matrix = t.zeros((in_dim, out_dim))
-    rows = t.arange(in_dim)
+    upsamp = t.zeros((numElems, upsampNumElems))
+    rows = t.arange(numElems)
     cols = rows * upsampleFactor[0] + \
-           (rows / stride * upsampleFactor[1] * offset)
-    upsamp_matrix = t.set_subtensor(upsamp_matrix[rows, cols], 1.)
+           (rows / input.shape[2] * upsampleFactor[1] * input.shape[3])
+    upsamp = t.set_subtensor(upsamp[rows, cols], 1.)
 
-    flat = t.reshape(input, (input.shape[0], output_shape[0], 
+    flat = t.reshape(input, (input.shape[0], outputShape[0], 
                              input.shape[2] * input.shape[3]))
-    up_flat = t.dot(flat, upsamp_matrix)
-    return t.reshape(up_flat, (input.shape[0], output_shape[0],
-                               output_shape[1], output_shape[2]))
+    upsampflat = t.dot(flat, upsamp)
+    return t.reshape(upsampflat, (input.shape[0], outputShape[0],
+                                  outputShape[1], outputShape[2]))
 
 class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
     '''This class describes a Contractive AutoEncoder (CAE) for a convolutional
@@ -101,13 +97,13 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # and runs the output back through the network in reverse. The net
         # effect is to reconstruct the input, and ultimately to see how well
         # the network is at encoding the message.
-        unpooling = max_unpool_2d(self.output, self._downsampleFactor)
+        unpooling = max_unpool_2d(self.output[1], self._downsampleFactor)
         deconvolve = conv2d(unpooling, self._weightsBack,
                             self.getFeatureSize(), kernelBackSize, 
                             border_mode='full')
         out = deconvolve + self._thresholdsBack.dimshuffle('x', 0, 'x', 'x')
         self._decodedInput = out if activation is None else activation(out)
-        self.reconstruction = function([self.input], self._decodedInput)
+        self.reconstruction = function([self.input[1]], self._decodedInput)
 
         # compute the jacobian cost of the output --
         # This works as a sparsity constraint in case the hidden vector is
@@ -123,9 +119,9 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # NOTE: The jacobian was computed however takes much longer to process
         #       and does not help convergence or regularization. It was removed
         if activation == t.nnet.sigmoid :
-            self._cost = crossEntropyLoss(self.input, self._decodedInput, 1)
+            self._cost = crossEntropyLoss(self.input[1], self._decodedInput, 1)
         else :
-            self._cost = meanSquaredLoss(self.input, self._decodedInput)
+            self._cost = meanSquaredLoss(self.input[1], self._decodedInput)
 
         gradients = t.grad(self._cost + self._jacobianCost, self.getWeights())
         self._updates = [(weights, weights - learningRate * gradient)
@@ -135,7 +131,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # TODO: this needs to be stackable and take the input to the first
         #       layer, not just the input of this layer. This will ensure
         #       the other layers are activated to get the input to this layer
-        self._trainLayer = function([self.input], 
+        self._trainLayer = function([self.input[1]], 
                                     [self._cost, self._jacobianCost],
                                     updates=self._updates)
 
@@ -157,17 +153,12 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         return self._trainLayer(image)
     # DEBUG: For Debugging purposes only 
     def writeWeights(self, ii) :
-        import PIL.Image as Image
-        from utils import tile_raster_images
-        kernelSize = self._weights.get_value(borrow=True).shape
-        img = Image.fromarray(tile_raster_images(
-        X=np.resize(self._weights.get_value(borrow=True),
-                    (kernelSize[0], kernelSize[1],
-                     kernelSize[2], kernelSize[3])),
-        img_shape=(kernelSize[2], kernelSize[3]), 
-        tile_shape=(kernelSize[0], kernelSize[1]),
-        tile_spacing=(1, 1)))
-        img.save(self.layerID + '_cae_filters_' + str(ii) + '.png')
+        from nn.debugger import saveTiledImage
+        saveTiledImage(image=self._weights.get_value(borrow=True),
+                       path=self.layerID + '_cae_filters_' + str(ii) + '.png',
+                       imageShape=(self._kernelSize[2], self._kernelSize[3]),
+                       spacing=1,
+                       interleave=True)
 
 if __name__ == '__main__' :
     import argparse, logging, time

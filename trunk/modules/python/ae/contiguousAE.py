@@ -72,15 +72,15 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
         # and runs the output back through the network in reverse. The net
         # effect is to reconstruct the input, and ultimately to see how well
         # the network is at encoding the message.
-        out = dot(self.output, self._weightsBack) + self._thresholdsBack
+        out = dot(self.output[1], self._weightsBack) + self._thresholdsBack
         self._decodedInput = out if activation is None else activation(out)
-        self.reconstruction = function([self.input], self._decodedInput)
+        self.reconstruction = function([self.input[1]], self._decodedInput)
 
         # compute the jacobian cost of the output --
         # This works as a sparsity constraint in case the hidden vector is
         # larger than the input vector.
         self._jacobianCost = \
-        leastSquares(computeJacobian(self.output, self._weights,
+        leastSquares(computeJacobian(self.output[1], self._weights,
                                      self._inputSize[0], self._inputSize[1],
                                      self._numNeurons), 
                      self._inputSize[0], self._contractionRate)
@@ -88,9 +88,9 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
         # create the negative log likelihood function --
         # this is our cost function with respect to the original input
         if activation == t.nnet.sigmoid :
-            self._cost = crossEntropyLoss(self.input, self._decodedInput, 1)
+            self._cost = crossEntropyLoss(self.input[1], self._decodedInput, 1)
         else :
-            self._cost = meanSquaredLoss(self.input, self._decodedInput)
+            self._cost = meanSquaredLoss(self.input[1], self._decodedInput)
 
         gradients = t.grad(self._cost + self._jacobianCost, self.getWeights())
         self._updates = [(weights, weights - learningRate * gradient)
@@ -100,7 +100,7 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
         # TODO: this needs to be stackable and take the input to the first
         #       layer, not just the input of this layer. This will ensure
         #       the other layers are activated to get the input to this layer
-        self._trainLayer = function([self.input], 
+        self._trainLayer = function([self.input[1]], 
                                     [self._cost, self._jacobianCost],
                                     updates=self._updates)
 
@@ -121,28 +121,18 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
     def train(self, image) :
         return self._trainLayer(image)
     # DEBUG: For Debugging purposes only
-    def writeWeights(self, ii) :
-        import math
-        import PIL.Image as Image
-        from utils import tile_raster_images
-        '''
-        kernelSize = self._weights.get_value(borrow=True).shape
-        imageSize = int(math.sqrt(kernelSize[0]))
-        img = Image.fromarray(tile_raster_images(
-            X=np.resize(self._weights.get_value(borrow=True).T,
-                        (kernelSize[1], kernelSize[0])),
-            img_shape=(imageSize, imageSize),
-            tile_shape=(1, kernelSize[1]),
-            tile_spacing=(1, 1)))
-        '''
-        kernelSize = self._weights.get_value(borrow=True).shape
-        img = Image.fromarray(tile_raster_images(
-        X=np.resize(self._weights.get_value(borrow=True).T, 
-                    (1, kernelSize[1], kernelSize[0])),
-        img_shape=(kernelSize[1], kernelSize[0]),
-        tile_shape=(1, 1),
-        tile_spacing=(1, 1)))
-        img.save(self.layerID + '_cae_filters_' + str(ii) + '.png')
+    def writeWeights(self, ii, imageShape=None) :
+        from nn.debugger import saveTiledImage
+        if imageShape is None :
+            matSize = self._weights.get_value(borrow=True).shape
+            imageShape = ((matSize[1], matSize[0])),
+
+        # transpose the weight matrix to alighn the kernels contiguously
+        saveTiledImage(image=self._weights.get_value(borrow=True).T,
+                       path=self.layerID + '_cae_filters_' + str(ii) + '.png',
+                       imageShape=imageShape,
+                       spacing=1,
+                       interleave=True)
 
 if __name__ == '__main__' :
     import argparse, logging, time

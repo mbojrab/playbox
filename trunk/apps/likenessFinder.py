@@ -157,7 +157,7 @@ def createNetwork(image, log=None) :
         # add fully connected layers
         numInputs = reduce(mul, network.getNetworkOutputSize()[1:])
         network.addLayer(ContractiveAutoEncoder(
-            layerID='f3', input=network.getNetworkOutput().flatten(2),
+            layerID='f3', input=network.getNetworkOutput(),
             inputSize=(network.getNetworkOutputSize()[0], numInputs),
             numNeurons=options.hidden,
             learningRate=options.learnF, randomNumGen=rng))
@@ -216,8 +216,7 @@ def createNetwork(image, log=None) :
                         print layerEpochStr + ' Cost: ' + str(locCost)
                     globCost.append(locCost)
 
-                    if ii == 0 :
-                        network.writeWeights(layerIndex, globalEpoch + localEpoch)
+                    network.writeWeights(layerIndex, globalEpoch + localEpoch)
                 globalEpoch = globalEpoch + options.numEpochs
                 network.save(options.base + str(layerIndex) + \
                              '_epoch' + str(globalEpoch) + \
