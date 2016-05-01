@@ -37,6 +37,11 @@ if __name__ == '__main__' :
                         help='Batch size for training and test sets.')
     parser.add_argument('--base', dest='base', type=str, default='./leNet5',
                         help='Base name of the network output and temp files.')
+    parser.add_argument('--dropout', dest='dropout', type=bool, default=False,
+                        help='Enable dropout throughout the network. Dropout '\
+                             'percentages are based on optimal reported '\
+                             'results. NOTE: Networks using dropout need to '\
+                             'increase both neural breadth and learning rates')
     parser.add_argument('--syn', dest='synapse', type=str, default=None,
                         help='Load from a previously saved network.')
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
@@ -92,7 +97,8 @@ if __name__ == '__main__' :
             inputSize=trainSize[1:],
             kernelSize=(options.kernel,trainSize[2],5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
-            dropout=.8, learningRate=options.learnC))
+            dropout=.8 if options.dropout else 1.,
+            learningRate=options.learnC))
 
         # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
         # this way we don't combine the channels kernels we created in 
@@ -103,7 +109,8 @@ if __name__ == '__main__' :
             inputSize=network.getNetworkOutputSize(), 
             kernelSize=(options.kernel,options.kernel,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
-            dropout=.5, learningRate=options.learnC))
+            dropout=.5 if options.dropout else 1.,
+            learningRate=options.learnC))
 
         # add fully connected layers
         network.addLayer(ContiguousLayer(
@@ -111,11 +118,12 @@ if __name__ == '__main__' :
             inputSize=(network.getNetworkOutputSize()[0], 
                        reduce(mul, network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, learningRate=options.learnF,
-            dropout=.5, randomNumGen=rng))
+            dropout=.5 if options.dropout else 1., randomNumGen=rng))
         network.addLayer(ContiguousLayer(
             layerID='f4', input=network.getNetworkOutput(),
             inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
-            learningRate=options.learnF, activation=None, randomNumGen=rng))
+            learningRate=options.learnF, activation=None,
+            dropout=.5 if options.dropout else 1., randomNumGen=rng))
 
     globalCount = lastBest = degradationCount = 0
     numEpochs = options.limit
