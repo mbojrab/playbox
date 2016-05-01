@@ -62,7 +62,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
        randomNumGen     : generator for the initial weight values
     '''
     def __init__ (self, layerID, input, inputSize, kernelSize, 
-                  downsampleFactor, learningRate=0.001, contractionRate=0.01,
+                  downsampleFactor, learningRate=0.001,
+                  dropout=None, contractionRate=None,
                   initialWeights=None, initialHidThresh=None,
                   initialVisThresh=None, activation=t.nnet.sigmoid,
                   randomNumGen=None) :
@@ -72,6 +73,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                                     kernelSize=kernelSize,
                                     downsampleFactor=downsampleFactor,
                                     learningRate=learningRate,
+                                    dropout=dropout,
                                     initialWeights=initialWeights,
                                     initialThresholds=initialHidThresh,
                                     activation=activation, 

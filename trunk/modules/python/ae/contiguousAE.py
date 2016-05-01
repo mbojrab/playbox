@@ -41,8 +41,8 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
                           this must be a function with a derivative form
        randomNumGen     : generator for the initial weight values
     '''
-    def __init__ (self, layerID, input, inputSize, numNeurons,
-                  learningRate=0.001, contractionRate=None,
+    def __init__ (self, layerID, input, inputSize, numNeurons, 
+                  learningRate=0.001, dropout=None, contractionRate=None,
                   initialWeights=None, initialHidThresh=None,
                   initialVisThresh=None, activation=t.nnet.sigmoid,
                   randomNumGen=None) :
@@ -51,6 +51,7 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
                                  inputSize=inputSize,
                                  numNeurons=numNeurons,
                                  learningRate=learningRate,
+                                 dropout=dropout,
                                  initialWeights=initialWeights,
                                  initialThresholds=initialHidThresh,
                                  activation=activation, 
