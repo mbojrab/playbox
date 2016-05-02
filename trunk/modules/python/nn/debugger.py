@@ -40,26 +40,28 @@ def saveTiledImage(image, path, imageShape, spacing,
     # populate the tiles with the pixel data
     for ii in range(tileShape[0]) :
         for jj in range(tileShape[1]) :
+
             # NOTE: we assume the images are aligned in each row
             imageOffset = ii * tileShape[1] + jj
 
-            # collect each chip for the channels
-            chip = norm(im[imageOffset, :, :]) * 255
-            chip = chip.reshape((numChannels,
-                                 imageShape[0],
-                                 imageShape[1]))
+            if imageOffset < im.shape[0] :
+                # collect each chip for the channels
+                chip = norm(im[imageOffset, :, :]) * 255
+                chip = chip.reshape((numChannels,
+                                     imageShape[0],
+                                     imageShape[1]))
 
-            # align into the output buffer -- BGR for openCV
-            outLoc = (ii * (imageShape[0] + spacing),
-                      jj * (imageShape[1] + spacing))
-            if numChannels == 3 :
-                output[:, outLoc[0] : outLoc[0] + imageShape[0],
-                          outLoc[1] : outLoc[1] + imageShape[1]] = \
-                    chip[[2,1,0],:,:]
-            else :
-                output[:, outLoc[0] : outLoc[0] + imageShape[0],
-                          outLoc[1] : outLoc[1] + imageShape[1]] = \
-                    chip[:,:,:]
+                # align into the output buffer -- BGR for openCV
+                outLoc = (ii * (imageShape[0] + spacing),
+                          jj * (imageShape[1] + spacing))
+                if numChannels == 3 :
+                    output[:, outLoc[0] : outLoc[0] + imageShape[0],
+                              outLoc[1] : outLoc[1] + imageShape[1]] = \
+                        chip[[2,1,0],:,:]
+                else :
+                    output[:, outLoc[0] : outLoc[0] + imageShape[0],
+                              outLoc[1] : outLoc[1] + imageShape[1]] = \
+                        chip[:,:,:]
 
     if interleave :
         # write the image to disk
