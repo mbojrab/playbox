@@ -421,6 +421,9 @@ class TrainerNetwork (ClassifierNetwork) :
            numEpochs   : number of epochs to train this round before stopping
         '''
         for localEpoch in range(numEpochs) :
+            # DEBUG: For Debugging purposes only 
+            for layer in self._layers :
+                layer.writeWeights(globalEpoch + localEpoch)
             self._startProfile('Running Epoch [' + 
                                str(globalEpoch + localEpoch) + ']', 'info')
             for ii in range(self._numTrainBatches) :

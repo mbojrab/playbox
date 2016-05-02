@@ -153,14 +153,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
     # DEBUG: For Debugging purposes only 
     def train(self, image) :
         return self._trainLayer(image)
-    # DEBUG: For Debugging purposes only 
-    def writeWeights(self, ii) :
-        from nn.debugger import saveTiledImage
-        saveTiledImage(image=self._weights.get_value(borrow=True),
-                       path=self.layerID + '_cae_filters_' + str(ii) + '.png',
-                       imageShape=(self._kernelSize[2], self._kernelSize[3]),
-                       spacing=1,
-                       interleave=True)
+
 
 if __name__ == '__main__' :
     import argparse, logging, time

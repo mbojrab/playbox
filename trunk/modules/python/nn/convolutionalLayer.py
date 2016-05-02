@@ -109,7 +109,7 @@ class ConvolutionalLayer(Layer) :
             #            dropout factor.
             outClass = outClass / dropout
             outTrain = switch(self._randStream.binomial(
-                size=self.getOutputSize()[1:], p=1-dropout), outTrain, 0)
+                size=self.getOutputSize()[1:], p=dropout), outTrain, 0)
 
         # activate the layer --
         # output is a tuple to represent two possible paths through the
@@ -145,3 +145,12 @@ class ConvolutionalLayer(Layer) :
         return (fShape[0], fShape[1],
                 fShape[2] / self._downsampleFactor[0],
                 fShape[3] / self._downsampleFactor[1])
+
+    # DEBUG: For Debugging purposes only 
+    def writeWeights(self, ii) :
+        from nn.debugger import saveTiledImage
+        saveTiledImage(image=self._weights.get_value(borrow=True),
+                       path=self.layerID + '_cae_filters_' + str(ii) + '.png',
+                       imageShape=(self._kernelSize[2], self._kernelSize[3]),
+                       spacing=1,
+                       interleave=True)

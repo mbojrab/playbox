@@ -121,19 +121,6 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
     # DEBUG: For Debugging purposes only
     def train(self, image) :
         return self._trainLayer(image)
-    # DEBUG: For Debugging purposes only
-    def writeWeights(self, ii, imageShape=None) :
-        from nn.debugger import saveTiledImage
-        if imageShape is None :
-            matSize = self._weights.get_value(borrow=True).shape
-            imageShape = ((matSize[1], matSize[0])),
-
-        # transpose the weight matrix to alighn the kernels contiguously
-        saveTiledImage(image=self._weights.get_value(borrow=True).T,
-                       path=self.layerID + '_cae_filters_' + str(ii) + '.png',
-                       imageShape=imageShape,
-                       spacing=1,
-                       interleave=True)
 
 if __name__ == '__main__' :
     import argparse, logging, time

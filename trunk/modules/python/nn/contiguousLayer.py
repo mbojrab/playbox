@@ -89,7 +89,7 @@ class ContiguousLayer(Layer) :
             #            dropout factor.
             outClass = outClass / dropout
             outTrain = switch(self._randStream.binomial(
-                size=(self._numNeurons,), p=1-dropout), outTrain, 0)
+                size=(self._numNeurons,), p=dropout), outTrain, 0)
 
         # activate the layer --
         # output is a tuple to represent two possible paths through the
@@ -109,3 +109,17 @@ class ContiguousLayer(Layer) :
     def getOutputSize (self) :
         '''(numInputs, number of neurons)'''
         return (self._inputSize[0], self._numNeurons)
+
+    # DEBUG: For Debugging purposes only
+    def writeWeights(self, ii, imageShape=None) :
+        from nn.debugger import saveTiledImage
+        matSize = self._weights.get_value(borrow=True).shape
+
+        # transpose the weight matrix to alighn the kernels contiguously
+        saveTiledImage(
+            image=self._weights.get_value(borrow=True).T,
+            path=self.layerID + '_cae_filters_' + str(ii) + '.png',
+            imageShape=(1, matSize[0]) if imageShape is None else imageShape,
+            tileShape=(matSize[1], 1) if imageShape is None else None,
+            spacing=0 if imageShape is None else 1,
+            interleave=True)
