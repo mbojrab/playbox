@@ -7,7 +7,7 @@ def crossEntropyLoss (p, q, axis=None):
         q    - the current estimate
         axis - the axis in which to sum across -- used for multi-dimensional
     '''
-    return t.mean(-t.sum(p * t.log(q) + (1 - p) * t.log(1 - q), axis=axis))
+    return t.mean(t.sum(t.nnet.binary_crossentropy(q, p), axis=axis))
 
 def meanSquaredLoss (p, q) :
     ''' for these purposes this is equivalent to Negative Log Likelihood
