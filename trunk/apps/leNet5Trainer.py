@@ -17,9 +17,9 @@ if __name__ == '__main__' :
                         help='Specify log output file.')
     parser.add_argument('--level', dest='level', default='INFO', type=str, 
                         help='Log Level.')
-    parser.add_argument('--learnC', dest='learnC', type=float, default=.0031,
+    parser.add_argument('--learnC', dest='learnC', type=float, default=.031,
                         help='Rate of learning on Convolutional Layers.')
-    parser.add_argument('--learnF', dest='learnF', type=float, default=.0015,
+    parser.add_argument('--learnF', dest='learnF', type=float, default=.015,
                         help='Rate of learning on Fully-Connected Layers.')
     parser.add_argument('--momentum', dest='momentum', type=float, default=.3,
                         help='Momentum rate all layers.')
@@ -104,8 +104,7 @@ if __name__ == '__main__' :
         # this way we don't combine the channels kernels we created in 
         # the first layer and destroy our dimensionality
         network.addLayer(ConvolutionalLayer(
-            layerID='c2',
-            input=network.getNetworkOutput(), 
+            layerID='c2', input=network.getNetworkOutput(), 
             inputSize=network.getNetworkOutputSize(), 
             kernelSize=(options.kernel,options.kernel,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
