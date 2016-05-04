@@ -23,6 +23,11 @@ if __name__ == '__main__' :
                         help='Rate of learning on Fully-Connected Layers.')
     parser.add_argument('--momentum', dest='momentum', type=float, default=.3,
                         help='Momentum rate all layers.')
+    parser.add_argument('--dropout', dest='dropout', type=bool, default=False,
+                        help='Enable dropout throughout the network. Dropout '\
+                             'percentages are based on optimal reported '\
+                             'results. NOTE: Networks using dropout need to '\
+                             'increase both neural breadth and learning rates')
     parser.add_argument('--kernel', dest='kernel', type=int, default=6,
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
@@ -37,11 +42,6 @@ if __name__ == '__main__' :
                         help='Batch size for training and test sets.')
     parser.add_argument('--base', dest='base', type=str, default='./leNet5',
                         help='Base name of the network output and temp files.')
-    parser.add_argument('--dropout', dest='dropout', type=bool, default=False,
-                        help='Enable dropout throughout the network. Dropout '\
-                             'percentages are based on optimal reported '\
-                             'results. NOTE: Networks using dropout need to '\
-                             'increase both neural breadth and learning rates')
     parser.add_argument('--syn', dest='synapse', type=str, default=None,
                         help='Load from a previously saved network.')
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
@@ -121,8 +121,7 @@ if __name__ == '__main__' :
         network.addLayer(ContiguousLayer(
             layerID='f4', input=network.getNetworkOutput(),
             inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
-            learningRate=options.learnF, activation=None,
-            dropout=.5 if options.dropout else 1., randomNumGen=rng))
+            learningRate=options.learnF, activation=None, randomNumGen=rng))
 
     globalCount = lastBest = degradationCount = 0
     numEpochs = options.limit

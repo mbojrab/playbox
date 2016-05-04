@@ -29,7 +29,7 @@ class ContiguousLayer(Layer) :
     def __init__ (self, layerID, input, inputSize, numNeurons,
                   learningRate=0.001, dropout=None, initialWeights=None, 
                   initialThresholds=None, activation=tanh, randomNumGen=None) :
-        Layer.__init__(self, layerID, learningRate)
+        Layer.__init__(self, layerID, learningRate, dropout)
 
         # adjust the input for the correct number of dimensions        
         if isinstance(input, tuple) :
@@ -76,7 +76,7 @@ class ContiguousLayer(Layer) :
         outTrain = findLogit(self.input[1], self._weights, self._thresholds)
 
         # determine dropout if requested
-        if dropout is not None :
+        if self._dropout is not None :
             # here there are two possible paths --
             # outClass : path of execution intended for classification. Here
             #            all neurons are present and weights must be scaled by
@@ -87,9 +87,9 @@ class ContiguousLayer(Layer) :
             #            neuron's output goes through a Bernoulli Trial. This
             #            retains a neuron with the probability specified by the
             #            dropout factor.
-            outClass = outClass / dropout
+            outClass = outClass / self._dropout
             outTrain = switch(self._randStream.binomial(
-                size=(self._numNeurons,), p=dropout), outTrain, 0)
+                size=(self._numNeurons,), p=self._dropout), outTrain, 0)
 
         # activate the layer --
         # output is a tuple to represent two possible paths through the
