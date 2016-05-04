@@ -3,13 +3,29 @@ import PIL.Image as Image
 from nn.datasetUtils import normalize as norm
 
 def saveNormalizedImage(image, path) :
-    '''Save the image to a file. This performs'''
-    im = Image.fromarray(np.uint8(norm(image) * 255))
-    im.save(path)
+    '''Save the image to a file. This performs a naive normalization of the 
+       array and outputs a grey scale image. The input is assumed to be float
+       data.
+
+       image: 2D tensor (rows, cols)
+       path:  output path to image
+    '''
+    Image.fromarray(np.uint8(norm(image) * 255)).save(path)
 
 def saveTiledImage(image, path, imageShape, spacing,
                    tileShape=None, interleave=True) :
-    '''Create a tiled image of the weights. 
+    '''Create a tiled image of the weights 
+
+       image:      tensor to convert to a tiled image
+                   2D tensor (numKernels, inputSize)
+                   3D tensor (numKernels, numChannels, inputSize)
+                   4D tensor (numKernels, numChannels, numRows, numCols)
+       path:       output path to image
+       imageShape: shape of each tiled image in output
+       spacing:    size of pixel border around each tileShape
+       tileShape:  user-specified tiling pattern
+       interleave: create a colorize output image from channels
+                   False will separate and stack the image channels
     '''
     import cv2
 
@@ -63,12 +79,12 @@ def saveTiledImage(image, path, imageShape, spacing,
                               outLoc[1] : outLoc[1] + imageShape[1]] = \
                         chip[:,:,:]
 
+    # write the image to disk
     if interleave :
-        # write the image to disk
-        cv2.imshow("open", output)
-        #cv2.imwrite(path, output)
+        # openCV automatically interleaves the output
+        cv2.imwrite(path, output)
     else :
+        # PIL will write the output in its current (stacked) format
         output = output.reshape((outputShape[0] * outputShape[1], 
                                  outputShape[2]))
-        im = Image.fromarray(output)
-        im.save(path)
+        Image.fromarray(output).save(path)
