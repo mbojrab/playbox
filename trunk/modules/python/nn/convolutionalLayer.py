@@ -30,7 +30,7 @@ class ConvolutionalLayer(Layer) :
                   downsampleFactor, learningRate=0.001, dropout=None,
                   initialWeights=None, initialThresholds=None, activation=tanh,
                   randomNumGen=None) :
-        Layer.__init__(self, layerID, learningRate)
+        Layer.__init__(self, layerID, learningRate, dropout)
 
         # TODO: this check is likely unnecessary
         if inputSize[2] == kernelSize[2] or inputSize[3] == kernelSize[3] :
@@ -96,7 +96,7 @@ class ConvolutionalLayer(Layer) :
                               self._downsampleFactor, self._thresholds)
 
         # determine dropout if requested
-        if dropout is not None :
+        if self._dropout is not None :
             # here there are two possible paths --
             # outClass : path of execution intended for classification. Here
             #            all neurons are present and weights must be scaled by
@@ -107,9 +107,9 @@ class ConvolutionalLayer(Layer) :
             #            neuron's output goes through a Bernoulli Trial. This
             #            retains a neuron with the probability specified by the
             #            dropout factor.
-            outClass = outClass / dropout
+            outClass = outClass / self._dropout
             outTrain = switch(self._randStream.binomial(
-                size=self.getOutputSize()[1:], p=dropout), outTrain, 0)
+                size=self.getOutputSize()[1:], p=self._dropout), outTrain, 0)
 
         # activate the layer --
         # output is a tuple to represent two possible paths through the
