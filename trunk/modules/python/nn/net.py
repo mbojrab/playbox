@@ -93,8 +93,6 @@ class ClassifierNetwork (Network) :
     def __init__ (self, filepath=None, log=None) :
         Network.__init__(self, log)
         self._networkLabels = []
-        self._weights = []
-        self._learningRates = []
         if filepath is not None :
             self.load(filepath)
 
@@ -146,12 +144,6 @@ class ClassifierNetwork (Network) :
 
         # add it to our layer list
         self._layers.append(layer)
-
-        # weight/bias are added in reverse order because they will
-        # be used back propagation, which runs output to input
-        self._weights = layer.getWeights() + self._weights
-        self._learningRates = [layer.getLearningRate()] * 2 + \
-                              self._learningRates
         self._endProfile()
 
     def finalizeNetwork(self) :
@@ -237,11 +229,13 @@ class TrainerNetwork (ClassifierNetwork) :
                   default None : perform no additional regularization
                   L1           : Least Absolute Deviation
                   L2           : Least Squares
+       regSF    : regularization scale factor
+                  NOTE: a good value is 1. / numTotalNeurons
        filepath : Path to an already trained network on disk 
                   'None' creates randomized weighting
        log      : Logger to use
     '''
-    def __init__ (self, train, test, labels, regType='L2', 
+    def __init__ (self, train, test, labels, regType='L2', regScaleFactor=0.,
                   filepath=None, log=None) :
         ClassifierNetwork.__init__(self, filepath=filepath, log=log)
         if filepath is None :
@@ -256,6 +250,7 @@ class TrainerNetwork (ClassifierNetwork) :
         #    value=numpy.zeros(self.getNetworkOutputSize(), dtype='int32'), 
         #    name='expectedOutputs')
         self._regularization = regType
+        self._regScaleFactor = regScaleFactor
 
     def __getstate__(self) :
         '''Save network pickle'''
@@ -353,29 +348,41 @@ class TrainerNetwork (ClassifierNetwork) :
         expectedOutputs = t.imatrix('expectedOutputs')
 
         xEntropy = crossEntropyLoss(expectedOutputs, self._outTrainSoft, 1)
-        self._cost = theano.function(
-            [self.getNetworkInput()[1], expectedOutputs], xEntropy)
+
 
         # calculate a regularization term -- if desired
         reg = 0.0
-        regSF = 0.0001
         # L1-norm provides 'Least Absolute Deviation' --
         # built for sparse outputs and is resistent to outliers
         if self._regularization == 'L1' :
-            reg = sum([leastAbsoluteDeviation(w, self._numTestBatches, regSF) \
-                       for w in self._weights])
+            reg = leastAbsoluteDeviation(
+                [l.getWeights()[0] for l in self._layers], 
+                self._regScaleFactor)
         # L2-norm provides 'Least Squares' --
         # built for dense outputs and is computationally stable at small errors
         elif self._regularization == 'L2' :
-            reg = sum([leastSquares(w, self._numTestBatches, regSF) \
-                       for w in self._weights])
+            reg = leastSquares([l.getWeights()[0] + l.getWeights()[1] \
+                                for l in self._layers], self._regScaleFactor)
+
 
         # create the function for back propagation of all layers --
-        # this is combined for convenience
-        gradients = t.grad(xEntropy + reg, self._weights)
-        updates = [(weights, weights - learningRate * gradient)
-                   for weights, gradient, learningRate in \
-                       zip(self._weights, gradients, self._learningRates)]
+        # weight/bias are added in reverse order because they will
+        # be used back propagation, which runs output to input
+        updates = []
+        for layer in reversed(self._layers) :
+
+            # pull the rate variables
+            layerLearningRate = layer.getLearningRate()
+            #layerMomentumRate = layer.getMomentumRate()
+
+            # build the gradients
+            layerWeights = layer.getWeights()
+            gradients = t.grad(xEntropy + reg, layerWeights)
+
+            # add the update
+            updates.extend((w, w - layerLearningRate * g) \
+                           for w, g in zip(layerWeights, gradients))
+
         # NOTE: the 'input' variable name was create elsewhere and provided as
         #       input to the first layer. We now use that object to connect
         #       our shared buffers.
