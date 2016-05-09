@@ -31,6 +31,10 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
        learningRate     : learning rate for all neurons
        contractionRate  : variance (dimensionality) reduction rate
                           None uses '1 / numNeurons'
+       dropout          : rate of retention in a given neuron during training
+                          NOTE: input layers should be around .8 or .9
+                                hidden layers should be around .5 or .6
+                                output layers should always be 1.
        initialWeights   : weights to initialize the network
                           None generates random weights for the layer
        initialHidThresh : thresholds to initialize the forward network

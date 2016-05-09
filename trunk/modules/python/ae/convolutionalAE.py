@@ -53,6 +53,10 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
        learningRate     : learning rate for all neurons
        contractionRate  : variance (dimensionality) reduction rate
                           None uses '1 / numNeurons'
+       dropout          : rate of retention in a given neuron during training
+                          NOTE: input layers should be around .8 or .9
+                                hidden layers should be around .5 or .6
+                                output layers should always be 1.
        initialHidThresh : thresholds to initialize the forward network
                           None generates random thresholds for the layer
        initialVisThresh : thresholds to initialize the backward network
