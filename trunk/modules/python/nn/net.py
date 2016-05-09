@@ -361,8 +361,9 @@ class TrainerNetwork (ClassifierNetwork) :
         # L2-norm provides 'Least Squares' --
         # built for dense outputs and is computationally stable at small errors
         elif self._regularization == 'L2' :
-            reg = leastSquares([l.getWeights()[0] + l.getWeights()[1] \
-                                for l in self._layers], self._regScaleFactor)
+            reg = leastSquares(
+                [l.getWeights()[0] for l in self._layers],
+                self._regScaleFactor)
 
 
         # create the function for back propagation of all layers --
