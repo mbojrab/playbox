@@ -125,6 +125,7 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
 if __name__ == '__main__' :
     import argparse, logging, time
     from nn.datasetUtils import ingestImagery, pickleDataset
+    from nn.debugger import saveTiledImage
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--log', dest='logfile', type=str, default=None,
@@ -135,6 +136,8 @@ if __name__ == '__main__' :
                         type=float, help='Rate of contraction.')
     parser.add_argument('--learn', dest='learn', type=float, default=0.01,
                         help='Rate of learning on AutoEncoder.')
+    parser.add_argument('--dropout', dest='dropout', type=bool, default=False,
+                        help='Perform dropout on the layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=500,
                         help='Number of Neurons in Hidden Layer.')
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
@@ -160,22 +163,21 @@ if __name__ == '__main__' :
     train = (np.reshape(train[0], vectorized), train[1])
 
     input = t.fmatrix()
-    ae = ContractiveAutoEncoder('cae', input, 
-                                (train[0].shape[1], train[0].shape[2]),
-                                options.neuron, options.learn,
-                                options.contraction)
-    for ii in range(15) :
+    ae = ContractiveAutoEncoder('cae', input=input, 
+                                inputSize=(train[0].shape[1],
+                                           train[0].shape[2]),
+                                numNeurons=options.neuron,
+                                learningRate=options.learn,
+                                dropout=.5 if options.dropout else 1.)
+    for ii in range(50) :
         start = time.time()
         for jj in range(len(train[0])) :
             ae.train(train[0][jj])
-            ae.writeWeights(ii+1)
 
-            import PIL.Image as Image
-            from ae.utils import tile_raster_images
-            img = Image.fromarray(tile_raster_images(
-                X=ae.reconstruction(train[0][0]), img_shape=(28, 28), 
-                tile_shape=(10, 10), tile_spacing=(1, 1)))
-            img.save('cae_filters_reconstructed_nllOnly_' + str(ii+1) + '.png')            
+        ae.writeWeights(ii+1, (28,28))
 
+        saveTiledImage(image=ae.reconstruction(train[0][0]),
+                       path='cae_filters_reconstructed_' + str(ii+1) + '.png',
+                       imageShape=(28, 28), spacing=1)
         print 'Epoch [' + str(ii) + ']: ' + str(ae.train(train[0][0])) + \
               ' ' + str(time.time() - start) + 's'

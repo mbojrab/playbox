@@ -109,14 +109,11 @@ class StackedAENetwork (Network) :
                 locCost.append(self.train(layerIndex, ii))
 
             locCost = np.mean(locCost, axis=0)
-            if isinstance(locCost, tuple) :
-                self._startProfile(layerEpochStr + ' Cost: ' + \
-                                   str(locCost[0]) + ' - Jacob: ' + \
-                                   str(locCost[1]), 'info')
-            else :
-                self._startProfile(layerEpochStr + ' Cost: ' + \
-                                   str(locCost), 'info')
+            self._startProfile(layerEpochStr + ' Cost: ' + \
+                               str(locCost[0]) + ' - Jacob: ' + \
+                               str(locCost[1]), 'info')
             globCost.append(locCost)
+
             self._endProfile()
             self._endProfile()
 
