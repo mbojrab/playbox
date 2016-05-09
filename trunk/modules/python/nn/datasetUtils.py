@@ -96,21 +96,17 @@ def ingestImagery(filepath=None, shared=False, log=None) :
         return train, test, labels
 
 def normalize(v) :
-    '''Normalize a vector in a naive manner.
-       TODO: For SAR products, the data is Rayleigh distributed for the 
-             amplitude component, so it may be best to perform a more rigorous
-             remap here. Amplitude recognition can be affected greatly by the
-             strength of Rayleigh distribution.
-    '''
+    '''Normalize a vector in a naive manner.'''
     minimum, maximum = numpy.amin(v), numpy.amax(v)
     return (v - minimum) / (maximum - minimum)
 
 def convertPhaseAmp(imData, log=None) :
     '''Extract the phase and amplitude components of a complex number.
        This is assumed to be a better classifier than the raw IQ image.
-       TODO: the amplitude components are Rayleigh distributed and may need to
-             be remapped (using histoEq) to better fit the bit range. The 
-             NN weights may also correct for this.
+       TODO: For SAR products, the data is Rayleigh distributed for the 
+             amplitude component, so it may be best to perform a more rigorous
+             remap here. Amplitude recognition can be affected greatly by the
+             strength of Rayleigh distribution.
        TODO: Research other possible feature spaces which could elicit better
              learning or augment the phase/amp components.
     '''

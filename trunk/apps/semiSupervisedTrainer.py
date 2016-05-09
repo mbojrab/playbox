@@ -27,8 +27,8 @@ def trainUnsupervised(network, options) :
         globalEpoch = 0
         globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 
                                                options.numEpochs)
-        network.writeWeights(globalEpoch)
         lastSave = options.base + \
+                   '_dropout'+ str(options.dropout) + \
                    '_learnC' + str(options.learnC) + \
                    '_learnF' + str(options.learnF) + \
                    '_contrF' + str(options.contrF) + \
@@ -117,11 +117,16 @@ if __name__ == '__main__' :
                         help='Rate of learning on Convolutional Layers.')
     parser.add_argument('--learnF', dest='learnF', type=float, default=.0015,
                         help='Rate of learning on Fully-Connected Layers.')
-    parser.add_argument('--contrF', dest='contrF', type=float, default=.01,
+    parser.add_argument('--contrF', dest='contrF', type=float, default=None,
                         help='Rate of contraction of the latent space on ' +
                              'Fully-Connected Layers.')
     parser.add_argument('--momentum', dest='momentum', type=float, default=.3,
                         help='Momentum rate all layers.')
+    parser.add_argument('--dropout', dest='dropout', type=bool, default=False,
+                        help='Enable dropout throughout the network. Dropout '\
+                             'percentages are based on optimal reported '\
+                             'results. NOTE: Networks using dropout need to '\
+                             'increase both neural breadth and learning rates')
     parser.add_argument('--kernel', dest='kernel', type=int, default=6,
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
@@ -193,6 +198,7 @@ if __name__ == '__main__' :
             inputSize=trainShape[1:], 
             kernelSize=(options.kernel,trainShape[2],5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
+            dropout=.8 if options.dropout else 1.,
             learningRate=options.learnC))
 
         # refactor the output to be (numImages*numKernels,1,numRows,numCols)
@@ -204,14 +210,16 @@ if __name__ == '__main__' :
             inputSize=network.getNetworkOutputSize(), 
             kernelSize=(options.kernel,options.kernel,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
+            dropout=.5 if options.dropout else 1.,
             learningRate=options.learnC))
 
         # add fully connected layers
         network.addLayer(ContractiveAutoEncoder(
-            layerID='f3', input=network.getNetworkOutput().flatten(2),
+            layerID='f3', input=network.getNetworkOutput(),
             inputSize=(network.getNetworkOutputSize()[0], 
                        reduce(mul, network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, learningRate=options.learnF,
+            dropout=.5 if options.dropout else 1.,
             randomNumGen=rng))
 
         # the final output layer is removed from the normal NN --
@@ -235,7 +243,7 @@ if __name__ == '__main__' :
     network.addLayer(ContiguousLayer(
         layerID='f4', input=network.getNetworkOutput(),
         inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
-        learningRate=options.learnF*10, randomNumGen=rng))
+        learningRate=options.learnF, randomNumGen=rng))
 
     # train the NN for supervised classification
     bestNetwork = trainSupervised(network, options)

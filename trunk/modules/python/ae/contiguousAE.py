@@ -31,6 +31,10 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
        learningRate     : learning rate for all neurons
        contractionRate  : variance (dimensionality) reduction rate
                           None uses '1 / numNeurons'
+       dropout          : rate of retention in a given neuron during training
+                          NOTE: input layers should be around .8 or .9
+                                hidden layers should be around .5 or .6
+                                output layers should always be 1.
        initialWeights   : weights to initialize the network
                           None generates random weights for the layer
        initialHidThresh : thresholds to initialize the forward network
@@ -41,8 +45,8 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
                           this must be a function with a derivative form
        randomNumGen     : generator for the initial weight values
     '''
-    def __init__ (self, layerID, input, inputSize, numNeurons,
-                  learningRate=0.001, contractionRate=None,
+    def __init__ (self, layerID, input, inputSize, numNeurons, 
+                  learningRate=0.001, dropout=None, contractionRate=None,
                   initialWeights=None, initialHidThresh=None,
                   initialVisThresh=None, activation=t.nnet.sigmoid,
                   randomNumGen=None) :
@@ -51,6 +55,7 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
                                  inputSize=inputSize,
                                  numNeurons=numNeurons,
                                  learningRate=learningRate,
+                                 dropout=dropout,
                                  initialWeights=initialWeights,
                                  initialThresholds=initialHidThresh,
                                  activation=activation, 
@@ -72,15 +77,15 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
         # and runs the output back through the network in reverse. The net
         # effect is to reconstruct the input, and ultimately to see how well
         # the network is at encoding the message.
-        out = dot(self.output, self._weightsBack) + self._thresholdsBack
+        out = dot(self.output[1], self._weightsBack) + self._thresholdsBack
         self._decodedInput = out if activation is None else activation(out)
-        self.reconstruction = function([self.input], self._decodedInput)
+        self.reconstruction = function([self.input[1]], self._decodedInput)
 
         # compute the jacobian cost of the output --
         # This works as a sparsity constraint in case the hidden vector is
         # larger than the input vector.
         self._jacobianCost = \
-        leastSquares(computeJacobian(self.output, self._weights,
+        leastSquares(computeJacobian(self.output[1], self._weights,
                                      self._inputSize[0], self._inputSize[1],
                                      self._numNeurons), 
                      self._inputSize[0], self._contractionRate)
@@ -88,9 +93,9 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
         # create the negative log likelihood function --
         # this is our cost function with respect to the original input
         if activation == t.nnet.sigmoid :
-            self._cost = crossEntropyLoss(self.input, self._decodedInput, 1)
+            self._cost = crossEntropyLoss(self.input[1], self._decodedInput, 1)
         else :
-            self._cost = meanSquaredLoss(self.input, self._decodedInput)
+            self._cost = meanSquaredLoss(self.input[1], self._decodedInput)
 
         gradients = t.grad(self._cost + self._jacobianCost, self.getWeights())
         self._updates = [(weights, weights - learningRate * gradient)
@@ -100,7 +105,7 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
         # TODO: this needs to be stackable and take the input to the first
         #       layer, not just the input of this layer. This will ensure
         #       the other layers are activated to get the input to this layer
-        self._trainLayer = function([self.input], 
+        self._trainLayer = function([self.input[1]], 
                                     [self._cost, self._jacobianCost],
                                     updates=self._updates)
 
@@ -120,33 +125,11 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
     # DEBUG: For Debugging purposes only
     def train(self, image) :
         return self._trainLayer(image)
-    # DEBUG: For Debugging purposes only
-    def writeWeights(self, ii) :
-        import math
-        import PIL.Image as Image
-        from utils import tile_raster_images
-        '''
-        kernelSize = self._weights.get_value(borrow=True).shape
-        imageSize = int(math.sqrt(kernelSize[0]))
-        img = Image.fromarray(tile_raster_images(
-            X=np.resize(self._weights.get_value(borrow=True).T,
-                        (kernelSize[1], kernelSize[0])),
-            img_shape=(imageSize, imageSize),
-            tile_shape=(1, kernelSize[1]),
-            tile_spacing=(1, 1)))
-        '''
-        kernelSize = self._weights.get_value(borrow=True).shape
-        img = Image.fromarray(tile_raster_images(
-        X=np.resize(self._weights.get_value(borrow=True).T, 
-                    (1, kernelSize[1], kernelSize[0])),
-        img_shape=(kernelSize[1], kernelSize[0]),
-        tile_shape=(1, 1),
-        tile_spacing=(1, 1)))
-        img.save(self.layerID + '_cae_filters_' + str(ii) + '.png')
 
 if __name__ == '__main__' :
     import argparse, logging, time
     from nn.datasetUtils import ingestImagery, pickleDataset
+    from nn.debugger import saveTiledImage
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--log', dest='logfile', type=str, default=None,
@@ -157,6 +140,8 @@ if __name__ == '__main__' :
                         type=float, help='Rate of contraction.')
     parser.add_argument('--learn', dest='learn', type=float, default=0.01,
                         help='Rate of learning on AutoEncoder.')
+    parser.add_argument('--dropout', dest='dropout', type=bool, default=False,
+                        help='Perform dropout on the layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=500,
                         help='Number of Neurons in Hidden Layer.')
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
@@ -182,22 +167,21 @@ if __name__ == '__main__' :
     train = (np.reshape(train[0], vectorized), train[1])
 
     input = t.fmatrix()
-    ae = ContractiveAutoEncoder('cae', input, 
-                                (train[0].shape[1], train[0].shape[2]),
-                                options.neuron, options.learn,
-                                options.contraction)
-    for ii in range(15) :
+    ae = ContractiveAutoEncoder('cae', input=input, 
+                                inputSize=(train[0].shape[1],
+                                           train[0].shape[2]),
+                                numNeurons=options.neuron,
+                                learningRate=options.learn,
+                                dropout=.5 if options.dropout else 1.)
+    for ii in range(50) :
         start = time.time()
         for jj in range(len(train[0])) :
             ae.train(train[0][jj])
-            ae.writeWeights(ii+1)
 
-            import PIL.Image as Image
-            from ae.utils import tile_raster_images
-            img = Image.fromarray(tile_raster_images(
-                X=ae.reconstruction(train[0][0]), img_shape=(28, 28), 
-                tile_shape=(10, 10), tile_spacing=(1, 1)))
-            img.save('cae_filters_reconstructed_nllOnly_' + str(ii+1) + '.png')            
+        ae.writeWeights(ii+1, (28,28))
 
+        saveTiledImage(image=ae.reconstruction(train[0][0]),
+                       path='cae_filters_reconstructed_' + str(ii+1) + '.png',
+                       imageShape=(28, 28), spacing=1)
         print 'Epoch [' + str(ii) + ']: ' + str(ae.train(train[0][0])) + \
               ' ' + str(time.time() - start) + 's'

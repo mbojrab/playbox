@@ -17,12 +17,17 @@ if __name__ == '__main__' :
                         help='Specify log output file.')
     parser.add_argument('--level', dest='level', default='INFO', type=str, 
                         help='Log Level.')
-    parser.add_argument('--learnC', dest='learnC', type=float, default=.0031,
+    parser.add_argument('--learnC', dest='learnC', type=float, default=.031,
                         help='Rate of learning on Convolutional Layers.')
-    parser.add_argument('--learnF', dest='learnF', type=float, default=.0015,
+    parser.add_argument('--learnF', dest='learnF', type=float, default=.015,
                         help='Rate of learning on Fully-Connected Layers.')
     parser.add_argument('--momentum', dest='momentum', type=float, default=.3,
                         help='Momentum rate all layers.')
+    parser.add_argument('--dropout', dest='dropout', type=bool, default=False,
+                        help='Enable dropout throughout the network. Dropout '\
+                             'percentages are based on optimal reported '\
+                             'results. NOTE: Networks using dropout need to '\
+                             'increase both neural breadth and learning rates')
     parser.add_argument('--kernel', dest='kernel', type=int, default=6,
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
@@ -92,26 +97,27 @@ if __name__ == '__main__' :
             inputSize=trainSize[1:],
             kernelSize=(options.kernel,trainSize[2],5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
+            dropout=.8 if options.dropout else 1.,
             learningRate=options.learnC))
 
         # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
         # this way we don't combine the channels kernels we created in 
         # the first layer and destroy our dimensionality
         network.addLayer(ConvolutionalLayer(
-            layerID='c2',
-            input=network.getNetworkOutput(), 
+            layerID='c2', input=network.getNetworkOutput(), 
             inputSize=network.getNetworkOutputSize(), 
             kernelSize=(options.kernel,options.kernel,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
+            dropout=.5 if options.dropout else 1.,
             learningRate=options.learnC))
 
         # add fully connected layers
         network.addLayer(ContiguousLayer(
-            layerID='f3', input=network.getNetworkOutput().flatten(2),
+            layerID='f3', input=network.getNetworkOutput(),
             inputSize=(network.getNetworkOutputSize()[0], 
                        reduce(mul, network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, learningRate=options.learnF,
-            randomNumGen=rng))
+            dropout=.5 if options.dropout else 1., randomNumGen=rng))
         network.addLayer(ContiguousLayer(
             layerID='f4', input=network.getNetworkOutput(),
             inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
@@ -139,6 +145,7 @@ if __name__ == '__main__' :
             runningAccuracy = curAcc
             lastBest = globalCount
             lastSave = options.base + \
+                       '_dropout'+ str(options.dropout) + \
                        '_learnC' + str(options.learnC) + \
                        '_learnF' + str(options.learnF) + \
                        '_momentum' + str(options.momentum) + \

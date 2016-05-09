@@ -7,7 +7,7 @@ def crossEntropyLoss (p, q, axis=None):
         q    - the current estimate
         axis - the axis in which to sum across -- used for multi-dimensional
     '''
-    return t.mean(-t.sum(p * t.log(q) + (1 - p) * t.log(1 - q), axis=axis))
+    return t.mean(t.sum(t.nnet.binary_crossentropy(q, p), axis=axis))
 
 def meanSquaredLoss (p, q) :
     ''' for these purposes this is equivalent to Negative Log Likelihood
@@ -24,10 +24,14 @@ def leastAbsoluteDeviation(a, batchSize=None, scaleFactor=1.) :
        batchSize   - number of inputs in the batchs
        scaleFactor - scale factor for the regularization
     '''
-    if batchSize is None :
-        return t.mean(t.sum(t.abs_(a)) // batchSize) * scaleFactor
+    if not isinstance(a, list) :
+        a = [a]
+    absSum = sum([t.sum(t.abs_(arr)) for arr in a])
+
+    if batchSize is not None :
+        return t.mean(absSum // batchSize) * scaleFactor
     else :
-        return t.sum(t.abs_(a)) * scaleFactor
+        return absSum * scaleFactor
 
 def leastSquares(a, batchSize=None, scaleFactor=1.) :
     '''L2-norm provides 'Least Squares' --
@@ -39,10 +43,14 @@ def leastSquares(a, batchSize=None, scaleFactor=1.) :
 
        NOTE: a decent scale factor may be the 1. / numNeurons
     '''
-    if batchSize is None :
-        return t.mean(t.sum(a ** 2) // batchSize) * scaleFactor
+    if not isinstance(a, list) :
+        a = [a]
+    sqSum = sum([t.sum(arr ** 2) for arr in a])
+
+    if batchSize is not None :
+        return t.mean(sqSum // batchSize) * scaleFactor
     else :
-        return t.mean(t.sum(t.abs_(a))) * scaleFactor
+        return sqSum * scaleFactor
 
 def computeJacobian(a, wrt, batchSize, inputSize, numNeurons) :
     ''' compute a jacobian for the matrix 'out' with respect to 'wrt'.

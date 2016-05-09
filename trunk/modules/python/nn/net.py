@@ -93,8 +93,6 @@ class ClassifierNetwork (Network) :
     def __init__ (self, filepath=None, log=None) :
         Network.__init__(self, log)
         self._networkLabels = []
-        self._weights = []
-        self._learningRates = []
         if filepath is not None :
             self.load(filepath)
 
@@ -102,8 +100,9 @@ class ClassifierNetwork (Network) :
         '''Save network pickle'''
         dict = Network.__getstate__(self)
         # remove the functions -- they will be rebuilt JIT
-        if '_out' in dict : del dict['_out']
-        if '_outClass' in dict : del dict['_outClass']
+        if '_outClassSoft' in dict : del dict['_outClassSoft']
+        if '_outTrainSoft' in dict : del dict['_outTrainSoft']
+        if '_outClassMax' in dict : del dict['_outClassMax']
         if '_classify' in dict : del dict['_classify']
         if '_classifyAndSoftmax' in dict : del dict['_classifyAndSoftmax']
         return dict
@@ -111,10 +110,12 @@ class ClassifierNetwork (Network) :
         '''Load network pickle'''
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
-        if hasattr(self, '_out') : 
-            delattr(self, '_out')
-        if hasattr(self, '_outClass') : 
-            delattr(self, '_outClass')
+        if hasattr(self, '_outClassSoft') : 
+            delattr(self, '_outClassSoft')
+        if hasattr(self, '_outTrainSoft') : 
+            delattr(self, '_outTrainSoft')
+        if hasattr(self, '_outClassMax') : 
+            delattr(self, '_outClassMax')
         if hasattr(self, '_classify') : 
             delattr(self, '_classify')
         if hasattr(self, '_classifyAndSoftmax') : 
@@ -143,12 +144,6 @@ class ClassifierNetwork (Network) :
 
         # add it to our layer list
         self._layers.append(layer)
-
-        # weight/bias are added in reverse order because they will
-        # be used back propagation, which runs output to input
-        self._weights = layer.getWeights() + self._weights
-        self._learningRates = [layer.getLearningRate()] * 2 + \
-                              self._learningRates
         self._endProfile()
 
     def finalizeNetwork(self) :
@@ -168,12 +163,15 @@ class ClassifierNetwork (Network) :
         # output prediction, which emphasizes significant neural responses.
         # This takes as its input, the first layer's input, and uses the final
         # layer's output as the function (ie the network classification).
-        self._out = t.nnet.softmax(self.getNetworkOutput())
-        self._outClass = t.argmax(self._out, axis=1)
-        self._classify = theano.function([self.getNetworkInput()], 
-                                         self._outClass)
-        self._classifyAndSoftmax = theano.function([self.getNetworkInput()],
-                                                   [self._outClass, self._out])
+        outClass, outTrain = self.getNetworkOutput()
+        self._outClassSoft = t.nnet.softmax(outClass)
+        self._outTrainSoft = t.nnet.softmax(outTrain)
+        self._outClassMax = t.argmax(self._outClassSoft, axis=1)
+        self._classify = theano.function([self.getNetworkInput()[0]], 
+                                         self._outClassMax)
+        self._classifyAndSoftmax = theano.function(
+            [self.getNetworkInput()[0]], 
+            [self._outClassMax, self._outClassSoft])
         self._endProfile()
 
     def classify (self, inputs) :
@@ -231,11 +229,13 @@ class TrainerNetwork (ClassifierNetwork) :
                   default None : perform no additional regularization
                   L1           : Least Absolute Deviation
                   L2           : Least Squares
+       regSF    : regularization scale factor
+                  NOTE: a good value is 1. / numTotalNeurons
        filepath : Path to an already trained network on disk 
                   'None' creates randomized weighting
        log      : Logger to use
     '''
-    def __init__ (self, train, test, labels, regType='L2', 
+    def __init__ (self, train, test, labels, regType='L2', regScaleFactor=0.,
                   filepath=None, log=None) :
         ClassifierNetwork.__init__(self, filepath=filepath, log=log)
         if filepath is None :
@@ -250,6 +250,7 @@ class TrainerNetwork (ClassifierNetwork) :
         #    value=numpy.zeros(self.getNetworkOutputSize(), dtype='int32'), 
         #    name='expectedOutputs')
         self._regularization = regType
+        self._regScaleFactor = regScaleFactor
 
     def __getstate__(self) :
         '''Save network pickle'''
@@ -309,15 +310,15 @@ class TrainerNetwork (ClassifierNetwork) :
         # create a function to quickly check the accuracy against the test set
         index = t.lscalar('index')
         expectedLabels = t.ivector('expectedLabels')
-        numCorrect = t.sum(t.eq(self._outClass, expectedLabels))
+        numCorrect = t.sum(t.eq(self._outClassMax, expectedLabels))
         # NOTE: the 'input' variable name was created elsewhere and provided as
         #       input to the first layer. We now use that object to connect
         #       our shared buffers.
         self._checkAccuracyNP = theano.function(
-            [self.getNetworkInput(), expectedLabels], numCorrect)
+            [self.getNetworkInput()[0], expectedLabels], numCorrect)
         self._checkAccuracy = theano.function(
             [index], numCorrect, 
-            givens={self.getNetworkInput(): self._testData[index],
+            givens={self.getNetworkInput()[0] : self._testData[index],
                     expectedLabels: self._testLabels[index]})
 
         # setup a looping function to JIT create the expected output vectors --
@@ -335,8 +336,10 @@ class TrainerNetwork (ClassifierNetwork) :
             inputs=[expectedLabels, outputSize], outputs=result)
 
         # protect the loss function against producing NaNs
-        self._out = t.switch(self._out < 0.0001, 0.0001, self._out)
-        self._out = t.switch(self._out > 0.9999, 0.9999, self._out)
+        self._outTrainSoft = t.switch(self._outTrainSoft < 0.0001, 0.0001, 
+                                      self._outTrainSoft)
+        self._outTrainSoft = t.switch(self._outTrainSoft > 0.9999, 0.9999,
+                                      self._outTrainSoft)
 
         # create the cross entropy function --
         # This is the cost function for the network, and it assumes [0,1]
@@ -344,39 +347,52 @@ class TrainerNetwork (ClassifierNetwork) :
         # Brown will hit you with a time machine.
         expectedOutputs = t.imatrix('expectedOutputs')
 
-        xEntropy = crossEntropyLoss(expectedOutputs, self._out, 1)
-        self._cost = theano.function([self._layers[0].input, expectedOutputs],
-                                     xEntropy)
+        xEntropy = crossEntropyLoss(expectedOutputs, self._outTrainSoft, 1)
+
 
         # calculate a regularization term -- if desired
         reg = 0.0
-        regSF = 0.0001
         # L1-norm provides 'Least Absolute Deviation' --
         # built for sparse outputs and is resistent to outliers
         if self._regularization == 'L1' :
-            reg = sum([leastAbsoluteDeviation(w, self._numTestBatches, regSF) \
-                       for w in self._weights])
+            reg = leastAbsoluteDeviation(
+                [l.getWeights()[0] for l in self._layers], 
+                self._regScaleFactor)
         # L2-norm provides 'Least Squares' --
         # built for dense outputs and is computationally stable at small errors
         elif self._regularization == 'L2' :
-            reg = sum([leastSquares(w, self._numTestBatches, regSF) \
-                       for w in self._weights])
+            reg = leastSquares(
+                [l.getWeights()[0] for l in self._layers],
+                self._regScaleFactor)
+
 
         # create the function for back propagation of all layers --
-        # this is combined for convenience
-        gradients = t.grad(xEntropy + reg, self._weights)
-        updates = [(weights, weights - learningRate * gradient)
-                   for weights, gradient, learningRate in \
-                       zip(self._weights, gradients, self._learningRates)]
+        # weight/bias are added in reverse order because they will
+        # be used back propagation, which runs output to input
+        updates = []
+        for layer in reversed(self._layers) :
+
+            # pull the rate variables
+            layerLearningRate = layer.getLearningRate()
+            #layerMomentumRate = layer.getMomentumRate()
+
+            # build the gradients
+            layerWeights = layer.getWeights()
+            gradients = t.grad(xEntropy + reg, layerWeights)
+
+            # add the update
+            updates.extend((w, w - layerLearningRate * g) \
+                           for w, g in zip(layerWeights, gradients))
+
         # NOTE: the 'input' variable name was create elsewhere and provided as
         #       input to the first layer. We now use that object to connect
         #       our shared buffers.
         self._trainNetworkNP = theano.function(
-            [self.getNetworkInput(), expectedOutputs], 
+            [self.getNetworkInput()[1], expectedOutputs], 
              xEntropy, updates=updates)
         #self._trainNetwork = theano.function(
         #    [index], xEntropy, updates=updates,
-        #    givens={self.getNetworkInput(): self._trainData[index],
+        #    givens={self.getNetworkInput()[1]: self._trainData[index],
         #            expectedOutputs: self._trainLabels[index]})
         self._endProfile()
 
@@ -413,6 +429,9 @@ class TrainerNetwork (ClassifierNetwork) :
            numEpochs   : number of epochs to train this round before stopping
         '''
         for localEpoch in range(numEpochs) :
+            # DEBUG: For Debugging purposes only 
+            for layer in self._layers :
+                layer.writeWeights(globalEpoch + localEpoch)
             self._startProfile('Running Epoch [' + 
                                str(globalEpoch + localEpoch) + ']', 'info')
             for ii in range(self._numTrainBatches) :
