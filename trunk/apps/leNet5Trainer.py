@@ -145,6 +145,7 @@ if __name__ == '__main__' :
             runningAccuracy = curAcc
             lastBest = globalCount
             lastSave = options.base + \
+                       '_dropout'+ str(options.dropout) + \
                        '_learnC' + str(options.learnC) + \
                        '_learnF' + str(options.learnF) + \
                        '_momentum' + str(options.momentum) + \

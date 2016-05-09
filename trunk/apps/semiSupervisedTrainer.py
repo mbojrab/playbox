@@ -28,6 +28,7 @@ def trainUnsupervised(network, options) :
         globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 
                                                options.numEpochs)
         lastSave = options.base + \
+                   '_dropout'+ str(options.dropout) + \
                    '_learnC' + str(options.learnC) + \
                    '_learnF' + str(options.learnF) + \
                    '_contrF' + str(options.contrF) + \
