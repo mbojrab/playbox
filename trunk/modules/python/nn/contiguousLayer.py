@@ -13,6 +13,8 @@ class ContiguousLayer(Layer) :
                            be a tuple of size (batch size, input vector length)
        numNeurons        : number of neurons in this layer
        learningRate      : learning rate for all neurons
+       momentumRate      : rate of momentum for all neurons
+                           NOTE: momentum allows for higher learning rates
        dropout           : rate of retention in a given neuron during training
                            NOTE: input layers should be around .8 or .9
                                  hidden layers should be around .5 or .6
@@ -27,9 +29,10 @@ class ContiguousLayer(Layer) :
                            type is numpy.random.RandomState
     '''
     def __init__ (self, layerID, input, inputSize, numNeurons,
-                  learningRate=0.001, dropout=None, initialWeights=None, 
-                  initialThresholds=None, activation=tanh, randomNumGen=None) :
-        Layer.__init__(self, layerID, learningRate, dropout)
+                  learningRate=0.001, momentumRate=0.9, dropout=None,
+                  initialWeights=None, initialThresholds=None, activation=tanh,
+                  randomNumGen=None) :
+        Layer.__init__(self, layerID, learningRate, momentumRate, dropout)
 
         # adjust the input for the correct number of dimensions        
         if isinstance(input, tuple) :

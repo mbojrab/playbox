@@ -2,6 +2,7 @@ from layer import Layer
 from profiler import Profiler
 import theano.tensor as t
 import theano, cPickle, gzip
+import numpy as np
 
 class Network () :
     def __init__ (self, log=None) :
@@ -374,15 +375,31 @@ class TrainerNetwork (ClassifierNetwork) :
 
             # pull the rate variables
             layerLearningRate = layer.getLearningRate()
-            #layerMomentumRate = layer.getMomentumRate()
+            layerMomentumRate = layer.getMomentumRate()
 
             # build the gradients
             layerWeights = layer.getWeights()
             gradients = t.grad(xEntropy + reg, layerWeights)
 
-            # add the update
-            updates.extend((w, w - layerLearningRate * g) \
-                           for w, g in zip(layerWeights, gradients))
+            # add the weight update
+            for w, g in zip(layerWeights, gradients) :
+
+                if layerMomentumRate > 0. :
+                    # setup a second buffer for storing momentum
+                    previousWeightUpdate = theano.shared(
+                        np.zeros(w.get_value().shape, theano.config.floatX),
+                        borrow=True)
+
+                    # add two updates --
+                    # perform weight update and save the previous update
+                    updates.append(
+                        (w, w + previousWeightUpdate * layerMomentumRate -
+                            layerLearningRate * g))
+                    updates.append(
+                        (previousWeightUpdate, -layerLearningRate * g))
+                else :
+                    updates.append((w, w - layerLearningRate * g))
+
 
         # NOTE: the 'input' variable name was create elsewhere and provided as
         #       input to the first layer. We now use that object to connect
