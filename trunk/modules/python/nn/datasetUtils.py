@@ -1,25 +1,5 @@
 import theano, numpy, cPickle, gzip, os
-import theano.tensor as t
-
-def loadShared(x, borrow=True) :
-    '''Transfer numpy.array to theano.shared variable.
-       NOTE: Shared variables allow for optimized GPU execution
-    '''
-    if not isinstance(x, numpy.ndarray) :
-        x = numpy.asarray(x, dtype=theano.config.floatX)
-    return theano.shared(x, borrow=borrow)
-
-def splitToShared(x, borrow=True) :
-    '''Create shared variables for both the input and expectedOutcome vectors.
-       x      : This can be a vector list of inputs and expectedOutputs. It is
-                assumed they are of the same length.
-                    Format - (data, label)
-       borrow : Should the theano vector accept responsibility for the memory
-       return : Shared Variable equivalents for these items
-                    Format - (data, label)
-    '''
-    data, label = x
-    return (loadShared(data), t.cast(loadShared(label), 'int32'))
+from datasetUtils import splitToShared
 
 def ingestImagery(filepath=None, shared=False, log=None) :
     '''Load the dataset provided by the user.
