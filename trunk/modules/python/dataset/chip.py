@@ -43,6 +43,7 @@ def overlapGrid(image, chipSize, stepFactor,
     # make data contigous in memory --
     # all pixels will be arranged into a single tensor of size 
     # (numChips,numChannels,chipRows,chipCols), (numChips,4)
+    # TODO: use minibatch.deinterleaveTuples()
     numChips = len(chips)
     chips = np.concatenate(chips)
     pixels = np.resize(np.concatenate(chips[::2]),
