@@ -1,4 +1,4 @@
-def makeContiguous(x) :
+def makeContiguous(x, log=None) :
     '''Disentangles the tuple, such that each is contigous in a list.
        x      : list of tuples to deinterleave. All objects are assumed to be
                 arrays, which will be combined into a single tensor
@@ -6,6 +6,10 @@ def makeContiguous(x) :
                 the individual members in the input
     '''
     import numpy as np
+
+    if log is not None :
+        log.debug('Making buffer contiguous in memory')
+
     numTuples = len(x)
     if numTuples == 0 :
         raise Exception('Cannot deinterleave an empty list.')
