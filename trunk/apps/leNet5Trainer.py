@@ -2,7 +2,8 @@ import theano.tensor as t
 from nn.net import TrainerNetwork as Net
 from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer
-from nn.datasetUtils import ingestImagery, pickleDataset, splitToShared
+from dataset.reader import ingestImagery, pickleDataset
+from dataset.shared import splitToShared
 import os, argparse, logging
 from time import time
 

@@ -2,7 +2,8 @@ import theano.tensor as t
 from ae.net import StackedAENetwork
 from ae.contiguousAE import ContractiveAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
-from nn.datasetUtils import ingestImagery, pickleDataset, splitToShared
+from dataset.reader import ingestImagery, pickleDataset
+from dataset.shared import splitToShared
 import os, argparse, logging
 from time import time
 
