@@ -1,10 +1,12 @@
-import theano, numpy, cPickle, gzip, os
-from datasetUtils import splitToShared
+import os
+import numpy as np
+import theano as t
+import gzip
+import cPickle
 
-def ingestImagery(filepath=None, shared=False, log=None) :
+def ingestImagery(filepath, shared=False, log=None) :
     '''Load the dataset provided by the user.
-       filepath : This can be a cPickle, a path to the directory structure,
-                  or None if the MNIST dataset should be loaded.
+       filepath : This can be a cPickle, a path to the directory structure.
        shared   : Load data into shared variables for training
        log      : Logger for tracking the progress
        return   :
@@ -19,52 +21,14 @@ def ingestImagery(filepath=None, shared=False, log=None) :
            TODO: Consider returning these as objects for more intuitive
                  indexing. For now numpy indexing is sufficient.
     '''
-
-    # if None load the MNIST
-    filepath = 'mnist.pkl.gz' if filepath is None else filepath
+    from dataset.shared import splitToShared
     train = test = None
 
+    # Load the dataset to memory
     if log is not None :
-        log.info('Ingesting imagery...')
-
-    # the mnist dataset is a special case
-    if 'mnist.pkl.gz' in filepath :
-
-        # see if we have previously downloaded the file
-        if filepath not in os.listdir(os.getcwd()) :
-            import urllib
-            url = 'http://www.iro.umontreal.ca/~lisa/deep/data/mnist/mnist.pkl.gz'
-            if log is not None :
-                log.debug('Downloading data from ' + url)
-            urllib.urlretrieve(url, filepath)
-
-        # Load the dataset to memory -- 
-        # the mnist dataset is a special case created by University of Toronto
-        if log is not None :
-            log.debug('Load the data into memory')
-        with gzip.open(filepath, 'rb') as f :
-            # this dataset has a valid and test and no labels. 
-            train, valid, test = cPickle.load(f)
-
-            # add the validation set to the training set
-            if log is not None :
-                log.debug('Combine the Train and Valid datasets')
-            trainData, trainLabel = train
-            validData, validLabel = valid
-            train = numpy.concatenate((trainData, validData)), \
-                    numpy.concatenate((trainLabel, validLabel))
-
-            # create a label vector
-            if log is not None :
-                log.debug('Create the labels')
-            labels = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-
-    else :
-        # Load the dataset to memory
-        if log is not None :
-            log.debug('Load the data into memory')
-        with gzip.open(filepath, 'rb') as f :
-            train, test, labels = cPickle.load(f)
+        log.debug('Load the data into memory')
+    with gzip.open(filepath, 'rb') as f :
+        train, test, labels = cPickle.load(f)
 
     # load each into shared variables -- 
     # this avoids having to copy the data to the GPU between each call
@@ -74,10 +38,9 @@ def ingestImagery(filepath=None, shared=False, log=None) :
         return splitToShared(train), splitToShared(test), labels
     else :
         return train, test, labels
-
 def normalize(v) :
     '''Normalize a vector in a naive manner.'''
-    minimum, maximum = numpy.amin(v), numpy.amax(v)
+    minimum, maximum = np.amin(v), np.amax(v)
     return (v - minimum) / (maximum - minimum)
 
 def convertPhaseAmp(imData, log=None) :
@@ -90,13 +53,13 @@ def convertPhaseAmp(imData, log=None) :
        TODO: Research other possible feature spaces which could elicit better
              learning or augment the phase/amp components.
     '''
-    if imData.dtype != numpy.complex64 :
+    if imData.dtype != np.complex64 :
         raise ValueError('The array must be of type numpy.complex64.')
     imageDims = imData.shape
-    a = numpy.asarray(numpy.concatenate((normalize(numpy.angle(imData)), 
-                                         normalize(numpy.absolute(imData)))),
-                      dtype=theano.config.floatX)
-    return numpy.resize(a, (2, imageDims[0], imageDims[1]))
+    a = np.asarray(np.concatenate((normalize(np.angle(imData)), 
+                                   normalize(np.absolute(imData)))),
+                      dtype=t.config.floatX)
+    return np.resize(a, (2, imageDims[0], imageDims[1]))
 
 '''TODO: These methods may need to be implemented as derived classes.'''
 def readSICD(image, log=None) :
@@ -121,7 +84,7 @@ def readSIDD(image, log=None) :
 def readSIO(image, log=None) :
     import coda.sio_lite
     imData = coda.sio_lite.read(image)
-    if imData.dtype == numpy.complex64 :
+    if imData.dtype == np.complex64 :
         return convertPhaseAmp(imData, log)
     else :
         # TODO: this assumes the imData is already band-interleaved
@@ -146,10 +109,10 @@ def readNITF(image, log=None) :
 
     # read the bands and interleave them by band --
     # this assumes the image is non-complex and treats bands as color.
-    a = numpy.concatenate(imageReader.read(window))
+    a = np.concatenate(imageReader.read(window))
 
-    a = numpy.resize(normalize(a), (segment.subheader.getBandCount(),
-                                    window.numRows, window.numCols))
+    a = np.resize(normalize(a), (segment.subheader.getBandCount(),
+                                 window.numRows, window.numCols))
     # explicitly close the handle -- for peace of mind
     reader.io.close()
     return a
@@ -161,14 +124,14 @@ def makePILImageBandContiguous(img, log=None) :
     '''
     if img.mode == 'RBG' or img.mode == 'RGB' :
         # channels are interleaved by band
-        a = numpy.asarray(numpy.concatenate(img.split()), 
-                          dtype=theano.config.floatX)
-        a = numpy.resize(normalize(a), (3, img.size[1], img.size[0]))
+        a = np.asarray(np.concatenate(img.split()), 
+                       dtype=t.config.floatX)
+        a = np.resize(normalize(a), (3, img.size[1], img.size[0]))
         return a if img.mode == 'RGB' else a[[0,2,1],:,:]
     elif img.mode == 'L' :
         # just one channel
-        a = numpy.asarray(img.getdata(), dtype=theano.config.floatX)
-        return numpy.resize(normalize(a), (1, img.size[1], img.size[0]))
+        a = np.asarray(img.getdata(), dtype=t.config.floatX)
+        return np.resize(normalize(a), (1, img.size[1], img.size[0]))
 
 def readPILImage(image, log=None) :
     '''This method should be used for all regular image formats from JPEG,
@@ -200,37 +163,6 @@ def readImage(image, log=None) :
     else :
         return readPILImage(image, log)
 
-def makeMiniBatch(x, batchSize=1, log=None) :
-    '''Deinterleave the data and labels. Resize so we can use batched learning.
-       x         : numpy.ndarray containing tuples of elements
-                   [(imageData1, labelInt1), (imageData2, labelInt2),...] 
-       batchSize : the size of the training mini-batch. this is intended to be
-                   be an integer in range [1:numImages].
-       return    : the deinterleaved data of the specified batching size.
-                   [[imageData1, imageData2], [labelInt1, labelInt2]]
-    '''
-    import math
-    numImages = len(x)
-    if numImages == 0 :
-        raise Exception('No images were found.')
-    numBatches = int(math.floor(float(numImages) / float(batchSize)))
-
-    # make a mini-batch of size --
-    # NOTE: We assume all imagery is of the same dimensions
-    numChan, rows, cols = x[0][0].shape[0], x[0][0].shape[1], x[0][0].shape[2]
-    temp = numpy.concatenate(x)
-    if log is not None :
-        log.info('Creating Dataset : ' + 
-                 str((numBatches, batchSize, numChan, rows, cols)))
-    tempData = numpy.resize(numpy.concatenate(temp[::2]),
-                            (numBatches, batchSize, numChan, rows, cols))
-
-    # labels are now just contiguous
-    # TODO: this needs to account for different batch sizes
-    tempLabel = numpy.resize(numpy.asarray(temp[1::2], dtype='int32'),
-                             (numBatches, batchSize))
-    return tempData, tempLabel
-
 def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
                   batchSize=1, log=None) :
     '''Create a pickle out of a directory structure. The directory structure
@@ -239,7 +171,11 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
 
        filepath : path to the top-level directory contain the label directories
     '''
-    import random
+    import os
+    import gzip
+    import cPickle
+    from minibatch import resizeMiniBatch
+    from shuffle import naiveShuffle
 
     rootpath = os.path.abspath(filepath)
     outputFile = os.path.join(rootpath, os.path.basename(rootpath) + 
@@ -258,7 +194,6 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
     for root, dirs, files in os.walk(rootpath) :
         if root == rootpath :
             continue
-        # don't add it if there are no files
         if len(files) == 0 :
             if log is not None :
                 log.debug('No files found in [' + root + ']')
@@ -267,7 +202,7 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
         # add the new label for the current directory
         label = os.path.relpath(root, rootpath).replace(os.path.sep, '.')
         labels.append(label)
-        labelIndx = len(labels) - 1
+        indx = len(labels) - 1
         if log is not None :
             log.debug('Adding directory [' + root + '] as [' + label + ']')
 
@@ -289,7 +224,7 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
         # uses the else.
         for ii in range(len(files)) :
             try :
-                imgLabel = readImage(os.path.join(root, files[ii]), log), labelIndx
+                imgLabel = readImage(os.path.join(root, files[ii]), log), indx
                 if holdoutTest > 1 :
                     test.append(imgLabel) if ii % holdoutTest == 0 else \
                         train.append(imgLabel)
@@ -303,21 +238,14 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
     # randomize the data -- otherwise its not stochastic
     if log is not None :
         log.info('Shuffling the data for randomization')
-    random.shuffle(train)
-    random.shuffle(test)
+    naiveShuffle(train)
+    naiveShuffle(test)
 
-    # make it a contiguous buffer, so we have the option of batch learning --
-    #
-    # Here the training set can be set to a specified batchSize. This will
-    # help to speed processing and reduce high-frequency noise during training.
-    #
-    # Alternatively the test set does not require mini-batches, so we instead
-    # make the batchSize=numImages, so we can quickly test the accuracy of
-    # the network against our entire test set in one call.
+    # create mini-batches
     if log is not None :
         log.info('Creating the mini-batches')
-    train = makeMiniBatch(train, batchSize)
-    test =  makeMiniBatch(test, batchSize)
+    train = resizeMiniBatch(train, batchSize)
+    test =  resizeMiniBatch(test, batchSize)
 
     # pickle the dataset
     if log is not None :
@@ -327,16 +255,3 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
 
     # return the output filename
     return outputFile
-
-if __name__ == '__main__' :
-    import logging
-    log = logging.getLogger('datasetUtils')
-    log.setLevel('INFO')
-    formatter = logging.Formatter('%(levelname)s - %(message)s')
-    stream = logging.StreamHandler()
-    stream.setLevel('INFO')
-    stream.setFormatter(formatter)
-    log.addHandler(stream)
-
-    i = ingestImagery(pickleDataset('G:/coding/input/binary_smaller', log=log),
-                      log=log)
