@@ -1,7 +1,6 @@
 import cv2
 import logging
 import os
-import theano
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
