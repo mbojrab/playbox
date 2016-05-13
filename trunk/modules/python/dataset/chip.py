@@ -1,28 +1,3 @@
-def makeContiguous(x, log=None) :
-    '''Disentangles the tuple, such that each is contigous in a list.
-       x      : list of tuples to deinterleave. All objects are assumed to be
-                arrays, which will be combined into a single tensor
-       return : tuple of tensors. The length of the tuple will equal that of
-                the individual members in the input
-    '''
-    import numpy as np
-
-    if log is not None :
-        log.debug('Making buffer contiguous in memory')
-
-    numTuples = len(x)
-    if numTuples == 0 :
-        raise Exception('Cannot deinterleave an empty list.')
-    numElems = len(x[0])
-
-    # extract each item into contiguous memory tensor
-    ret = []
-    temp = np.concatenate(x)
-    for ii in range(numElems) :
-        ret.append(np.resize(np.concatenate(temp[ii::numElems]),
-                             tuple([numTuples] + list(temp[0][ii].shape))))
-    return ret
-
 def grid(image, chipSize, skipFactor=0, pixelRegion=False, log=None):
     '''This chips the region into non-overlapping sub-regions. All partial
        border chips will be disgarded from the returned array.
@@ -52,6 +27,7 @@ def overlapGrid(image, chipSize, stepFactor,
                      (startRow,startCol,endRow,endCol)
        log         : Logger to use
     '''
+    from minibatch import makeContiguous
     if log is not None :
         log.info('Subdividing the Image')
 
