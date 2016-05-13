@@ -139,7 +139,8 @@ class StackedAENetwork (Network) :
 
 if __name__ == '__main__' :
     import argparse, logging
-    from nn.datasetUtils import ingestImagery, pickleDataset, splitToShared
+    from dataset.reader import ingestImagery, pickleDataset
+    from dataset.shared import splitToShared
     from contiguousAE import ContractiveAutoEncoder
 
     parser = argparse.ArgumentParser()

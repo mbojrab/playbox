@@ -150,7 +150,7 @@ class ConvolutionalLayer(Layer) :
 
     # DEBUG: For Debugging purposes only 
     def writeWeights(self, ii) :
-        from nn.debugger import saveTiledImage
+        from dataset.debugger import saveTiledImage
         saveTiledImage(image=self._weights.get_value(borrow=True),
                        path=self.layerID + '_cae_filters_' + str(ii) + '.png',
                        imageShape=(self._kernelSize[2], self._kernelSize[3]),

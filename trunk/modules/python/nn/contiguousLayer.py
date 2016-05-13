@@ -115,7 +115,7 @@ class ContiguousLayer(Layer) :
 
     # DEBUG: For Debugging purposes only
     def writeWeights(self, ii, imageShape=None) :
-        from nn.debugger import saveTiledImage
+        from dataset.debugger import saveTiledImage
         matSize = self._weights.get_value(borrow=True).shape
 
         # transpose the weight matrix to alighn the kernels contiguously

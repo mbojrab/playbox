@@ -150,10 +150,9 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
 
     # DEBUG: For Debugging purposes only
     def saveReconstruction(self, image, ii) :
-        import ae.utils
-        ae.utils.saveNormalizedImage(
-            np.resize(self.reconstruction(image), (30, 90)),
-            'chip_' + str(ii) + '_reconst.png')
+        from dataset.debugger import saveNormalizedImage
+        saveNormalizedImage(np.resize(self.reconstruction(image), (28, 28)),
+                            'chip_' + str(ii) + '_reconst.png')
     # DEBUG: For Debugging purposes only 
     def train(self, image) :
         return self._trainLayer(image)
@@ -161,7 +160,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
 
 if __name__ == '__main__' :
     import argparse, logging, time
-    from nn.datasetUtils import ingestImagery, pickleDataset
+    from dataset.reader import ingestImagery, pickleDataset
+    from dataset.debugger import saveTiledImage
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--log', dest='logfile', type=str, default=None,
@@ -204,13 +204,8 @@ if __name__ == '__main__' :
             ae.train(train[0][jj])
         ae.writeWeights(ii+1)
 
-        import PIL.Image as Image
-        from utils import tile_raster_images
-        img = Image.fromarray(tile_raster_images(
-            X=ae.reconstruction(train[0][0]), img_shape=(28, 28), 
-            tile_shape=(10, 10), tile_spacing=(1, 1)))
-        img.save('cae_filters_reconstructed_nllOnly_' + str(ii+1) + '.png')
-
-        print 'Epoch [' + str(ii) + ']: ' + str(ae.train(train[0][0])) + \
-              ' ' + str(time.time() - start) + 's'
-
+        saveTiledImage(
+            image=ae.reconstruction(train[0][0]),
+            path=ae.layerID + '_cae_filters_reconstructed_' +
+                 str(ii+1) + '.png', imageShape=(28, 28), spacing=1,
+            interleave=True)

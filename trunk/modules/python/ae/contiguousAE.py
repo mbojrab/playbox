@@ -118,18 +118,17 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
 
     # DEBUG: For Debugging purposes only
     def saveReconstruction(self, image, ii) :
-        import ae.utils
-        ae.utils.saveNormalizedImage(
-            np.resize(self.reconstruction(image), (30, 30)),
-            'chip_' + str(ii) + '_reconst.png')
+        from dataset.debugger import saveNormalizedImage
+        saveNormalizedImage(np.resize(self.reconstruction(image), (28, 28)),
+                            'chip_' + str(ii) + '_reconst.png')
     # DEBUG: For Debugging purposes only
     def train(self, image) :
         return self._trainLayer(image)
 
 if __name__ == '__main__' :
     import argparse, logging, time
-    from nn.datasetUtils import ingestImagery, pickleDataset
-    from nn.debugger import saveTiledImage
+    from dataset.reader import ingestImagery, pickleDataset
+    from dataset.debugger import saveTiledImage
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--log', dest='logfile', type=str, default=None,
