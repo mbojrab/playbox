@@ -392,11 +392,10 @@ class TrainerNetwork (ClassifierNetwork) :
 
                     # add two updates --
                     # perform weight update and save the previous update
-                    updates.append(
-                        (w, w + previousWeightUpdate * layerMomentumRate -
-                            layerLearningRate * g))
-                    updates.append(
-                        (previousWeightUpdate, -layerLearningRate * g))
+                    updates.append((w, w + previousWeightUpdate))
+                    updates.append((previousWeightUpdate,
+                                    previousWeightUpdate * layerMomentumRate -
+                                    layerLearningRate * g))
                 else :
                     updates.append((w, w - layerLearningRate * g))
 
@@ -447,8 +446,8 @@ class TrainerNetwork (ClassifierNetwork) :
         '''
         for localEpoch in range(numEpochs) :
             # DEBUG: For Debugging purposes only 
-            for layer in self._layers :
-                layer.writeWeights(globalEpoch + localEpoch)
+            #for layer in self._layers :
+            #    layer.writeWeights(globalEpoch + localEpoch)
             self._startProfile('Running Epoch [' + 
                                str(globalEpoch + localEpoch) + ']', 'info')
             for ii in range(self._numTrainBatches) :
