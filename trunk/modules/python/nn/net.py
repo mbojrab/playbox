@@ -243,6 +243,10 @@ class TrainerNetwork (ClassifierNetwork) :
             self._networkLabels = labels
         self._trainData, self._trainLabels = train
         self._testData, self._testLabels = test
+
+        # TODO: remove this once shared variables are working
+        self._trainLabels = self._trainLabels.astype('int32')
+
         self._numTrainBatches = self._trainLabels.shape[0]
         self._numTestBatches = self._testLabels.shape.eval()[0]
         self._numTestSize = self._numTestBatches * \
