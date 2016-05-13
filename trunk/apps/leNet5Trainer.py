@@ -21,7 +21,7 @@ if __name__ == '__main__' :
                         help='Rate of learning on Convolutional Layers.')
     parser.add_argument('--learnF', dest='learnF', type=float, default=.015,
                         help='Rate of learning on Fully-Connected Layers.')
-    parser.add_argument('--momentum', dest='momentum', type=float, default=.3,
+    parser.add_argument('--momentum', dest='momentum', type=float, default=.1,
                         help='Momentum rate all layers.')
     parser.add_argument('--dropout', dest='dropout', type=bool, default=False,
                         help='Enable dropout throughout the network. Dropout '\
@@ -82,7 +82,10 @@ if __name__ == '__main__' :
     te = splitToShared(test,  borrow=True)
 
     # create the network -- LeNet-5
-    network = Net(train, te, labels, regType='', log=log)
+    network = Net(train, te, labels, regType='L2',
+                  regScaleFactor=1. / (options.kernel + options.kernel + 
+                                       options.neuron + len(labels)), 
+                  log=log)
 
     if options.synapse is not None :
         # load a previously saved network
@@ -98,7 +101,7 @@ if __name__ == '__main__' :
             kernelSize=(options.kernel,trainSize[2],5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             dropout=.8 if options.dropout else 1.,
-            learningRate=options.learnC))
+            learningRate=options.learnC, momentumRate=options.momentum))
 
         # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
         # this way we don't combine the channels kernels we created in 
@@ -109,19 +112,21 @@ if __name__ == '__main__' :
             kernelSize=(options.kernel,options.kernel,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             dropout=.5 if options.dropout else 1.,
-            learningRate=options.learnC))
+            learningRate=options.learnC, momentumRate=options.momentum))
 
         # add fully connected layers
         network.addLayer(ContiguousLayer(
             layerID='f3', input=network.getNetworkOutput(),
             inputSize=(network.getNetworkOutputSize()[0], 
                        reduce(mul, network.getNetworkOutputSize()[1:])),
-            numNeurons=options.neuron, learningRate=options.learnF,
+            numNeurons=options.neuron, 
+            learningRate=options.learnF, momentumRate=options.momentum,
             dropout=.5 if options.dropout else 1., randomNumGen=rng))
         network.addLayer(ContiguousLayer(
             layerID='f4', input=network.getNetworkOutput(),
             inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
-            learningRate=options.learnF, activation=None, randomNumGen=rng))
+            learningRate=options.learnF, momentumRate=options.momentum,
+            activation=None, randomNumGen=rng))
 
     globalCount = lastBest = degradationCount = 0
     numEpochs = options.limit

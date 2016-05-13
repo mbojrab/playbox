@@ -13,6 +13,8 @@ class ConvolutionalLayer(Layer) :
        kernelSize        : (number of kernels, channels, rows, columns)
        downsampleFactor  : (rowFactor, columnFactor)
        learningRate      : learning rate for all neurons
+       momentumRate      : rate of momentum for all neurons
+                           NOTE: momentum allows for higher learning rates
        dropout           : rate of retention in a given neuron during training
                            NOTE: input layers should be around .8 or .9
                                  hidden layers should be around .5 or .6
@@ -27,10 +29,10 @@ class ConvolutionalLayer(Layer) :
                            type is numpy.random.RandomState
     '''
     def __init__ (self, layerID, input, inputSize, kernelSize, 
-                  downsampleFactor, learningRate=0.001, dropout=None,
-                  initialWeights=None, initialThresholds=None, activation=tanh,
-                  randomNumGen=None) :
-        Layer.__init__(self, layerID, learningRate, dropout)
+                  downsampleFactor, learningRate=0.001, momentumRate=0.9,
+                  dropout=None, initialWeights=None, initialThresholds=None,
+                  activation=tanh, randomNumGen=None) :
+        Layer.__init__(self, layerID, learningRate, momentumRate, dropout)
 
         # TODO: this check is likely unnecessary
         if inputSize[2] == kernelSize[2] or inputSize[3] == kernelSize[3] :
