@@ -7,10 +7,7 @@ def loadShared(x, borrow=True, log=None) :
     import numpy as np
     if log is not None :
         log.debug('Wrap memory into shared variables')
-
-    if not isinstance(x, np.ndarray) :
-        x = np.asarray(x, dtype=t.config.floatX)
-    return t.shared(x, borrow=borrow)
+    return t.shared(np.asarray(x, dtype=t.config.floatX), borrow=borrow)
 
 def splitToShared(x, borrow=True, log=None) :
     '''Create shared variables for both the input and expectedOutcome vectors.
@@ -22,5 +19,5 @@ def splitToShared(x, borrow=True, log=None) :
                     Format - (data, label)
     '''
     data, label = x
-    return (loadShared(data, log), 
-            t.tensor.cast(loadShared(label, log), 'int32'))
+    return (loadShared(data, borrow, log), 
+            t.tensor.cast(loadShared(label, borrow, log), 'int32'))
