@@ -26,7 +26,7 @@ def ingestImagery(filepath, shared=False, log=None) :
 
     # Load the dataset to memory
     if log is not None :
-        log.debug('Load the data into memory')
+        log.info('Load the data into memory')
     with gzip.open(filepath, 'rb') as f :
         train, test, labels = cPickle.load(f)
 
@@ -38,6 +38,7 @@ def ingestImagery(filepath, shared=False, log=None) :
         return splitToShared(train), splitToShared(test), labels
     else :
         return train, test, labels
+
 def normalize(v) :
     '''Normalize a vector in a naive manner.'''
     minimum, maximum = np.amin(v), np.amax(v)
@@ -174,7 +175,7 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
     import os
     import gzip
     import cPickle
-    from minibatch import resizeMiniBatch
+    from minibatch import makeContiguous
     from shuffle import naiveShuffle
 
     rootpath = os.path.abspath(filepath)
@@ -224,7 +225,8 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
         # uses the else.
         for ii in range(len(files)) :
             try :
-                imgLabel = readImage(os.path.join(root, files[ii]), log), indx
+                imgLabel = readImage(os.path.join(
+                                root, files[ii]), log), indx
                 if holdoutTest > 1 :
                     test.append(imgLabel) if ii % holdoutTest == 0 else \
                         train.append(imgLabel)
@@ -244,8 +246,8 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
     # create mini-batches
     if log is not None :
         log.info('Creating the mini-batches')
-    train = resizeMiniBatch(train, batchSize)
-    test =  resizeMiniBatch(test, batchSize)
+    train = makeContiguous(train, batchSize)
+    test =  makeContiguous(test, batchSize)
 
     # pickle the dataset
     if log is not None :
