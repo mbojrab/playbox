@@ -1,6 +1,6 @@
 import numpy as np
 import PIL.Image as Image
-from nn.datasetUtils import normalize as norm
+from dataset.reader import normalize as norm
 
 def saveNormalizedImage(image, path) :
     '''Save the image to a file. This performs a naive normalization of the 
