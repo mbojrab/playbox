@@ -383,7 +383,8 @@ class TrainerNetwork (ClassifierNetwork) :
 
             # build the gradients
             layerWeights = layer.getWeights()
-            gradients = t.grad(xEntropy + reg, layerWeights)
+            gradients = t.grad(xEntropy + reg, layerWeights,
+                               disconnected_inputs='warn')
 
             # add the weight update
             for w, g in zip(layerWeights, gradients) :
