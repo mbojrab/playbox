@@ -3,6 +3,7 @@ from ae.net import StackedAENetwork
 from ae.contiguousAE import ContractiveAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.reader import ingestImagery, pickleDataset
+from dataset.writer import buildPickleInterim, buildPickleFinal
 from dataset.shared import splitToShared
 from nn.contiguousLayer import ContiguousLayer
 from nn.net import TrainerNetwork
@@ -28,21 +29,21 @@ def trainUnsupervised(network, options) :
         globalEpoch = 0
         globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 
                                                options.numEpochs)
-        lastSave = options.base + \
-                   '_dropout'+ str(options.dropout) + \
-                   '_learnC' + str(options.learnC) + \
-                   '_learnF' + str(options.learnF) + \
-                   '_contrF' + str(options.contrF) + \
-                   '_kernel' + str(options.kernel) + \
-                   '_neuron' + str(options.neuron) + \
-                   '_layer' + str(layerIndex) + \
-                   '_epoch' + str(globalEpoch) + '.pkl.gz'
+        lastSave = buildPickleInterim(base=options.base,
+                                      epoch=globalEpoch,
+                                      dropout=options.dropout,
+                                      learnC=options.learnC,
+                                      learnF=options.learnF,
+                                      contrF=options.contrF,
+                                      kernel=options.kernel,
+                                      neuron=options.neuron,
+                                      layer=layerIndex)
         network.save(lastSave)
 
     # rename the network which achieved the highest accuracy
-    bestNetwork = options.base + '_PreTrained_' + \
-                  os.path.basename(options.data) + '_epoch' + \
-                  str(options.numEpochs) + '.pkl.gz'
+    bestNetwork = buildPickleFinal(base=options.base, appName=__file__, 
+                                   dataName=os.path.basename(options.data), 
+                                   epoch=options.numEpochs)
     log.info('Renaming Best Network to [' + bestNetwork + ']')
     if os.path.exists(bestNetwork) :
         os.remove(bestNetwork)
@@ -74,13 +75,12 @@ def trainSupervised(network, options) :
             degradationCount = 0
             runningAccuracy = curAcc
             lastBest = globalCount
-            lastSave = options.base + \
-                       '_learnC' + str(options.learnC) + \
-                       '_learnF' + str(options.learnF) + \
-                       '_momentum' + str(options.momentum) + \
-                       '_kernel' + str(options.kernel) + \
-                       '_neuron' + str(options.neuron) + \
-                       '_epoch' + str(lastBest) + '.pkl.gz'
+            lastSave = buildPickleInterim(base=options.base,
+                                          epoch=lastBest,
+                                          learnC=options.learnC,
+                                          learnF=options.learnF,
+                                          kernel=options.kernel,
+                                          neuron=options.neuron)
             network.save(lastSave)
         else :
             # increment the number of poor performing runs
@@ -91,9 +91,9 @@ def trainSupervised(network, options) :
             break
 
     # rename the network which achieved the highest accuracy
-    bestNetwork = options.base + '_FinalOnHoldOut_' + \
-                  os.path.basename(options.data) + '_epoch' + str(lastBest) + \
-                  '_acc' + str(runningAccuracy) + '.pkl.gz'
+    bestNetwork = buildPickleFinal(base=options.base, appName=__file__,
+                                   dataName=os.path.basename(options.data),
+                                   epoch=lastBest, accuracy=runningAccuracy)
     log.info('Renaming Best Network to [' + bestNetwork + ']')
     if os.path.exists(bestNetwork) :
         os.remove(bestNetwork)

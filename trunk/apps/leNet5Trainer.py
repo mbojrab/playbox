@@ -3,6 +3,7 @@ from nn.net import TrainerNetwork as Net
 from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer
 from dataset.reader import ingestImagery, pickleDataset
+from dataset.writer import buildPickleInterim, buildPickleFinal, resumeEpoch
 from dataset.shared import splitToShared
 import os, argparse, logging
 from time import time
@@ -129,7 +130,8 @@ if __name__ == '__main__' :
             learningRate=options.learnF, momentumRate=options.momentum,
             activation=None, randomNumGen=rng))
 
-    globalCount = lastBest = degradationCount = 0
+    degradationCount = 0
+    globalCount = lastBest = resumeEpoch(options.synapse)
     numEpochs = options.limit
     runningAccuracy = 0.0
     lastSave = ''
@@ -150,14 +152,14 @@ if __name__ == '__main__' :
             degradationCount = 0
             runningAccuracy = curAcc
             lastBest = globalCount
-            lastSave = options.base + \
-                       '_dropout'+ str(options.dropout) + \
-                       '_learnC' + str(options.learnC) + \
-                       '_learnF' + str(options.learnF) + \
-                       '_momentum' + str(options.momentum) + \
-                       '_kernel' + str(options.kernel) + \
-                       '_neuron' + str(options.neuron) + \
-                       '_epoch' + str(lastBest) + '.pkl.gz'
+            lastSave = buildPickleInterim(base=options.base,
+                                          epoch=lastBest,
+                                          dropout=options.dropout,
+                                          learnC=options.learnC,
+                                          learnF=options.learnF,
+                                          momentum=options.momentum,
+                                          kernel=options.kernel,
+                                          neuron=options.neuron)
             network.save(lastSave)
         else :
             # increment the number of poor performing runs
@@ -168,9 +170,9 @@ if __name__ == '__main__' :
             break
 
     # rename the network which achieved the highest accuracy
-    bestNetwork = options.base + '_FinalOnHoldOut_' + \
-                  os.path.basename(options.data) + '_epoch' + str(lastBest) + \
-                  '_acc' + str(runningAccuracy) + '.pkl.gz'
+    bestNetwork = buildPickleFinal(base=options.base, appName=__file__,
+                                   dataName=os.path.basename(options.data),
+                                   epoch=lastBest, accuracy=runningAccuracy)
     log.info('Renaming Best Network to [' + bestNetwork + ']')
     if os.path.exists(bestNetwork) :
         os.remove(bestNetwork)
