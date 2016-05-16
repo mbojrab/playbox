@@ -1,8 +1,9 @@
 from layer import Layer
 from profiler import Profiler
 import theano.tensor as t
-import theano, cPickle, gzip
+import theano
 import numpy as np
+from dataset.pickle import writePickleZip, readPickleZip
 
 class Network () :
     def __init__ (self, log=None) :
@@ -36,11 +37,9 @@ class Network () :
         '''Save the network to disk.
            TODO: This should also support output to Synapse file
         '''
-        self._startProfile('Saving network to disk ['+filepath+']', 'info')
+        self._startProfile('Saving network to disk [' + filepath + ']', 'info')
         if '.pkl.gz' in filepath :
-            with gzip.open(filepath, 'wb') as f :
-                f.write(cPickle.dumps(self.__getstate__(),
-                                      protocol=cPickle.HIGHEST_PROTOCOL))
+            writePickleZip(filepath, self.__getstate__())
         self._endProfile()
     def load(self, filepath) :
         '''Load the network from disk.
@@ -49,8 +48,7 @@ class Network () :
         self._startProfile('Loading network from disk [' + str(filepath) +
                            ']', 'info')
         if '.pkl.gz' in filepath :
-            with gzip.open(filepath, 'rb') as f :
-                self.__setstate__(cPickle.load(f))
+            self.__setstate__(readPickleZip(filepath))
         self._endProfile()
     def getNumLayers(self) :
         return len(self._layers)

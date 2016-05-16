@@ -1,8 +1,6 @@
 import os
 import numpy as np
 import theano as t
-import gzip
-import cPickle
 
 def ingestImagery(filepath, shared=False, log=None) :
     '''Load the dataset provided by the user.
@@ -22,13 +20,11 @@ def ingestImagery(filepath, shared=False, log=None) :
                  indexing. For now numpy indexing is sufficient.
     '''
     from dataset.shared import splitToShared
+    from dataset.pickle import readPickleZip
     train = test = None
 
     # Load the dataset to memory
-    if log is not None :
-        log.info('Load the data into memory')
-    with gzip.open(filepath, 'rb') as f :
-        train, test, labels = cPickle.load(f)
+    train, test, labels = readPickleZip(filepath, log)
 
     # load each into shared variables -- 
     # this avoids having to copy the data to the GPU between each call
@@ -173,10 +169,9 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
        filepath : path to the top-level directory contain the label directories
     '''
     import os
-    import gzip
-    import cPickle
     from minibatch import makeContiguous
     from shuffle import naiveShuffle
+    from pickle import writePickleZip
 
     rootpath = os.path.abspath(filepath)
     outputFile = os.path.join(rootpath, os.path.basename(rootpath) + 
@@ -250,10 +245,7 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
     test =  makeContiguous(test, batchSize)
 
     # pickle the dataset
-    if log is not None :
-        log.info('Compressing to [' + outputFile + ']')
-    with gzip.open(outputFile, 'wb') as f :
-        f.write(cPickle.dumps((train, test, labels)))
+    writePickleZip(outputFile, (train, test, labels), log)
 
     # return the output filename
     return outputFile
