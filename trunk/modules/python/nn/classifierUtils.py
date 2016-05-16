@@ -92,6 +92,7 @@ if __name__ == "__main__" :
     import argparse
     from datasetUtils import readImage
     from net import ClassifierNetwork as Network
+    from dataset.reader import normalize
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--multiple', dest='multi', type=bool, default=True,
