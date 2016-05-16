@@ -1,8 +1,13 @@
-def ingestImagery(filepath, shared=False, log=None) :
-    '''Load the dataset provided by the user.
+def ingestImagery(filepath, shared=False, log=None, **kwargs) :
+    '''Load the labeled dataset into memory. This is formatted such that the
+       directory structure becomes the labels, and all imagery within the 
+       directory will be assigned this label. All images in any directory is
+       required to have the same dimensions.
+
        filepath : This can be a cPickle, a path to the directory structure.
        shared   : Load data into shared variables for training
        log      : Logger for tracking the progress
+       kwargs   : Any parameters needed to override defaults in pickleDataset
        return   :
            Format -- 
            (trainData, trainLabel), (testData, testLabel), labels
@@ -15,9 +20,14 @@ def ingestImagery(filepath, shared=False, log=None) :
            TODO: Consider returning these as objects for more intuitive
                  indexing. For now numpy indexing is sufficient.
     '''
-    from dataset.shared import splitToShared
-    from dataset.pickle import readPickleZip
-    train = test = None
+    import os
+    from shared import splitToShared
+    from pickle import readPickleZip
+    from reader import pickleDataset
+
+    # read the directory structure and pickle it up
+    if os.path.isdir(filepath) :
+        filepath = pickleDataset(filepath, log=log, **kwargs)
 
     # Load the dataset to memory
     train, test, labels = readPickleZip(filepath, log)
@@ -31,3 +41,15 @@ def ingestImagery(filepath, shared=False, log=None) :
     else :
         return train, test, labels
 
+#def ingestUnlabeledImagery(filepath, shared=False, log=None, *func, **kwargs) :
+    '''Load the unlabeled dataset into memory. This reads and chips any
+       imagery found within the filepath according the the options sent to the
+       function.
+
+       filepath : This can be a cPickle, a path to the directory structure.
+       shared   : Load data into shared variables for training
+       log      : Logger for tracking the progress
+       func     : Chipping utility to use on each image
+       kwargs   : Parameters 
+       return   : (trainingData, pixelRegion=None)
+    '''
