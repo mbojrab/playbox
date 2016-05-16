@@ -3,6 +3,7 @@ def prepareChips (chips, pixelRegion, log=None) :
     '''Make data contiguous in memory
        All pixels will be arranged into a single tensor of format
            (numChips,numChannels,chipRows,chipCols), (numChips,4)
+
        chips       : the list of chips and pixels regions 
                      [[numChannels,chipRows,chipCols], [4], ...]
        pixelRegion : Save the relative pixel locations for each chip 
@@ -88,3 +89,13 @@ def randomChip(image, chipSize, numChips=100, pixelRegion=False, log=None) :
 
 def selectiveChip(image, chipSize, pixelRegion=False, log=None) :
     raise Exception('Please Implement selectiveChip().')
+
+def applyChipping (images, func, log=None, **kwargs) :
+    '''A utility to run the chipping function on a number of images.'''
+    chips = [func(im, **kwargs) for im in images]
+
+    # return the contiguous buffers
+    pixelRegion = False
+    if 'pixelRegion' in kwargs :
+        pixelRegion = kwargs['pixelRegion']
+    return prepareChips(chips, pixelRegion, log)
