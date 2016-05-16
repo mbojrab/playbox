@@ -218,9 +218,23 @@ class TrainerNetwork (ClassifierNetwork) :
        obtain [0,1] classification. This allows for a cross-entropy (ie nll)
        loss function.
 
-       train    : theano.shared dataset used for network training in format --
-                  (((numBatches, batchSize, numChannels, rows, cols)), 
-                   integerLabelIndices)
+       train    : theano.shared dataset used for network training in format
+                  NOTE: Currently the user is allowed to pass two variable
+                        types for this field. --
+
+                        If the user is passing an index
+                        equivalent for the label, the user must pass data as a
+                        numpy.ndarray and formatted:
+
+                        (((numBatches, batchSize, numChannels, rows, cols)), 
+                         (numBatches, oneHotIndex))
+
+                        If the user passes a vector for the expected label the
+                        values must be theano.shared variables and formatted:
+
+                        (((numBatches, batchSize, numChannels, rows, cols)), 
+                         (numBatches, batchSize, expectedOutputVect))
+
        test     : theano.shared dataset used for network testing in format --
                   (((numBatches, batchSize, numChannels, rows, cols)), 
                   integerLabelIndices)
@@ -244,8 +258,16 @@ class TrainerNetwork (ClassifierNetwork) :
         self._trainData, self._trainLabels = train
         self._testData, self._testLabels = test
 
-        # TODO: remove this once shared variables are working
-        self._trainLabels = self._trainLabels.astype('int32')
+        # TODO: This conditional should be removed once the train is 
+        #       theano.shared.
+        if isinstance(self._trainLabels, 
+                      theano.tensor.sharedvar.TensorSharedVariable) :
+            self._oneHotIndex = self._trainLabels.ndim == 2
+        else :
+            self._oneHotIndex = True 
+            # TODO: remove this once shared variables are working as this 
+            #       should be handled in dataset.shared.splitToShared
+            self._trainLabels = self._trainLabels.astype('int32')
 
         self._numTrainBatches = self._trainLabels.shape[0]
         self._numTestBatches = self._testLabels.shape.eval()[0]
@@ -266,6 +288,7 @@ class TrainerNetwork (ClassifierNetwork) :
         if '_trainLabels' in dict : del dict['_trainLabels']
         if '_testData' in dict : del dict['_testData']
         if '_testLabels' in dict : del dict['_testLabels']
+        if '_oneHotIndex' in dict : del dict['_oneHotIndex']
         if '_numTrainBatches' in dict : del dict['_numTrainBatches']
         if '_numTestBatches' in dict : del dict['_numTestBatches']
         if '_numTestSize' in dict : del dict['_numTestSize']
@@ -277,6 +300,7 @@ class TrainerNetwork (ClassifierNetwork) :
             del dict['_createBatchExpectedOutput']
         if '_cost' in dict : del dict['_cost']
         if '_trainNetworkNP' in dict : del dict['_trainNetworkNP']
+        if '_trainNetwork' in dict : del dict['_trainNetwork']
         return dict
 
     def __setstate__(self, dict) :
@@ -291,6 +315,7 @@ class TrainerNetwork (ClassifierNetwork) :
             delattr(self, '_createBatchExpectedOutput')
         if hasattr(self, '_cost') : delattr(self, '_cost')
         if hasattr(self, '_trainNetworkNP') : delattr(self, '_trainNetworkNP')
+        if hasattr(self, '_trainNetwork') : delattr(self, '_trainNetwork')
         ClassifierNetwork.__setstate__(self, dict)
 
     def finalizeNetwork(self) :
@@ -351,7 +376,6 @@ class TrainerNetwork (ClassifierNetwork) :
         # classification labeling. If the expectedOutput is not [0,1], Doc
         # Brown will hit you with a time machine.
         expectedOutputs = t.imatrix('expectedOutputs')
-
         xEntropy = crossEntropyLoss(expectedOutputs, self._outTrainSoft, 1)
 
 
@@ -408,13 +432,16 @@ class TrainerNetwork (ClassifierNetwork) :
         # NOTE: the 'input' variable name was create elsewhere and provided as
         #       input to the first layer. We now use that object to connect
         #       our shared buffers.
-        self._trainNetworkNP = theano.function(
-            [self.getNetworkInput()[1], expectedOutputs], 
-             xEntropy, updates=updates)
-        #self._trainNetwork = theano.function(
-        #    [index], xEntropy, updates=updates,
-        #    givens={self.getNetworkInput()[1]: self._trainData[index],
-        #            expectedOutputs: self._trainLabels[index]})
+        # NOTE: This check should only be used until both buffers are in 
+        if self._oneHotIndex :
+            self._trainNetworkNP = theano.function(
+                [self.getNetworkInput()[1], expectedOutputs], 
+                 xEntropy, updates=updates)
+        else :
+            self._trainNetwork = theano.function(
+                [index], xEntropy, updates=updates,
+                givens={self.getNetworkInput()[1]: self._trainData[index],
+                        expectedOutputs: self._trainLabels[index]})
         self._endProfile()
 
     #def train(self, index) :
@@ -435,10 +462,12 @@ class TrainerNetwork (ClassifierNetwork) :
 
         # train the input --
         # the user decides if this is online or batch training
-        expectedOutputs = self._createBatchExpectedOutput(
-            expectedLabels, self.getNetworkOutputSize()[1])
-        self._trainNetworkNP(inputs, expectedOutputs)
-        #self._trainNetwork(index)
+        if self._oneHotIndex :
+            expectedOutputs = self._createBatchExpectedOutput(
+                expectedLabels, self.getNetworkOutputSize()[1])
+            self._trainNetworkNP(inputs, expectedOutputs)
+        else :
+            self._trainNetwork(index)
 
         self._endProfile()
 
