@@ -1,4 +1,22 @@
-def grid(image, chipSize, skipFactor=0, pixelRegion=False, log=None):
+
+def prepareChips (chips, pixelRegion, log=None) :
+    '''Make data contiguous in memory
+       All pixels will be arranged into a single tensor of format
+           (numChips,numChannels,chipRows,chipCols), (numChips,4)
+       chips       : the list of chips and pixels regions 
+                     [[numChannels,chipRows,chipCols], [4], ...]
+       pixelRegion : Save the relative pixel locations for each chip 
+                     (startRow,startCol,endRow,endCol)
+    '''
+    from minibatch import makeContiguous
+    pixels, regions = makeContiguous(chips)
+    if not pixelRegion :
+        if log is not None :
+            log.debug('Removing the pixelRegion')
+        regions = None
+    return pixels, regions
+
+def regularGrid(image, chipSize, skipFactor=0, pixelRegion=False, log=None) :
     '''This chips the region into non-overlapping sub-regions. All partial
        border chips will be disgarded from the returned array.
 
@@ -14,8 +32,7 @@ def grid(image, chipSize, skipFactor=0, pixelRegion=False, log=None):
                        stepFactor=(chipSize[0] * (skipFactor+1),
                                    chipSize[0] * (skipFactor+1)))
 
-def overlapGrid(image, chipSize, stepFactor, 
-                pixelRegion=False, log=None) :
+def overlapGrid(image, chipSize, stepFactor, pixelRegion=False, log=None) :
     '''This chips the region into non-overlapping sub-regions. All partial
        border chips will be discarded from the returned array.
 
@@ -27,7 +44,6 @@ def overlapGrid(image, chipSize, stepFactor,
                      (startRow,startCol,endRow,endCol)
        log         : Logger to use
     '''
-    from minibatch import makeContiguous
     if log is not None :
         log.info('Subdividing the Image')
 
@@ -39,11 +55,36 @@ def overlapGrid(image, chipSize, stepFactor,
             chips.append((image[:, row : row + chipRows, col : col + chipCols],
                           [row, col, row + chipRows, col + chipCols]))
 
-    # make data contigous in memory --
-    # all pixels will be arranged into a single tensor of size 
-    # (numChips,numChannels,chipRows,chipCols), (numChips,4)
-    pixels, regions = makeContiguous(chips)
-    if not pixelRegion :
-        regions = None
+    # return the contiguous buffers
+    return prepareChips(chips, pixelRegion, log)
 
-    return pixels, regions
+def randomChip(image, chipSize, numChips=100, pixelRegion=False, log=None) :
+    '''This chips the region randomly for a specified number of chips. 
+
+       image       : numpy.ndarray formatted (numChannels, rows, cols)
+       chipSize    : Size of chips to be extracted (rows, cols)
+       numChips    : Number of chips to extract from the image
+       pixelRegion : Save the relative pixel locations for each chip 
+                     (startRow,startCol,endRow,endCol)
+       log         : Logger to use
+    '''
+    from numpy.random import uniform
+    if log is not None :
+        log.info('Subdividing the Image')
+
+    # randomly generate the chip pairs
+    chips = []
+    chipRows, chipCols = chipSize[0], chipSize[1]
+    randRows = uniform(low=0, high=image.size[1]-chipRows,
+                       size=numChips).astype('int32')
+    randCols = uniform(low=0, high=image.size[2]-chipCols,
+                       size=numChips).astype('int32')
+    for row, col in zip(randRows, randCols) :
+        chips.append((image[:, row : row + chipRows, col : col + chipCols],
+                      [row, col, row + chipRows, col + chipCols]))
+
+    # return the contiguous buffers
+    return prepareChips(chips, pixelRegion, log)
+
+def selectiveChip(image, chipSize, pixelRegion=False, log=None) :
+    raise Exception('Please Implement selectiveChip().')
