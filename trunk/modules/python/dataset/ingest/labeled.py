@@ -21,9 +21,9 @@ def ingestImagery(filepath, shared=False, log=None, **kwargs) :
                  indexing. For now numpy indexing is sufficient.
     '''
     import os
-    from shared import splitToShared
-    from pickle import readPickleZip
-    from reader import pickleDataset
+    from dataset.shared import splitToShared
+    from dataset.pickle import readPickleZip
+    from dataset.reader import pickleDataset
 
     # read the directory structure and pickle it up
     if os.path.isdir(filepath) :
@@ -40,16 +40,3 @@ def ingestImagery(filepath, shared=False, log=None, **kwargs) :
         return splitToShared(train), splitToShared(test), labels
     else :
         return train, test, labels
-
-#def ingestUnlabeledImagery(filepath, shared=False, log=None, *func, **kwargs) :
-    '''Load the unlabeled dataset into memory. This reads and chips any
-       imagery found within the filepath according the the options sent to the
-       function.
-
-       filepath : This can be a cPickle, a path to the directory structure.
-       shared   : Load data into shared variables for training
-       log      : Logger for tracking the progress
-       func     : Chipping utility to use on each image
-       kwargs   : Parameters 
-       return   : (trainingData, pixelRegion=None)
-    '''

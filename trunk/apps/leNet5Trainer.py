@@ -2,7 +2,7 @@ import theano.tensor as t
 from nn.net import TrainerNetwork as Net
 from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer
-from dataset.reader import ingestImagery, pickleDataset
+from dataset.ingest.labeled import ingestImagery
 from dataset.writer import buildPickleInterim, buildPickleFinal, resumeEpoch
 from dataset.shared import splitToShared
 import os, argparse, logging
@@ -74,10 +74,10 @@ if __name__ == '__main__' :
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
-    train, test, labels = ingestImagery(pickleDataset(
-            options.data, batchSize=options.batchSize, 
-            holdoutPercentage=options.holdout, log=log),
-        shared=False, log=log)
+    train, test, labels = ingestImagery(filepath=options.data, shared=False,
+                                        batchSize=options.batchSize, 
+                                        holdoutPercentage=options.holdout, 
+                                        log=log)
     trainSize = train[0].shape
 
     tr = splitToShared(train, borrow=True)

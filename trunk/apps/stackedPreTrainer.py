@@ -2,7 +2,7 @@ import theano.tensor as t
 from ae.net import StackedAENetwork
 from ae.contiguousAE import ContractiveAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
-from dataset.reader import ingestImagery, pickleDataset
+from dataset.ingest.labeled import ingestImagery
 from dataset.writer import buildPickleInterim, buildPickleFinal
 from dataset.shared import splitToShared
 import os, argparse, logging
@@ -73,10 +73,10 @@ if __name__ == '__main__' :
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
-    train, test, labels = ingestImagery(pickleDataset(
-            options.data, batchSize=options.batchSize, 
-            holdoutPercentage=options.holdout, log=log),
-        shared=False, log=log)
+    train, test, labels = ingestImagery(filepath=options.data, shared=False,
+                                        batchSize=options.batchSize, 
+                                        holdoutPercentage=options.holdout, 
+                                        log=log)
     trainShape = train[0].shape
 
     # create the stacked network -- LeNet-5 (minus the output layer)
