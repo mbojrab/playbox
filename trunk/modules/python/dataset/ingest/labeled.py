@@ -46,31 +46,38 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
         # a small percentage of the data is held out to verify our training
         # isn't getting overfitted. We will randomize the input later.
         numTest = max(minTest, int(holdoutPercentage * len(files)))
-
-        # this is updated to at least holdout a few images for testing
-        holdoutPercentage = (float(numTest) / float(len(files)))
-        holdoutTest  = int(1. / holdoutPercentage)
-        holdoutTrain = int(1. / (1.-holdoutPercentage))
         if log is not None :
             log.debug('Holding out [' + str(numTest) + '] of [' + \
                       str(len(files)) + ']')
 
+        # this is updated to at least holdout a few images for testing
+        holdoutPercentage = (float(numTest) / float(len(files)))
+        testHoldout = int(round(1. / holdoutPercentage))
+        holdout = testHoldout
+        if holdout == 1 :
+            holdout = int(round(1. / (1. - holdoutPercentage)))
+
         # this loop ensures a good sampling is held out across our entire
-        # dataset. if holdoutPercentage is <.5 this takes the if, otherwise
-        # uses the else.
+        # dataset. This is just in case there is some regularity in the data
+        # as it sits on disk.
+        te, tr = [], []
         for ii in range(len(files)) :
             try :
                 imgLabel = readImage(os.path.join(
                                 root, files[ii]), log), indx
-                if holdoutTest > 1 :
-                    test.append(imgLabel) if ii % holdoutTest == 0 else \
-                        train.append(imgLabel)
-                else :
-                    train.append(imgLabel) if ii % holdoutTrain == 0 else \
-                        test.append(imgLabel)
+                te.append(imgLabel) if ii % holdout == 0 else \
+                    tr.append(imgLabel)
             except IOError :
                 # continue on if image cannot be read
                 pass
+
+        # swap these buffers to align with what the user specified
+        if testHoldout != holdout :
+            (te, tr) = (tr, te)
+
+        # populate the global buffers
+        train.extend(tr)
+        test.extend(te)
 
     # randomize the data -- otherwise its not stochastic
     if log is not None :
