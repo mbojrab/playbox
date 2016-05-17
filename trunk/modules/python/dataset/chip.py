@@ -17,7 +17,7 @@ def prepareChips (chips, pixelRegion, log=None) :
         regions = None
     return pixels, regions
 
-def regularGrid(image, chipSize, skipFactor=0, pixelRegion=False, log=None) :
+def regularGrid(image, chipSize, skipFactor=0, log=None) :
     '''This chips the region into non-overlapping sub-regions. All partial
        border chips will be disgarded from the returned array.
 
@@ -25,15 +25,13 @@ def regularGrid(image, chipSize, skipFactor=0, pixelRegion=False, log=None) :
        chipSize    : Size of chips to be extracted (rows, cols)
        stepFactor  : Number of pixels to advance to next chip start
                      (rows, cols)
-       pixelRegion : Save the relative pixel locations for each chip 
-                     (startRow,startCol,endRow,endCol)
        log         : Logger to use
     '''
-    return overlapGrid(image, chipSize, log=log, pixelRegion=pixelRegion,
+    return overlapGrid(image, chipSize, log=log,
                        stepFactor=(chipSize[0] * (skipFactor+1),
                                    chipSize[0] * (skipFactor+1)))
 
-def overlapGrid(image, chipSize, stepFactor, pixelRegion=False, log=None) :
+def overlapGrid(image, chipSize, stepFactor, log=None) :
     '''This chips the region into non-overlapping sub-regions. All partial
        border chips will be discarded from the returned array.
 
@@ -41,8 +39,6 @@ def overlapGrid(image, chipSize, stepFactor, pixelRegion=False, log=None) :
        chipSize    : Size of chips to be extracted (rows, cols)
        stepFactor  : Number of pixels to advance to next chip start
                      (rows, cols)
-       pixelRegion : Save the relative pixel locations for each chip 
-                     (startRow,startCol,endRow,endCol)
        log         : Logger to use
     '''
     if log is not None :
@@ -55,18 +51,14 @@ def overlapGrid(image, chipSize, stepFactor, pixelRegion=False, log=None) :
         for col in range(0, image.size[2] - chipSize, stepFactor[1]) :
             chips.append((image[:, row : row + chipRows, col : col + chipCols],
                           [row, col, row + chipRows, col + chipCols]))
+    return chips
 
-    # return the contiguous buffers
-    return prepareChips(chips, pixelRegion, log)
-
-def randomChip(image, chipSize, numChips=100, pixelRegion=False, log=None) :
+def randomChip(image, chipSize, numChips=100, log=None) :
     '''This chips the region randomly for a specified number of chips. 
 
        image       : numpy.ndarray formatted (numChannels, rows, cols)
        chipSize    : Size of chips to be extracted (rows, cols)
        numChips    : Number of chips to extract from the image
-       pixelRegion : Save the relative pixel locations for each chip 
-                     (startRow,startCol,endRow,endCol)
        log         : Logger to use
     '''
     from numpy.random import uniform
@@ -83,19 +75,20 @@ def randomChip(image, chipSize, numChips=100, pixelRegion=False, log=None) :
     for row, col in zip(randRows, randCols) :
         chips.append((image[:, row : row + chipRows, col : col + chipCols],
                       [row, col, row + chipRows, col + chipCols]))
+    return chips
 
-    # return the contiguous buffers
-    return prepareChips(chips, pixelRegion, log)
-
-def selectiveChip(image, chipSize, pixelRegion=False, log=None) :
+def selectiveChip(image, chipSize, log=None) :
     raise Exception('Please Implement selectiveChip().')
 
-def applyChipping (images, func, log=None, **kwargs) :
-    '''A utility to run the chipping function on a number of images.'''
-    chips = [func(im, **kwargs) for im in images]
+def applyChipping (images, log=None, *chipFunc, **kwargs) :
+    '''A utility to run the chipping function on a number of images
 
-    # return the contiguous buffers
-    pixelRegion = False
-    if 'pixelRegion' in kwargs :
-        pixelRegion = kwargs['pixelRegion']
-    return prepareChips(chips, pixelRegion, log)
+       images   : List of images in memory
+       log      : Logger to use
+       *chipFunc: Chipping function to use
+       **kwargs : Chipping function parameters
+    '''
+    chips = []
+    for im in images :
+        chips.extend(*chipFunc(im, **kwargs))
+    return chips
