@@ -1,5 +1,5 @@
 
-def prepareChips (chips, pixelRegion, log=None) :
+def prepareChips (chips, pixelRegion, batchSize=1, log=None) :
     '''Make data contiguous in memory
        All pixels will be arranged into a single tensor of format
            (numChips,numChannels,chipRows,chipCols), (numChips,4)
@@ -10,7 +10,7 @@ def prepareChips (chips, pixelRegion, log=None) :
                      (startRow,startCol,endRow,endCol)
     '''
     from minibatch import makeContiguous
-    pixels, regions = makeContiguous(chips)
+    pixels, regions = makeContiguous(chips, batchSize, log)
     if not pixelRegion :
         if log is not None :
             log.debug('Removing the pixelRegion')
