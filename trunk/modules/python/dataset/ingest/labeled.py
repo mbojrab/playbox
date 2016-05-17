@@ -5,7 +5,11 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
        is assumed to be a series of directories, each contains imagery assigned
        the label of the directory name.
 
-       filepath : path to the top-level directory contain the label directories
+       filepath          : Top-level directory containing the label directories
+       holdoutPercentage : Percentage of the data to holdout for testing
+       minTest           : Hard minimum on holdout if percentage is low
+       batchSize         : Size of a mini-batch
+       log               : Logger to use
     '''
     import os
     from dataset.minibatch import makeContiguous
@@ -15,6 +19,7 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
 
     rootpath = os.path.abspath(filepath)
     outputFile = os.path.join(rootpath, os.path.basename(rootpath) + 
+                              '_labeled_' +
                               '_holdout_' + str(holdoutPercentage) +
                               '_batch_' + str(batchSize) +'.pkl.gz')
     if os.path.exists(outputFile) :
