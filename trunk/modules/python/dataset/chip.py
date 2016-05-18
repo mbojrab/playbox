@@ -47,8 +47,8 @@ def overlapGrid(image, chipSize, stepFactor, log=None) :
     # grab an grid of chips
     chips = []
     chipRows, chipCols = chipSize[0], chipSize[1]
-    for row in range(0, image.size[1] - chipSize, stepFactor[0]) :
-        for col in range(0, image.size[2] - chipSize, stepFactor[1]) :
+    for row in range(0, image.shape[1] - chipSize, stepFactor[0]) :
+        for col in range(0, image.shape[2] - chipSize, stepFactor[1]) :
             chips.append((image[:, row : row + chipRows, col : col + chipCols],
                           [row, col, row + chipRows, col + chipCols]))
     return chips
@@ -68,9 +68,9 @@ def randomChip(image, chipSize, numChips=100, log=None) :
     # randomly generate the chip pairs
     chips = []
     chipRows, chipCols = chipSize[0], chipSize[1]
-    randRows = uniform(low=0, high=image.size[1]-chipRows,
+    randRows = uniform(low=0, high=image.shape[1]-chipRows,
                        size=numChips).astype('int32')
-    randCols = uniform(low=0, high=image.size[2]-chipCols,
+    randCols = uniform(low=0, high=image.shape[2]-chipCols,
                        size=numChips).astype('int32')
     for row, col in zip(randRows, randCols) :
         chips.append((image[:, row : row + chipRows, col : col + chipCols],
