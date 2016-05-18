@@ -27,8 +27,6 @@ def saveTiledImage(image, path, imageShape, spacing=2,
        interleave: Create a colorize output image from channels
                    False will separate and stack the image channels
     '''
-    import cv2
-
     im = image
     if len(image.shape) == 4 :
         im = im.reshape((image.shape[0], image.shape[1], 
@@ -70,19 +68,14 @@ def saveTiledImage(image, path, imageShape, spacing=2,
                 # align into the output buffer -- BGR for openCV
                 outLoc = (ii * (imageShape[0] + spacing),
                           jj * (imageShape[1] + spacing))
-                if numChannels == 3 :
-                    output[:, outLoc[0] : outLoc[0] + imageShape[0],
-                              outLoc[1] : outLoc[1] + imageShape[1]] = \
-                        chip[[2,1,0],:,:]
-                else :
-                    output[:, outLoc[0] : outLoc[0] + imageShape[0],
-                              outLoc[1] : outLoc[1] + imageShape[1]] = \
-                        chip[:,:,:]
+                output[:, outLoc[0] : outLoc[0] + imageShape[0],
+                          outLoc[1] : outLoc[1] + imageShape[1]] = chip[:,:,:]
 
     # write the image to disk
     if interleave :
-        # openCV automatically interleaves the output
-        cv2.imwrite(path, output)
+        Image.merge("RGB", (Image.fromarray(output[2]),
+                            Image.fromarray(output[1]),
+                            Image.fromarray(output[0]))).save(path)
     else :
         # PIL will write the output in its current (stacked) format
         output = output.reshape((outputShape[0] * outputShape[1], 
