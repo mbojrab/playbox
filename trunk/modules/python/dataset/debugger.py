@@ -8,27 +8,25 @@ def saveNormalizedImage(image, path) :
        data.
 
        image: 2D tensor (rows, cols)
-       path:  output path to image
+       path:  Output path to image
     '''
     Image.fromarray(np.uint8(norm(image) * 255)).save(path)
 
-def saveTiledImage(image, path, imageShape, spacing,
+def saveTiledImage(image, path, imageShape, spacing=2,
                    tileShape=None, interleave=True) :
     '''Create a tiled image of the weights 
 
-       image:      tensor to convert to a tiled image
+       image     : Tensor to convert to a tiled image
                    2D tensor (numKernels, inputSize)
                    3D tensor (numKernels, numChannels, inputSize)
                    4D tensor (numKernels, numChannels, numRows, numCols)
-       path:       output path to image
-       imageShape: shape of each tiled image in output
-       spacing:    size of pixel border around each tileShape
-       tileShape:  user-specified tiling pattern
-       interleave: create a colorize output image from channels
+       path      : Output path to image
+       imageShape: Shape of each tiled image in output
+       spacing   : Size of pixel border around each tileShape
+       tileShape : User-specified tiling pattern
+       interleave: Create a colorize output image from channels
                    False will separate and stack the image channels
     '''
-    import cv2
-
     im = image
     if len(image.shape) == 4 :
         im = im.reshape((image.shape[0], image.shape[1], 
@@ -70,19 +68,14 @@ def saveTiledImage(image, path, imageShape, spacing,
                 # align into the output buffer -- BGR for openCV
                 outLoc = (ii * (imageShape[0] + spacing),
                           jj * (imageShape[1] + spacing))
-                if numChannels == 3 :
-                    output[:, outLoc[0] : outLoc[0] + imageShape[0],
-                              outLoc[1] : outLoc[1] + imageShape[1]] = \
-                        chip[[2,1,0],:,:]
-                else :
-                    output[:, outLoc[0] : outLoc[0] + imageShape[0],
-                              outLoc[1] : outLoc[1] + imageShape[1]] = \
-                        chip[:,:,:]
+                output[:, outLoc[0] : outLoc[0] + imageShape[0],
+                          outLoc[1] : outLoc[1] + imageShape[1]] = chip[:,:,:]
 
     # write the image to disk
     if interleave :
-        # openCV automatically interleaves the output
-        cv2.imwrite(path, output)
+        Image.merge("RGB", (Image.fromarray(output[2]),
+                            Image.fromarray(output[1]),
+                            Image.fromarray(output[0]))).save(path)
     else :
         # PIL will write the output in its current (stacked) format
         output = output.reshape((outputShape[0] * outputShape[1], 
