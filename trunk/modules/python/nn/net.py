@@ -363,12 +363,6 @@ class TrainerNetwork (ClassifierNetwork) :
         self._createBatchExpectedOutput = theano.function(
             inputs=[expectedLabels, outputSize], outputs=result)
 
-        # protect the loss function against producing NaNs
-        self._outTrainSoft = t.switch(self._outTrainSoft < 0.0001, 0.0001, 
-                                      self._outTrainSoft)
-        self._outTrainSoft = t.switch(self._outTrainSoft > 0.9999, 0.9999,
-                                      self._outTrainSoft)
-
         # create the cross entropy function --
         # This is the cost function for the network, and it assumes [0,1]
         # classification labeling. If the expectedOutput is not [0,1], Doc
