@@ -1,18 +1,26 @@
 import theano.tensor as t
 
-def crossEntropyLoss (p, q, axis=None):
+def cropExtremes(x) :
+    # protect the loss function against producing NaNs/Inf
+    x = t.switch(x < 0.0001, 0.0001, x)
+    x = t.switch(x > 0.9999, 0.9999, x)
+
+
+def crossEntropyLoss (p, q, axis=None, crop=True):
     ''' for these purposes this is equivalent to Negative Log Likelihood
         this is the average of all cross-entropies in our guess
-        p    - the target value
-        q    - the current estimate
-        axis - the axis in which to sum across -- used for multi-dimensional
+        p    : the target value
+        q    : the current estimate
+        axis : the axis in which to sum across -- used for multi-dimensional
+        crop :
     '''
+    if crop : cropExtremes(q)
     return t.mean(t.sum(t.nnet.binary_crossentropy(q, p), axis=axis))
 
 def meanSquaredLoss (p, q) :
     ''' for these purposes this is equivalent to Negative Log Likelihood
-        p    - the target value
-        q    - the current estimate
+        p    : the target value
+        q    : the current estimate
     '''
     return t.mean((q - p) ** 2)
 
@@ -20,9 +28,9 @@ def leastAbsoluteDeviation(a, batchSize=None, scaleFactor=1.) :
     '''L1-norm provides 'Least Absolute Deviation' --
        built for sparse outputs and is resistent to outliers
 
-       a           - input matrix
-       batchSize   - number of inputs in the batchs
-       scaleFactor - scale factor for the regularization
+       a           : input matrix
+       batchSize   : number of inputs in the batchs
+       scaleFactor : scale factor for the regularization
     '''
     if not isinstance(a, list) :
         a = [a]
@@ -37,9 +45,9 @@ def leastSquares(a, batchSize=None, scaleFactor=1.) :
     '''L2-norm provides 'Least Squares' --
        built for dense outputs and is computationally stable at small errors
 
-       a           - input matrix
-       batchSize   - number of inputs in the batchs
-       scaleFactor - scale factor for the regularization
+       a           : input matrix
+       batchSize   : number of inputs in the batchs
+       scaleFactor : scale factor for the regularization
 
        NOTE: a decent scale factor may be the 1. / numNeurons
     '''
@@ -53,19 +61,19 @@ def leastSquares(a, batchSize=None, scaleFactor=1.) :
         return sqSum * scaleFactor
 
 def computeJacobian(a, wrt, batchSize, inputSize, numNeurons) :
-    ''' compute a jacobian for the matrix 'out' with respect to 'wrt'.
+    '''Compute a jacobian for the matrix 'out' with respect to 'wrt'.
 
-        This is the first order partials of the output with respect to the 
-        weights. This produces a matrix the same size as the input that
-        produced the output vector.
+       This is the first order partials of the output with respect to the 
+       weights. This produces a matrix the same size as the input that
+       produced the output vector.
 
-        a          - the output matrix for the layer (batchSize, numNeurons)
-        wrt        - matrix used to generate 'mat'. This is usually the weight
-                     matrix. (inputSize, numNeurons)
-        batchSize  - number of inputs in the batch
-        inputSize  - size of each input
-        numNeurons - number of neurons in the weight matrix
-        return     - (batchSize, inputSize)
+       a          : The output matrix for the layer (batchSize, numNeurons)
+       wrt        : Matrix used to generate 'mat'. This is usually the weight
+                    matrix. (inputSize, numNeurons)
+       batchSize  : Number of inputs in the batch
+       inputSize  : Size of each input
+       numNeurons : Number of neurons in the weight matrix
+       return     : (batchSize, inputSize)
     '''
     aReshape = (batchSize, 1, numNeurons)
     wrtReshape = (1, inputSize, numNeurons)
