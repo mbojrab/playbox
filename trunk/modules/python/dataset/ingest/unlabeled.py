@@ -23,7 +23,7 @@ def pickleDataset(filepath, batchSize=1, log=None, chipFunc=None, **kwargs) :
     if os.path.exists(outputFile) :
         if log is not None :
             log.info('Pickle exists for this dataset [' + outputFile +
-                     ']. Exiting')
+                     ']. Using this instead.')
         return outputFile
 
     # chip the imagery one at a time to save on memory
