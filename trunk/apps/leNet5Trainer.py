@@ -1,12 +1,13 @@
 import theano.tensor as t
+import argparse, logging
+from time import time
+
 from nn.net import TrainerNetwork as Net
 from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer
 from dataset.ingest.labeled import ingestImagery
-from dataset.writer import buildPickleInterim, buildPickleFinal, resumeEpoch
 from dataset.shared import splitToShared
-import os, argparse, logging
-from time import time
+from trainNetwork import trainNetworkSupervised
 
 '''This is a simple network in the topology of leNet5 the well-known
    MNIST dataset trainer from Yann LeCun. This is capable of training other
@@ -130,50 +131,11 @@ if __name__ == '__main__' :
             learningRate=options.learnF, momentumRate=options.momentum,
             activation=None, randomNumGen=rng))
 
-    degradationCount = 0
-    globalCount = lastBest = resumeEpoch(options.synapse)
-    numEpochs = options.limit
-    runningAccuracy = 0.0
-    lastSave = ''
-    while True :
-        timer = time()
-
-        # run the specified number of epochs
-        globalCount = network.trainEpoch(globalCount, numEpochs)
-        # calculate the accuracy against the test set
-        curAcc = network.checkAccuracy()
-        log.info('Checking Accuracy - {0}s ' \
-                 '\n\tCorrect   : {1}% \n\tIncorrect : {2}%'.format(
-                 time() - timer, curAcc, (100-curAcc)))
-
-        # check if we've done better
-        if curAcc > runningAccuracy :
-            # reset and save the network
-            degradationCount = 0
-            runningAccuracy = curAcc
-            lastBest = globalCount
-            lastSave = buildPickleInterim(base=options.base,
-                                          epoch=lastBest,
-                                          dropout=options.dropout,
-                                          learnC=options.learnC,
-                                          learnF=options.learnF,
-                                          momentum=options.momentum,
-                                          kernel=options.kernel,
-                                          neuron=options.neuron)
-            network.save(lastSave)
-        else :
-            # increment the number of poor performing runs
-            degradationCount += 1
-
-        # stopping conditions for regularization
-        if degradationCount > int(options.stop) or runningAccuracy == 100. :
-            break
-
-    # rename the network which achieved the highest accuracy
-    bestNetwork = buildPickleFinal(base=options.base, appName=__file__,
-                                   dataName=os.path.basename(options.data),
-                                   epoch=lastBest, accuracy=runningAccuracy)
-    log.info('Renaming Best Network to [' + bestNetwork + ']')
-    if os.path.exists(bestNetwork) :
-        os.remove(bestNetwork)
-    os.rename(lastSave, bestNetwork)
+    trainNetworkSupervised (network, __file__, options.data, 
+                            numEpochs=options.limit, stop=options.stop, 
+                            synapse=options.synapse, base=options.base, 
+                            dropout=options.dropout, learnC=options.learnC, 
+                            learnF=options.learnF, momentum=options.momentum, 
+                            kernel=options.kernel, neuron=options.neuron, 
+                            log=log)
+    del network
