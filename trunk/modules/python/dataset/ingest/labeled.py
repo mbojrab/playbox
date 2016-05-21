@@ -18,7 +18,7 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
 
     rootpath = os.path.abspath(filepath)
     outputFile = os.path.join(rootpath, os.path.basename(rootpath) + 
-                              '_labeled_' +
+                              '_labeled' + 
                               '_holdout_' + str(holdoutPercentage) +
                               '_batch_' + str(batchSize) +'.pkl.gz')
     if os.path.exists(outputFile) :

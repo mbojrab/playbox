@@ -7,7 +7,7 @@ from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer
 from dataset.ingest.labeled import ingestImagery
 from dataset.shared import splitToShared
-from trainNetwork import trainNetworkSupervised
+from trainNetwork import trainSupervised
 
 '''This is a simple network in the topology of leNet5 the well-known
    MNIST dataset trainer from Yann LeCun. This is capable of training other
@@ -50,9 +50,6 @@ if __name__ == '__main__' :
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
                                      'training and test sets')
     options = parser.parse_args()
-
-    # this makes the indexing more intuitive
-    DATA, LABEL = 0, 1
 
     # setup the logger
     log = logging.getLogger('cnnTrainer: ' + options.data)
@@ -131,11 +128,11 @@ if __name__ == '__main__' :
             learningRate=options.learnF, momentumRate=options.momentum,
             activation=None, randomNumGen=rng))
 
-    trainNetworkSupervised (network, __file__, options.data, 
-                            numEpochs=options.limit, stop=options.stop, 
-                            synapse=options.synapse, base=options.base, 
-                            dropout=options.dropout, learnC=options.learnC, 
-                            learnF=options.learnF, momentum=options.momentum, 
-                            kernel=options.kernel, neuron=options.neuron, 
-                            log=log)
+    trainSupervised(network, __file__, options.data, 
+                    numEpochs=options.limit, stop=options.stop, 
+                    synapse=options.synapse, base=options.base, 
+                    dropout=options.dropout, learnC=options.learnC, 
+                    learnF=options.learnF, momentum=options.momentum, 
+                    kernel=options.kernel, neuron=options.neuron, 
+                    log=log)
     del network

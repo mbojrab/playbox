@@ -50,9 +50,6 @@ if __name__ == '__main__' :
                                      'training and test sets')
     options = parser.parse_args()
 
-    # this makes the indexing more intuitive
-    DATA, LABEL = 0, 1
-
     # setup the logger
     log = logging.getLogger('cnnPreTrainer: ' + options.data)
     log.setLevel(options.level.upper())
