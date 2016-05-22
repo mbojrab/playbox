@@ -7,7 +7,7 @@ from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer
 from dataset.ingest.labeled import ingestImagery
 from dataset.shared import splitToShared
-from trainNetwork import trainSupervised
+from nn.trainUtils import trainSupervised
 
 '''This is a simple network in the topology of leNet5 the well-known
    MNIST dataset trainer from Yann LeCun. This is capable of training other

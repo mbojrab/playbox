@@ -3,7 +3,7 @@ import argparse, logging
 from nn.net import ClassifierNetwork, TrainerNetwork
 from dataset.pickle import readPickleZip
 from dataset.shared import splitToShared
-from trainNetwork import trainSupervised
+from nn.trainUtils import trainSupervised
 
 '''This application will distill dark knowledge out of existing networks and
    into a pickled dataset which can be used as training for smaller deployable

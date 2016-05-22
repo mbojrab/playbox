@@ -6,7 +6,7 @@ from ae.net import StackedAENetwork
 from ae.contiguousAE import ContractiveAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.labeled import ingestImagery
-from trainNetwork import trainUnsupervised
+from nn.trainUtils import trainUnsupervised
 from dataset.shared import splitToShared
 
 '''This is an example Stacked AutoEncoder used for unsupervised pre-training.

@@ -5,7 +5,7 @@ from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.labeled import ingestImagery
 from dataset.shared import splitToShared
 from nn.contiguousLayer import ContiguousLayer
-from trainNetwork import trainUnsupervised, trainSupervised
+from nn.trainUtils import trainUnsupervised, trainSupervised
 from nn.net import TrainerNetwork
 import argparse, logging
 from time import time
