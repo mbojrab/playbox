@@ -1,6 +1,7 @@
 def distillKnowledge(deepNet, filepath, batchSize=50, 
                      holdoutPercentage=0.5, log=None) :
     import os
+    import numpy as np
     from dataset.ingest.labeled import ingestImagery
     from dataset.pickle import writePickleZip
 
@@ -8,7 +9,7 @@ def distillKnowledge(deepNet, filepath, batchSize=50,
     # TODO: NETWORKS NEED UNIQUE LABEL IDENTIFIERS WHICH CAN BE ADDED HERE
     rootpath = os.path.abspath(filepath)
     outputFile = os.path.join(rootpath, os.path.basename(rootpath) + 
-                              '_darkLabels_' +
+                              '_darkLabels' +
                               '_holdout_' + str(holdoutPercentage) +
                               '_batch_' + str(batchSize) +
                               '.pkl.gz')
@@ -29,8 +30,10 @@ def distillKnowledge(deepNet, filepath, batchSize=50,
         log.info('Distilling knowledge from deep network')
 
     # distill knowledge into a pickle which can be used to train other networks
-    darkLabels = [deepNet.classifyAndSoftmax(dataset) \
+    darkLabels = [deepNet.classifyAndSoftmax(dataset)[1] \
                   for dataset in train[0]]
+    labelDims = [len(darkLabels)] + list(darkLabels[0].shape)
+    darkLabels = np.reshape(np.concatenate(darkLabels), labelDims)
     train = train[0], darkLabels
 
     # pickle the dataset
