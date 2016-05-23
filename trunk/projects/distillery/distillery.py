@@ -18,6 +18,10 @@ if __name__ == '__main__' :
                         help='Specify log output file.')
     parser.add_argument('--level', dest='level', default='INFO', type=str, 
                         help='Log Level.')
+    parser.add_argument('--limit', dest='limit', type=int, default=5,
+                        help='Number of runs between validation checks.')
+    parser.add_argument('--stop', dest='stop', type=int, default=5,
+                        help='Number of inferior validation checks to end.')
     parser.add_argument('--softness', dest='softness', type=float, default=3,
                         help='Softness factor in softmax function.')
     parser.add_argument('--holdout', dest='holdout', type=float, default=.05,
@@ -26,7 +30,7 @@ if __name__ == '__main__' :
                         help='Batch size for training and test sets.')
     parser.add_argument('--base', dest='base', type=str, default='./distillery',
                         help='Base name of the network output and temp files.')
-    parser.add_argument('--shallow', dest='shallow', type=str, require=True,
+    parser.add_argument('--shallow', dest='shallow', type=str, required=True,
                         help='Synapse for the shallow target network. This ' +
                         'network should be populated with freshly ' + 
                         'initialized layers for optimal results.')
@@ -76,13 +80,10 @@ if __name__ == '__main__' :
 
     # use the pickle to train a shallower network to perform the same task
     train, test, labels = readPickleZip(options.dark, log)
-    shallowNet = TrainerNetwork(splitToShared(train, castInt=False), 
+    shallowNet = TrainerNetwork(splitToShared(train, castLabelInt=False), 
                                 splitToShared(test), labels,
                                 filepath=options.shallow, log=log)
 
     trainSupervised(shallowNet, __file__, options.data, 
                     numEpochs=options.limit, stop=options.stop, 
-                    synapse=options.shallow, base=options.base, 
-                    dropout=options.dropout, learnC=options.learnC, 
-                    learnF=options.learnF, momentum=options.momentum, 
-                    kernel=options.kernel, neuron=options.neuron, log=log)
+                    synapse=options.shallow, base=options.base, log=log)
