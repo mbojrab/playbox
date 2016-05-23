@@ -3,102 +3,12 @@ from ae.net import StackedAENetwork
 from ae.contiguousAE import ContractiveAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.labeled import ingestImagery
-from dataset.writer import buildPickleInterim, buildPickleFinal
 from dataset.shared import splitToShared
 from nn.contiguousLayer import ContiguousLayer
+from nn.trainUtils import trainUnsupervised, trainSupervised
 from nn.net import TrainerNetwork
-import os, argparse, logging
+import argparse, logging
 from time import time
-
-def trainUnsupervised(network, options) :
-    '''This trains a stacked autoencoder in a greedy layer-wise manner. This
-       starts by train each layer in sequence for the specified number of
-       epochs, then returns the network. This can be used to initialize a
-       Neural Network into a decent initial state.
-       
-       network : StackedAENetwork to used for training
-       options : Options passed into the application
-
-       return  : Path to the trained network. This will be used as a 
-                 pre-trainer for the Neural Network
-    '''
-    # train each layer in sequence --
-    # first we pre-train the data and at each epoch, we save it to disk
-    lastSave = ''
-    for layerIndex in range(network.getNumLayers()) :
-        globalEpoch = 0
-        globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 
-                                               options.numEpochs)
-        lastSave = buildPickleInterim(base=options.base,
-                                      epoch=globalEpoch,
-                                      dropout=options.dropout,
-                                      learnC=options.learnC,
-                                      learnF=options.learnF,
-                                      contrF=options.contrF,
-                                      kernel=options.kernel,
-                                      neuron=options.neuron,
-                                      layer=layerIndex)
-        network.save(lastSave)
-
-    # rename the network which achieved the highest accuracy
-    bestNetwork = buildPickleFinal(base=options.base, appName=__file__, 
-                                   dataName=os.path.basename(options.data), 
-                                   epoch=options.numEpochs)
-    log.info('Renaming Best Network to [' + bestNetwork + ']')
-    if os.path.exists(bestNetwork) :
-        os.remove(bestNetwork)
-    os.rename(lastSave, bestNetwork)
-    return bestNetwork
-
-def trainSupervised(network, options) :
-    '''Train the Neural Network to classify'''
-    lastSave = ''
-    
-    globalCount = lastBest = degradationCount = 0
-    numEpochs = options.limit
-    runningAccuracy = 0.0
-    lastSave = ''
-    while True :
-        timer = time()
-
-        # run the specified number of epochs
-        globalCount = network.trainEpoch(globalCount, numEpochs)
-        # calculate the accuracy against the test set
-        curAcc = network.checkAccuracy()
-        log.info('Checking Accuracy - {0}s ' \
-                 '\n\tCorrect   : {1}% \n\tIncorrect : {2}%'.format(
-                 time() - timer, curAcc, (100-curAcc)))
-
-        # check if we've done better
-        if curAcc > runningAccuracy :
-            # reset and save the network
-            degradationCount = 0
-            runningAccuracy = curAcc
-            lastBest = globalCount
-            lastSave = buildPickleInterim(base=options.base,
-                                          epoch=lastBest,
-                                          learnC=options.learnC,
-                                          learnF=options.learnF,
-                                          kernel=options.kernel,
-                                          neuron=options.neuron)
-            network.save(lastSave)
-        else :
-            # increment the number of poor performing runs
-            degradationCount += 1
-
-        # stopping conditions for regularization
-        if degradationCount > int(options.stop) or runningAccuracy == 100. :
-            break
-
-    # rename the network which achieved the highest accuracy
-    bestNetwork = buildPickleFinal(base=options.base, appName=__file__,
-                                   dataName=os.path.basename(options.data),
-                                   epoch=lastBest, accuracy=runningAccuracy)
-    log.info('Renaming Best Network to [' + bestNetwork + ']')
-    if os.path.exists(bestNetwork) :
-        os.remove(bestNetwork)
-    os.rename(lastSave, bestNetwork)
-    return bestNetwork
 
 if __name__ == '__main__' :
     '''This application runs semi-supervised training on a given dataset. The
@@ -153,11 +63,8 @@ if __name__ == '__main__' :
                                      'training and test sets')
     options = parser.parse_args()
 
-    # this makes the indexing more intuitive
-    DATA, LABEL = 0, 1
-
     # setup the logger
-    log = logging.getLogger('cnnPreTrainer: ' + options.data)
+    log = logging.getLogger('semiSupervisedTrainer: ' + options.data)
     log.setLevel(options.level.upper())
     formatter = logging.Formatter('%(levelname)s - %(message)s')
     stream = logging.StreamHandler()
@@ -228,8 +135,17 @@ if __name__ == '__main__' :
         # patterns identified in previous layers, so it should only
         # be influenced/trained during supervised learning. 
 
-    # train the SAE for unsupervised patter recognition
-    bestNetwork = trainUnsupervised(network, options)
+    # train the SAE for unsupervised pattern recognition
+    bestNetwork = trainUnsupervised(network, __file__, options.data, 
+                                    numEpochs=options.limit, stop=options.stop, 
+                                    synapse=options.synapse, base=options.base, 
+                                    dropout=options.dropout, 
+                                    learnC=options.learnC,
+                                    learnF=options.learnF, 
+                                    contrF=options.contrF, 
+                                    momentum=options.momentum, 
+                                    kernel=options.kernel, 
+                                    neuron=options.neuron, log=log)
 
     # cleanup the network -- this ensures the profile is written
     del network
@@ -247,7 +163,12 @@ if __name__ == '__main__' :
         learningRate=options.learnF, randomNumGen=rng))
 
     # train the NN for supervised classification
-    bestNetwork = trainSupervised(network, options)
+    trainSupervised(network, __file__, options.data, 
+                    numEpochs=options.limit, stop=options.stop, 
+                    synapse=options.synapse, base=options.base, 
+                    dropout=options.dropout, learnC=options.learnC, 
+                    learnF=options.learnF, momentum=options.momentum, 
+                    kernel=options.kernel, neuron=options.neuron, log=log)
 
     # cleanup the network -- this ensures the profile is written
     del network

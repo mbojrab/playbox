@@ -258,16 +258,16 @@ class TrainerNetwork (ClassifierNetwork) :
 
         # TODO: This conditional should be removed once the train is 
         #       theano.shared.
-        if isinstance(self._trainLabels, 
-                      theano.tensor.sharedvar.TensorSharedVariable) :
+        if 'SharedVariable' in str(type(self._trainLabels)) : 
             self._oneHotIndex = self._trainLabels.ndim == 2
+            self._numTrainBatches = self._trainLabels.shape.eval()[0]
         else :
             self._oneHotIndex = True 
             # TODO: remove this once shared variables are working as this 
             #       should be handled in dataset.shared.splitToShared
             self._trainLabels = self._trainLabels.astype('int32')
+            self._numTrainBatches = self._trainLabels.shape[0]
 
-        self._numTrainBatches = self._trainLabels.shape[0]
         self._numTestBatches = self._testLabels.shape.eval()[0]
         self._numTestSize = self._numTestBatches * \
                             self._testLabels.shape.eval()[1]
@@ -354,7 +354,7 @@ class TrainerNetwork (ClassifierNetwork) :
         # representation, so we built it instead of storing it.
         def createExpectedOutput(label, sz):
             return t.set_subtensor(
-                t.zeros((sz,), dtype='int32')[label], 1)
+                t.zeros((sz,), dtype=theano.config.floatX)[label], 1)
         outputSize = t.iscalar("outputSize")
         result, updates = theano.scan(fn=createExpectedOutput,
                                       outputs_info=None,
@@ -367,7 +367,7 @@ class TrainerNetwork (ClassifierNetwork) :
         # This is the cost function for the network, and it assumes [0,1]
         # classification labeling. If the expectedOutput is not [0,1], Doc
         # Brown will hit you with a time machine.
-        expectedOutputs = t.imatrix('expectedOutputs')
+        expectedOutputs = t.fmatrix('expectedOutputs')
         xEntropy = crossEntropyLoss(expectedOutputs, self._outTrainSoft, 1)
 
 
@@ -445,7 +445,8 @@ class TrainerNetwork (ClassifierNetwork) :
         '''
         self._startProfile('Training Batch [' + str(index) +
                            '/' + str(self._numTrainBatches) + ']', 'debug')
-        if not hasattr(self, '_trainNetworkNP') :
+        if not hasattr(self, '_trainNetwork') and \
+           not hasattr(self, '_trainNetworkNP') :
             self.finalizeNetwork()
         if not isinstance(index, int) :
             raise Exception('Variable index must be an integer value')

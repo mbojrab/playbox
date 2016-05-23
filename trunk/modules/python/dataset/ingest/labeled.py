@@ -1,4 +1,3 @@
-
 def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
                   batchSize=1, log=None) :
     '''Create a pickle out of a directory structure. The directory structure
@@ -19,13 +18,13 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
 
     rootpath = os.path.abspath(filepath)
     outputFile = os.path.join(rootpath, os.path.basename(rootpath) + 
-                              '_labeled_' +
+                              '_labeled' + 
                               '_holdout_' + str(holdoutPercentage) +
                               '_batch_' + str(batchSize) +'.pkl.gz')
     if os.path.exists(outputFile) :
         if log is not None :
             log.info('Pickle exists for this dataset [' + outputFile +
-                     ']. Exiting')
+                     ']. Using this instead.')
         return outputFile
 
     # walk the directory structure

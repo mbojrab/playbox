@@ -2,9 +2,7 @@ import theano.tensor as t
 
 def cropExtremes(x) :
     # protect the loss function against producing NaNs/Inf
-    x = t.switch(x < 0.0001, 0.0001, x)
-    x = t.switch(x > 0.9999, 0.9999, x)
-
+    return t.clip(x, 1e-7, 1.0 - 1e-7)
 
 def crossEntropyLoss (p, q, axis=None, crop=True):
     ''' for these purposes this is equivalent to Negative Log Likelihood
@@ -14,7 +12,7 @@ def crossEntropyLoss (p, q, axis=None, crop=True):
         axis : the axis in which to sum across -- used for multi-dimensional
         crop :
     '''
-    if crop : cropExtremes(q)
+    if crop : q = cropExtremes(q)
     return t.mean(t.sum(t.nnet.binary_crossentropy(q, p), axis=axis))
 
 def meanSquaredLoss (p, q) :

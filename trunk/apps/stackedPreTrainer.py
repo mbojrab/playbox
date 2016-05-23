@@ -1,12 +1,13 @@
 import theano.tensor as t
+import argparse, logging
+from time import time
+
 from ae.net import StackedAENetwork
 from ae.contiguousAE import ContractiveAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.labeled import ingestImagery
-from dataset.writer import buildPickleInterim, buildPickleFinal
+from nn.trainUtils import trainUnsupervised
 from dataset.shared import splitToShared
-import os, argparse, logging
-from time import time
 
 '''This is an example Stacked AutoEncoder used for unsupervised pre-training.
    The network topology should match that of the finalize Neural Network
@@ -48,9 +49,6 @@ if __name__ == '__main__' :
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
                                      'training and test sets')
     options = parser.parse_args()
-
-    # this makes the indexing more intuitive
-    DATA, LABEL = 0, 1
 
     # setup the logger
     log = logging.getLogger('cnnPreTrainer: ' + options.data)
@@ -122,35 +120,15 @@ if __name__ == '__main__' :
         # the output layer is special, as it makes decisions about
         # patterns identified in previous layers, so it should only
         # be influenced/trained during supervised learning. 
-    network.writeWeights(0, -1)
 
-    # train each layer in sequence --
-    # first we pre-train the data and at each epoch, we save it to disk
-    lastSave = ''
-    for layerIndex in range(network.getNumLayers()) :
-        globalEpoch = 0
-        globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 
-                                               options.numEpochs)
-        network.writeWeights(layerIndex, globalEpoch)
-        lastSave = buildPickleInterim(base=options.base,
-                                      epoch=globalEpoch,
-                                      dropout=options.dropout,
-                                      learnC=options.learnC,
-                                      learnF=options.learnF,
-                                      contrF=options.contrF,
-                                      kernel=options.kernel,
-                                      neuron=options.neuron,
-                                      layer=layerIndex)
-        network.save(lastSave)
 
-    # rename the network which achieved the highest accuracy
-    bestNetwork = buildPickleFinal(base=options.base, appName=__file__, 
-                                   dataName=os.path.basename(options.data), 
-                                   epoch=options.numEpochs)
-    log.info('Renaming Best Network to [' + bestNetwork + ']')
-    if os.path.exists(bestNetwork) :
-        os.remove(bestNetwork)
-    os.rename(lastSave, bestNetwork)
+    # train the SAE
+    trainUnsupervised(network, __file__, options.data, 
+                      numEpochs=options.limit, stop=options.stop, 
+                      synapse=options.synapse, base=options.base, 
+                      dropout=options.dropout, learnC=options.learnC,
+                      learnF=options.learnF, contrF=options.contrF, 
+                      kernel=options.kernel, neuron=options.neuron, log=log)
 
     # cleanup the network -- this ensures the profile is written
     del network
