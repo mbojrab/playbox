@@ -1,9 +1,10 @@
-import argparse, logging
+import argparse
 
 from nn.net import ClassifierNetwork, TrainerNetwork
 from dataset.pickle import readPickleZip
 from dataset.shared import splitToShared
 from nn.trainUtils import trainSupervised
+from nn.profiler import setupLogging
 
 '''This application will distill dark knowledge out of existing networks and
    into a pickled dataset which can be used as training for smaller deployable
@@ -46,18 +47,8 @@ if __name__ == '__main__' :
     options = parser.parse_args()
 
     # setup the logger
-    log = logging.getLogger('distillery: ' + options.data)
-    log.setLevel(options.level.upper())
-    formatter = logging.Formatter('%(levelname)s - %(message)s')
-    stream = logging.StreamHandler()
-    stream.setLevel(options.level.upper())
-    stream.setFormatter(formatter)
-    log.addHandler(stream)
-    if options.logfile is not None :
-        logFile = logging.FileHandler(options.logfile)
-        logFile.setLevel(options.level.upper())
-        logFile.setFormatter(formatter)
-        log.addHandler(logFile)
+    log = setupLogging('distillery: ' + options.data, 
+                       options.level, options.logfile)
 
     # if the user specified a deep network and dataset, then distill the
     # knowledge into a new pickle to use for training.
