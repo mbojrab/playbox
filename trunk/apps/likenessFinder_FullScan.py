@@ -1,10 +1,10 @@
 import cv2
-import logging
 import os
 import theano
 import numpy as np
 from PIL import Image, ImageDraw
 from nn.datasetUtils import normalize
+from nn.profiler import setupLogging
 
 options = None
 windowName = 'Kirtland AF Base'
@@ -274,18 +274,7 @@ if __name__ == '__main__' :
     options = parser.parse_args()
 
     # setup the logger
-    log = logging.getLogger('likenessFinder')
-    log.setLevel(options.level.upper())
-    formatter = logging.Formatter('%(levelname)s - %(message)s')
-    stream = logging.StreamHandler()
-    stream.setLevel(options.level.upper())
-    stream.setFormatter(formatter)
-    log.addHandler(stream)
-    if options.logfile is not None :
-        logFile = logging.FileHandler(options.logfile)
-        logFile.setLevel(options.level.upper())
-        logFile.setFormatter(formatter)
-        log.addHandler(logFile)
+    log = setupLogging('likenessFinder', options.level, options.logfile)
 
     # read the file into memory
     if log is not None :

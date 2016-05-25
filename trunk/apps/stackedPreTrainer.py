@@ -1,5 +1,5 @@
 import theano.tensor as t
-import argparse, logging
+import argparse
 from time import time
 
 from ae.net import StackedAENetwork
@@ -8,6 +8,7 @@ from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainUnsupervised
 from dataset.shared import splitToShared
+from nn.profiler import setupLogging
 
 '''This is an example Stacked AutoEncoder used for unsupervised pre-training.
    The network topology should match that of the finalize Neural Network
@@ -51,18 +52,8 @@ if __name__ == '__main__' :
     options = parser.parse_args()
 
     # setup the logger
-    log = logging.getLogger('cnnPreTrainer: ' + options.data)
-    log.setLevel(options.level.upper())
-    formatter = logging.Formatter('%(levelname)s - %(message)s')
-    stream = logging.StreamHandler()
-    stream.setLevel(options.level.upper())
-    stream.setFormatter(formatter)
-    log.addHandler(stream)
-    if options.logfile is not None :
-        logFile = logging.FileHandler(options.logfile)
-        logFile.setLevel(options.level.upper())
-        logFile.setFormatter(formatter)
-        log.addHandler(logFile)
+    log = setupLogging('cnnPreTrainer: ' + options.data,
+                       options.level, options.logfile)
 
     # create a random number generator for efficiency
     from numpy.random import RandomState

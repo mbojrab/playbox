@@ -7,8 +7,9 @@ from dataset.shared import splitToShared
 from nn.contiguousLayer import ContiguousLayer
 from nn.trainUtils import trainUnsupervised, trainSupervised
 from nn.net import TrainerNetwork
-import argparse, logging
+import argparse
 from time import time
+from nn.profiler import setupLogging
 
 if __name__ == '__main__' :
     '''This application runs semi-supervised training on a given dataset. The
@@ -64,18 +65,8 @@ if __name__ == '__main__' :
     options = parser.parse_args()
 
     # setup the logger
-    log = logging.getLogger('semiSupervisedTrainer: ' + options.data)
-    log.setLevel(options.level.upper())
-    formatter = logging.Formatter('%(levelname)s - %(message)s')
-    stream = logging.StreamHandler()
-    stream.setLevel(options.level.upper())
-    stream.setFormatter(formatter)
-    log.addHandler(stream)
-    if options.logfile is not None :
-        logFile = logging.FileHandler(options.logfile)
-        logFile.setLevel(options.level.upper())
-        logFile.setFormatter(formatter)
-        log.addHandler(logFile)
+    log = setupLogging('semiSupervisedTrainer: ' + options.data,
+                       options.level, options.logfile)
 
     # create a random number generator for efficiency
     from numpy.random import RandomState
