@@ -32,8 +32,8 @@ def pickleDataset(filepath, batchSize=1, log=None, chipFunc=None, **kwargs) :
     chips = []
     for img in os.listdir(rootpath) :
         try :
-            chips.extend(chipFunc(readImage(
-                os.path.join(rootpath, img), log), **kwargs))
+            chips.extend(chipFunc(readImage(os.path.join(rootpath, img), log),
+                                  **kwargs))
         except IOError : pass
 
     # randomize the data -- otherwise its not stochastic
@@ -68,22 +68,17 @@ def ingestImagery(filepath, shared=False, batchSize=1,
        return   : (trainingData, pixelRegion={None})
     '''
     import os
-    from dataset.shared import splitToShared
+    from dataset.shared import loadShared
     from dataset.pickle import readPickleZip
 
     # read the directory structure and chip it
     if os.path.isdir(filepath) :
         filepath = pickleDataset(filepath, batchSize=batchSize, log=log,
-                                 chipFunc=chipFunc, **kwargs)
+                                 chipFunc=chipFunc, **kwargs['kwargs'])
 
     # Load the dataset to memory
     train = readPickleZip(filepath, log)
 
     # load each into shared variables -- 
     # this avoids having to copy the data to the GPU between each call
-    if shared is True :
-        if log is not None :
-            log.debug('Transfer the memory into shared variables')
-        return splitToShared(train)
-    else :
-        return train
+    return loadShared(train, True, log) if shared is True else train

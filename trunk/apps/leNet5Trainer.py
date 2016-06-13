@@ -1,5 +1,5 @@
 import theano.tensor as t
-import argparse, logging
+import argparse
 from time import time
 from six.moves import reduce
 
@@ -9,6 +9,7 @@ from nn.convolutionalLayer import ConvolutionalLayer
 from dataset.ingest.labeled import ingestImagery
 from dataset.shared import splitToShared
 from nn.trainUtils import trainSupervised
+from nn.profiler import setupLogging
 
 '''This is a simple network in the topology of leNet5 the well-known
    MNIST dataset trainer from Yann LeCun. This is capable of training other
@@ -53,18 +54,8 @@ if __name__ == '__main__' :
     options = parser.parse_args()
 
     # setup the logger
-    log = logging.getLogger('cnnTrainer: ' + options.data)
-    log.setLevel(options.level.upper())
-    formatter = logging.Formatter('%(levelname)s - %(message)s')
-    stream = logging.StreamHandler()
-    stream.setLevel(options.level.upper())
-    stream.setFormatter(formatter)
-    log.addHandler(stream)
-    if options.logfile is not None :
-        logFile = logging.FileHandler(options.logfile)
-        logFile.setLevel(options.level.upper())
-        logFile.setFormatter(formatter)
-        log.addHandler(logFile)
+    log = setupLogging('cnnTrainer: ' + options.data,
+                       options.level, options.logfile)
 
     # create a random number generator for efficiency
     from numpy.random import RandomState

@@ -17,7 +17,7 @@ class StackedAENetwork (Network) :
     def __init__ (self, train, log=None) :
         Network.__init__ (self, log)
         self._indexVar = t.lscalar('index')
-        self._trainData, self._trainLabels = train
+        self._trainData = train
         self._numTrainBatches = self._trainData.get_value(borrow=True).shape[0]
         self._greedyTrainer = []
 
@@ -34,7 +34,6 @@ class StackedAENetwork (Network) :
         # remove the functions -- they will be rebuilt JIT
         if '_indexVar' in dict : del dict['_indexVar']
         if '_trainData' in dict : del dict['_trainData']
-        if '_trainLabels' in dict : del dict['_trainLabels']
         if '_numTrainBatches' in dict : del dict['_numTrainBatches']
         if '_greedyTrainer' in dict : del dict['_greedyTrainer']
         return dict
