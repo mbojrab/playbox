@@ -3,6 +3,7 @@ import logging
 import os
 import theano
 import numpy as np
+from six.moves import reduce
 from PIL import Image, ImageDraw
 from nn.datasetUtils import normalize
 

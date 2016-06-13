@@ -1,5 +1,5 @@
-from layer import Layer
-from profiler import Profiler
+from nn.layer import Layer
+from nn.profiler import Profiler
 import theano.tensor as t
 import theano
 import numpy as np

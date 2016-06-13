@@ -1,4 +1,4 @@
-import cPickle
+from six.moves import cPickle
 import gzip
 def writePickleZip (outputFile, data, log=None) :
     '''Utility to write a pickle to disk.

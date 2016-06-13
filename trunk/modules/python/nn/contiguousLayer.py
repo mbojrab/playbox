@@ -1,4 +1,5 @@
-from layer import Layer
+import six
+from nn.layer import Layer
 import numpy as np
 from theano import config, shared, dot, function
 from theano.tensor.nnet import sigmoid
@@ -45,7 +46,8 @@ class ContiguousLayer(Layer) :
         # The input layer will only have a scalar so its duplicated here
         self.input = input if isinstance(input, tuple) else (input, input)
         self._inputSize = inputSize
-        if isinstance(self._inputSize, long) or len(self._inputSize) is not 2 :
+        if isinstance(self._inputSize, six.integer_types) or \
+           len(self._inputSize) is not 2 :
             self._inputSize = (1, inputSize)
         self._numNeurons = numNeurons
 
