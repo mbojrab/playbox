@@ -77,7 +77,7 @@ class Profiler () :
             while not self._profileStack.empty() :
                 self.endProfile()
             # write the xml to disk
-            with open(self._profileFile, 'w') as f :
+            with open(self._profileFile, 'wb') as f :
                 f.write(et.tostring(self._root, pretty_print=True))
 
 if __name__ == '__main__' :
