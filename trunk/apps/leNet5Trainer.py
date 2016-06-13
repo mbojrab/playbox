@@ -1,6 +1,7 @@
 import theano.tensor as t
 import argparse, logging
 from time import time
+from six.moves import reduce
 
 from nn.net import TrainerNetwork as Net
 from nn.contiguousLayer import ContiguousLayer

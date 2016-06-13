@@ -1,4 +1,5 @@
 import theano.tensor as t
+from six.moves import reduce
 from ae.net import StackedAENetwork
 from ae.contiguousAE import ContractiveAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder

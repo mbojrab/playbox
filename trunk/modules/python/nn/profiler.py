@@ -1,5 +1,5 @@
 from timeit import default_timer as timer
-from Queue import LifoQueue as queue
+from six.moves.queue import LifoQueue as queue
 import lxml.etree as et
 import logging
 

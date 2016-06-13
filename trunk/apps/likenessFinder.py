@@ -2,6 +2,7 @@ import cv2
 import logging
 import os
 import numpy as np
+from six.moves import reduce
 from PIL import Image, ImageDraw, ImageFont
 
 options = None

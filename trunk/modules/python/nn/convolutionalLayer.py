@@ -1,4 +1,4 @@
-from layer import Layer
+from nn.layer import Layer
 import numpy as np
 from theano.tensor import tanh, switch
 from theano import shared, config, function
@@ -145,8 +145,8 @@ class ConvolutionalLayer(Layer) :
            (batch size, number of kernels, rows, columns)'''
         fShape = self.getFeatureSize()
         return (fShape[0], fShape[1],
-                fShape[2] / self._downsampleFactor[0],
-                fShape[3] / self._downsampleFactor[1])
+                int(fShape[2] / self._downsampleFactor[0]),
+                int(fShape[3] / self._downsampleFactor[1]))
 
     # DEBUG: For Debugging purposes only 
     def writeWeights(self, ii) :
