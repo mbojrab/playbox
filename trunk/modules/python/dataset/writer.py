@@ -26,8 +26,9 @@ def buildPickleInterim(base, epoch, dropout=None, learnC=None, learnF=None,
 def buildPickleFinal(base, appName, dataName, epoch, 
                      accuracy=None, cost=None) :
     '''Create a structured name for the final synapse.'''
-    from os.path import splitext
-    outName = base + 'Final_' + str(splitext(appName)[0]) + '_' + str(dataName)
+    from os.path import splitext, basename
+    outName = base + 'Final_' + \
+              str(splitext(basename(appName))[0]) + '_' + str(dataName)
     if accuracy is not None :
         outName += '_acc'+ str(accuracy)
     if cost is not None :
