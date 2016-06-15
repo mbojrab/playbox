@@ -32,6 +32,8 @@ def convertPhaseAmp(imData, log=None) :
 '''TODO: These methods may need to be implemented as derived classes.'''
 def openSICD(image, log=None) :
     '''This method reads the XML and complex data from SICD.'''
+def openSICD (image, log=None) :
+    '''This method reads the XML and complex data from SICD.'''
     import pysix.six_sicd
 
     # setup the schema validation if the user has it specified
@@ -48,6 +50,11 @@ def openSICD(image, log=None) :
 def readSICD(image, log=None) :
     '''This method should read and prepare the data for training or testing.'''
     wbData, cmplxData = openSICD(image, log)
+    return (wbData, cmplxData)
+
+def readSICD(image, log=None) :
+    '''This method should read a prepare the data for training or testing.'''
+    wbData, cmplxData = openSICD(image, log)
     return convertPhaseAmp(wbData, log)
 
 def readSIDD(image, log=None) :
@@ -60,6 +67,7 @@ def openSIO(image, log=None) :
 
 def readSIO(image, log=None) :
     imData = openSIO(image, log)
+    imData = openSIO(image)
     if imData.dtype == np.complex64 :
         return convertPhaseAmp(imData, log)
     else :
