@@ -9,13 +9,31 @@ from pysix import six_sicd
 from coda import sio_lite
 from six import text_type
 
+def getResearchXML(sicdFile) :
+    return sicdFile.replace('_SICD.nitf', '-research.xml')
+
 def parseXML(filePath) : 
     '''Parse the XML using etree'''
     from io import StringIO
     with open(filePath, 'r') as f: 
         return etree.parse(StringIO(text_type(f.read())))
 
-def parseMSTAR (options) :
+def grabChip(sioData, observation, chipSize) :
+    '''Extract the object location from the buffer.''' 
+    halfChip = int(chipSize / 2)
+    Row = observation.find('.//Row')
+    Col = observation.find('.//Col')
+    if Row != None and Col != None :
+        rowStart = max(int(Row.text) - halfChip, 0)
+        colStart = max(int(Col.text) - halfChip, 0)
+        return (sioData[rowStart : rowStart + chipSize, 
+                        colStart : colStart + chipSize],
+                (rowStart, rowStart + chipSize,
+                 colStart, colStart + chipSize))
+    else :
+        return None
+
+def parseMSTAR(options) :
     '''Walks the directory structure and chips the imagery into directories.'''
     from pysix.six_base import VectorString
     import fnmatch
@@ -39,17 +57,16 @@ def parseMSTAR (options) :
                               for f in fnmatch.filter(files, '*_SICD.nitf')])
 
     # start processing
-    halfChip = int(options.chipSize / 2)
     labels = {}
     for sicd in sicds :
-        
+
         print ("Processing [" + sicd + "]")
 
         # read the SICD
         sioData, cmplx = six_sicd.read(sicd, schemaPaths)
 
         # the research XML explains the locations of all vehicles
-        xmlFile = sicd.replace('_SICD.nitf', '-research.xml')
+        xmlFile = getResearchXML(sicd)
         xmlETree = parseXML(xmlFile)
         for observation in xmlETree.getroot().iter("Object") :
 
@@ -60,22 +77,23 @@ def parseMSTAR (options) :
                 labels[label] = 0
                 if not os.path.exists(labelDir) : os.makedirs(labelDir)
 
-            Row = observation.find('.//Row')
-            Col = observation.find('.//Col')
-            if Row != None and Col != None :
-                
+            chip = grabChip(sioData, observation, options.chipSize)
+            if chip is not None :
                 outFile = sicd.replace(options.input, '')
                 outFile = outFile.replace(os.path.sep, '_')
                 outFile = outFile.replace('SICD.nitf', str(labels[label]))
                 outFile = os.path.join(labelDir, outFile)
                 labels[label] += 1
 
+                # write the chip
+                sio_lite.write(chip[0], outFile + '.sio')
+
                 # write the XML if it was requested
                 if options.writeXML :
 
                     newXmlETree = etree.ElementTree(observation)
                     newRoot = newXmlETree.getroot()
-                    
+
                     def addElement(root, elem, data) :
                         newElem = etree.SubElement(root, elem)
                         newElem.text = data
@@ -83,12 +101,6 @@ def parseMSTAR (options) :
                     addElement(newRoot, 'sicdXmlPath', sicd)
                     newXmlETree.write(outFile + '.xml')
 
-                # write the chip
-                rowStart = max(int(Row.text) - halfChip, 0)
-                colStart = max(int(Col.text) - halfChip, 0)
-                sio_lite.write(sioData[rowStart : rowStart + options.chipSize, 
-                                       colStart : colStart + options.chipSize],
-                               outFile + '.sio')
 
 if __name__ == "__main__" :
 
