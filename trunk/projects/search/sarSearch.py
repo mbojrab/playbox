@@ -54,8 +54,6 @@ def selectiveSearch (imagePath, confDir) :
     detected = detectImage(wbData, opts, threads)
 
     im = Image.fromarray(detected)
-    #im.thumbnail((detected.shape[0], detected.shape[1]),
-    #             Image.ANTIALIAS)
 
     windowName = "DetectedImage"
     while True :

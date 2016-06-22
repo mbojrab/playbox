@@ -37,7 +37,7 @@ def selectRegion (event, x, y, flags, param) :
                      misLocation[1][0], misLocation[1][1]))),
                     (1, 1, options.chipSize, options.chipSize)))[1][0]
             if refLocation == None :
-                print "Please select a reference region!"
+                print("Please select a reference region!")
             else :
                 likeness = np.dot(referenceVector, matchVector)
 
