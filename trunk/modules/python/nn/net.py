@@ -113,6 +113,17 @@ class ClassifierNetwork (Network) :
             delattr(self, '_classifyAndSoftmax')
         Network.__setstate__(self, dict)
 
+    def getNetworkLabels(self) :
+        '''Return the Labels for the network. All other interactions with
+           training and accuracy deal with the label index, so this decodes
+           it into a string classification.
+        '''
+        return self._networkLabels
+
+    def convertToLabels(self, labelIndices) :
+        '''Return the string labels for a vector of indices.'''
+        return [self._networkLabels[ii] for ii in labelIndices]
+
     def addLayer(self, layer) :
         '''Add a Layer to the network.'''
         if not isinstance(layer, Layer) :
