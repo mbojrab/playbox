@@ -1,4 +1,29 @@
+header {
+  width: 800px;
+  margin: 40px auto;
+}
+
 body {
-    background: #242325;
-    color: #DC965A;
+  font-family: "Lucida Grande", "Lucida Sans Unicode", Verdana, Helvetica, Arial, sans-serif;
+  font: 14px/1 'Open Sans', sans-serif;
+  color: #;
+  background-image: linear-gradient( rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7) ), url('background.jpg');
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+mstar {
+  position: center;
+  font-size: 40px;
+  text-align: left;
+}
+.redText
+{
+  color: red;
+  font-weight: 700;
+}
+.whiteText
+{
+  color: white;
+  font-weight: lighter;
 }
