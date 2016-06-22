@@ -2,6 +2,7 @@ from timeit import default_timer as timer
 from six.moves.queue import LifoQueue as queue
 import lxml.etree as et
 import logging
+import atexit
 
 def setupLogging(appName, level, logfile=None) :
     import logging
@@ -32,6 +33,7 @@ class Profiler () :
         
         # start a profile for the program level
         self.startProfile(name, 'critial')
+        atexit.register(self.cleanup)
 
     def startProfile (self, message, level='debug') :
         '''Add a profile to the stack. This is a nested call in lifo order'''
@@ -70,7 +72,7 @@ class Profiler () :
                 # just log it to debug
                 self._log.debug(message)
 
-    def __del__(self) :
+    def cleanup(self) :
         '''Write the profile stack to a file'''
         if self._profileFile is not None :
             # close up any loose ends
