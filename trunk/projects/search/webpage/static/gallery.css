@@ -18,13 +18,32 @@
   background: transparent;
 }
 
-div.swiper-container {
-    width: 500px;
-    height: 300px;
-    margin-top: -45px;
+iframe {
+  margin-top: 565;
+  height: 200;
+  width: 100%;
+  background: transparent;
+  overflow: hidden;
+  border: none;
+  z-index: 3;
 }
 
-div.swiper-wrapper {
+div.s1 {
+    /*top: 25;*/
+    width: 500px;
+    height: 200px;
+    margin-top: -45px;
+    z-index: 3;
+}
+
+p.banner {
+  width: 100px;
+  text-align: center;
+  color: #FFF;
+  font-family: sans-serif;
+}
+
+div.gallery-swiper {
     margin-top: 45px;
     overflow: visible !important;
     z-index: 1;
@@ -38,8 +57,40 @@ div.swiper-wrapper {
   z-index: 0;
 }
 
+.s2 {
+  width: 500px;
+  height: 604px;
+  /*position: absolute;
+  left: 50%;
+  top: 50%;*/
+  margin-left: -150px;
+  margin-top: -150px;
+}
+
+.s2 .swiper-slide {
+  background-position: center;
+  background-size: cover;
+}
+
+.s2 button {
+  float: right;
+  margin-right: 5px; 
+  margin-top: 5px; 
+  background: transparent;
+  border: none;
+}
+
+.s2 button > img {
+  width: 30px;
+  height: 30px;
+  /*background-repeat: no-repeat;
+  background-position: 50% 50%;*/
+  border: none;
+  background: transparent; 
+}
+
 overview.swiper-container {
-    width: 500px;
+  width: 500px;
 }
 
 .overview > div > img {
@@ -49,17 +100,17 @@ overview.swiper-container {
   display: block;
 }
 
-.swiper-wrapper > div > img {
+.gallery-swiper > div > img {
   width: 100px;
   transform: translateZ(0); /* hack */
 }
 
-.swiper-wrapper > div:hover {
+.gallery-swiper > div:hover {
   z-index: 1;
 }
 
-.swiper-wrapper > div:hover > img {
-  transform: scale(1.7,1.7);
+.gallery-swiper > div:hover > img, .gallery-swiper > div:hover > p {
+  transform: scale(1.5,1.5);
   transition: .2s transform;
   box-shadow: 0 2px 10px rgba(0,0,0,.5);
 }

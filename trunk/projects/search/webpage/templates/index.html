@@ -6,6 +6,7 @@
     <!--<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/css/swiper.css">-->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/css/swiper.min.css">
 
+    <script src="http://spin.js.org/spin.js"></script>
     <script src="https://code.jquery.com/jquery-3.0.0.min.js" integrity="sha256-JmvOoLtYsmqlsWxa7mDSLMwa6dZ9rrIdtrrVYRnDRH0=" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/js/swiper.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/js/swiper.min.js"></script>
@@ -15,42 +16,33 @@
 </head>
 <body>
     <div class="container">
-        <mstar class="redText">MSTAR</span><span class="whiteText">Dataset</h1>
-        <br />
-        <overview ><img src="/static/hb03451_full.jpeg" /></overview>
-        <!--
-        <overview id="overviewGallery" class="swiper-container s2">
-            <div class="swiper-wrapper">
-                <div class="swiper-slide"><img src="/static/hb03451_full.jpeg" /></div>
-                <div class="swiper-slide"><img src="/static/hb03451_full.jpeg" /></div>
-                <div class="swiper-slide"><img src="/static/hb03451_full.jpeg" /></div>
-                <div class="swiper-slide"><img src="/static/hb03451_full.jpeg" /></div>
+        <h1 class="mstar redText"><span id="wipe">MSTAR</span><span class="mstar whiteText">Dataset</span></h1>
+        <overview>
+            <div class="swiper-container s2">
+                <div class="swiper-wrapper">
+                    {{overviewBlock|safe}}
+                    <!--
+                    <div class="swiper-slide" style="background-image:url(/static/hb00350_full.jpeg)">
+                        <button id="hb00350_SICD.nitf" ><img src="/static/gear.png" /></button>
+                        <iframe scrolling="no" src="/slider/hb00350_SICD.nitf"></iframe>
+                    </div>
+                    <div class="swiper-slide" style="background-image:url(/static/hb00351_full.jpeg)">
+                        <button id="hb00351_SICD.nitf" style="background-image:url(/static/gear.png)"></button>
+                        <iframe scrolling="no" src="/slider/hb00351_SICD.nitf"></iframe>
+                    </div>
+                    <div class="swiper-slide" style="background-image:url(/static/hb00763_full.jpeg)"></div>
+                    <div class="swiper-slide" style="background-image:url(/static/hb03451_full.jpeg)"></div>
+                    <div class="swiper-slide" style="background-image:url(/static/hb02865_full.jpeg)"></div>
+                    -->
+                </div>
+                <div class="swiper-pagination"></div>
             </div>
-            <div class="swiper-pagination"></div>
-            <div class="swiper-button-prev"></div>
-            <div class="swiper-button-next"></div>
         </overview>
-        -->
-    </div>
-    <div class="swiper-container s1">
-        <div class="swiper-wrapper">
-            {{chipBlock|safe}}
-        </div>
     </div>
     <script>
       $(document).ready(function () {
-      var swiper1 = new Swiper ('.s1', {
-        // Optional parameters
-        direction: 'horizontal',
-        //loop: true,
-
-
-        slidesPerView: 4.5,
-        paginationClickable: true,
-        spaceBetween: 5
-      })
-      /*
-      var swiper = new Swiper('.s2', {
+      var swiper2 = new Swiper('.s2', {
+        pagination: '.swiper-pagination',
         effect: 'cube',
         grabCursor: true,
         cube: {
@@ -58,18 +50,60 @@
             slideShadows: true,
             shadowOffset: 20,
             shadowScale: 0.94
-        }
+      }})
 
-        // If we need pagination
-        pagination: '.swiper-pagination',
+      var refresh = function(iframe) {
+        var f = $(iframe);
+        f.attr('src', f.attr('src'));
+      };
 
-        // Navigation arrows
-        nextButton: '.swiper-button-next',
-        prevButton: '.swiper-button-prev',
+      $('button').on('click', function() {
+        var _self = $(this);
+        var id = _self.attr('id');
+        
+        _self.attr('disabled', true);
+        
+        var p = _self.parent();
+        var spinner = new Spinner({
+            color: '#F00'
+            , shadow: true // Whether to render a shadow
+            , hwaccel: true // Whether to use hardware acceleration
+        }).spin();
+        p.append(spinner.el);
 
-        // And if we need scrollbar
-        scrollbar: '.swiper-scrollbar'
-      */
+        $.get('/process/' + id, function(data) {
+            
+            p.css('background-image', 'url(../' + data + ')');
+
+            refresh($(p).find('iframe'));
+            //var f = $(p).find('iframe');
+            //f.attr('src', f.attr('src'));
+            // TODO: end busy signal
+
+            spinner.stop();
+            _self.css('display', 'none');
+            _self.attr('disabled', false);
+        });
+      });
+      $('#wipe').on('click', function() {
+        $.get('/reset/', function(data) {
+
+            $('iframe').each(function() {
+                refresh($(this));
+            });
+
+            $('.swiper-slide').each(function(){
+                var t = $(this);        
+                t.css('background-image',
+                    t.css('background-image').replace(/_class/, '_full'));
+            });
+
+            $('button').each(function(){
+                $(this).css('display', 'inline');
+                $(this).attr('disabled', false);
+            });
+        });
+      });
     });
     </script>
 </body>
