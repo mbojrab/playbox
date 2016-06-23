@@ -4,6 +4,13 @@
   box-sizing: border-box;
 }
 
+.blowup {
+  position: relative;
+  display: block;
+  width: 100px;
+  transform: translateZ(0); /* hack */
+}
+
 .container {
   width: 500px;
   margin: auto;
@@ -11,47 +18,48 @@
   background: transparent;
 }
 
+div.swiper-container {
+    width: 500px;
+    height: 300px;
+    margin-top: -45px;
+}
+
+div.swiper-wrapper {
+    margin-top: 45px;
+    overflow: visible !important;
+    z-index: 1;
+} 
+
 .overview {
   margin: auto;
   position: left;
   padding: 5px;
   background: transparent; 
+  z-index: 0;
 }
 
-.overview > img {
+overview.swiper-container {
+    width: 500px;
+}
+
+.overview > div > img {
   width: 500px;
   margin: left;
   position: center;
   display: block;
 }
 
-.gallery {
-  width: 300000px; /*hack*/
-  margin: auto;
-  position: center;
-  padding: 5px;
-  background: transparent; 
-}
-
-.gallery > div {
-  position: relative;
-  float: left;
-  padding: 5px;
-}
-
-.gallery > div > img {
-  display: block;
+.swiper-wrapper > div > img {
   width: 100px;
-  transition: .1s transform;
   transform: translateZ(0); /* hack */
 }
 
-.gallery > div:hover {
+.swiper-wrapper > div:hover {
   z-index: 1;
 }
 
-.gallery > div:hover > img {
-  transform: scale(1.2,1.2);
+.swiper-wrapper > div:hover > img {
+  transform: scale(1.7,1.7);
   transition: .2s transform;
   box-shadow: 0 2px 10px rgba(0,0,0,.5);
 }

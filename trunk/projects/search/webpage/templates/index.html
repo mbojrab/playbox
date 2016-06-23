@@ -1,71 +1,76 @@
 <html>
 <head>
+
     <link rel="stylesheet" href="/static/style.css?q={{datetime}}" />
     <link rel="stylesheet" href="/static/gallery.css?q={{datetime}}" />
+    <!--<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/css/swiper.css">-->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/css/swiper.min.css">
+
+    <script src="https://code.jquery.com/jquery-3.0.0.min.js" integrity="sha256-JmvOoLtYsmqlsWxa7mDSLMwa6dZ9rrIdtrrVYRnDRH0=" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/js/swiper.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/js/swiper.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/js/swiper.jquery.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/js/swiper.jquery.min.js"></script>
+
 </head>
 <body>
     <div class="container">
         <mstar class="redText">MSTAR</span><span class="whiteText">Dataset</h1>
-        </br>
-        <overview>
-            <img src="/static/hb03451__full.jpeg" />
+        <br />
+        <overview ><img src="/static/hb03451_full.jpeg" /></overview>
+        <!--
+        <overview id="overviewGallery" class="swiper-container s2">
+            <div class="swiper-wrapper">
+                <div class="swiper-slide"><img src="/static/hb03451_full.jpeg" /></div>
+                <div class="swiper-slide"><img src="/static/hb03451_full.jpeg" /></div>
+                <div class="swiper-slide"><img src="/static/hb03451_full.jpeg" /></div>
+                <div class="swiper-slide"><img src="/static/hb03451_full.jpeg" /></div>
+            </div>
+            <div class="swiper-pagination"></div>
+            <div class="swiper-button-prev"></div>
+            <div class="swiper-button-next"></div>
         </overview>
-        <div class="gallery cf">
-            <div>
-                <img src="/static/hb03451__0.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__1.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__2.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__3.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__4.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__5.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__6.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__7.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__8.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__9.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__10.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__11.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__12.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__13.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__14.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__15.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__16.jpeg" />
-            </div>
-            <div>
-                <img src="/static/hb03451__17.jpeg" />
-            </div>
+        -->
+    </div>
+    <div class="swiper-container s1">
+        <div class="swiper-wrapper">
+            {{chipBlock|safe}}
         </div>
     </div>
+    <script>
+      $(document).ready(function () {
+      var swiper1 = new Swiper ('.s1', {
+        // Optional parameters
+        direction: 'horizontal',
+        //loop: true,
+
+
+        slidesPerView: 4.5,
+        paginationClickable: true,
+        spaceBetween: 5
+      })
+      /*
+      var swiper = new Swiper('.s2', {
+        effect: 'cube',
+        grabCursor: true,
+        cube: {
+            shadow: true,
+            slideShadows: true,
+            shadowOffset: 20,
+            shadowScale: 0.94
+        }
+
+        // If we need pagination
+        pagination: '.swiper-pagination',
+
+        // Navigation arrows
+        nextButton: '.swiper-button-next',
+        prevButton: '.swiper-button-prev',
+
+        // And if we need scrollbar
+        scrollbar: '.swiper-scrollbar'
+      */
+    });
+    </script>
 </body>
 </html>
