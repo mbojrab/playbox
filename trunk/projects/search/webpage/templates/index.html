@@ -3,15 +3,12 @@
 
     <link rel="stylesheet" href="/static/style.css?q={{datetime}}" />
     <link rel="stylesheet" href="/static/gallery.css?q={{datetime}}" />
-    <!--<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/css/swiper.css">-->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/css/swiper.min.css">
+    <link rel="stylesheet" href="/static/swiper.min.css?q={{datetime}}">
 
-    <script src="http://spin.js.org/spin.js"></script>
-    <script src="https://code.jquery.com/jquery-3.0.0.min.js" integrity="sha256-JmvOoLtYsmqlsWxa7mDSLMwa6dZ9rrIdtrrVYRnDRH0=" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/js/swiper.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/js/swiper.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/js/swiper.jquery.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Swiper/3.3.1/js/swiper.jquery.min.js"></script>
+    <script src="/static/spin.min.js?q={{datetime}}"></script>
+    <script src="/static/jquery-3.0.0.min.js?q={{datetime}}"></script>
+    <script src="/static/swiper.min.js?q={{datetime}}"></script>
+    <script src="/static/swiper.jquery.min.js?q={{datetime}}"></script>
 
 </head>
 <body>
@@ -21,19 +18,6 @@
             <div class="swiper-container s2">
                 <div class="swiper-wrapper">
                     {{overviewBlock|safe}}
-                    <!--
-                    <div class="swiper-slide" style="background-image:url(/static/hb00350_full.jpeg)">
-                        <button id="hb00350_SICD.nitf" ><img src="/static/gear.png" /></button>
-                        <iframe scrolling="no" src="/slider/hb00350_SICD.nitf"></iframe>
-                    </div>
-                    <div class="swiper-slide" style="background-image:url(/static/hb00351_full.jpeg)">
-                        <button id="hb00351_SICD.nitf" style="background-image:url(/static/gear.png)"></button>
-                        <iframe scrolling="no" src="/slider/hb00351_SICD.nitf"></iframe>
-                    </div>
-                    <div class="swiper-slide" style="background-image:url(/static/hb00763_full.jpeg)"></div>
-                    <div class="swiper-slide" style="background-image:url(/static/hb03451_full.jpeg)"></div>
-                    <div class="swiper-slide" style="background-image:url(/static/hb02865_full.jpeg)"></div>
-                    -->
                 </div>
                 <div class="swiper-pagination"></div>
             </div>
@@ -76,12 +60,8 @@
             p.css('background-image', 'url(../' + data + ')');
 
             refresh($(p).find('iframe'));
-            //var f = $(p).find('iframe');
-            //f.attr('src', f.attr('src'));
-            // TODO: end busy signal
-
             spinner.stop();
-            _self.css('display', 'none');
+            _self.css('visibility', 'hidden');
             _self.attr('disabled', false);
         });
       });
@@ -98,8 +78,8 @@
                     t.css('background-image').replace(/_class/, '_full'));
             });
 
-            $('button').each(function(){
-                $(this).css('display', 'inline');
+            $('button').each(function() {
+                $(this).css('visibility', 'visible');
                 $(this).attr('disabled', false);
             });
         });
