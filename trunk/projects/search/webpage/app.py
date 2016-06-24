@@ -2,6 +2,7 @@ from flask import Flask, render_template
 
 import os
 import fnmatch
+import random
 import PIL.Image as Image
 from inferEngine import classifyImage, parseImage
 
@@ -13,25 +14,20 @@ batchSet = 0
 opts = 0
 threads = 0
 labelColors = 0
-labelColors = 0
 cssStyle = 0
 
 # static globals
-colors = [[[187,38,90],
-           [210,100,100],
-           [245,45,38],
-           [340,1,94],
-           [261,11,90]],  
-          [[195,80,49],
-           [180,77,69],
-           [47,61,96],
-           [28,68,93],
-           [240,30,29]],
-          [[166,100,100],
-           [40,26,72],
-           [199,34,98],
-           [28,59,86],
-           [270,5,15]]]
+colors = [[36,153,56],
+          [234,96,53],
+          [98,70,107],
+          [255,36,36],
+          [147,163,177],
+          [202,186,200],
+          [249,160,63],
+          [66,230,235],
+          [244,228,9],
+          [218,214,214]] # MISC
+
 sicdDir = './demoImagery/'
 staticDir = './static/'
 imExt = '.jpeg'
@@ -57,7 +53,7 @@ def initializeGlobals(options) :
     labelColors = {}
     cssStyle = ''
     for ii, label in enumerate(network.getNetworkLabels()) :
-        labelColors[label] = colors[options.color][ii]
+        labelColors[label] = colors[ii]
         hexCode = ('%02x%02x%02x' % tuple(labelColors[label]))
         cssStyle += 'img.' + label + '{\nborder: 4px #' + hexCode + ' solid;\n}\n'
         cssStyle += 'img.' + label + ' + p.banner {\nbackground-color: #' + hexCode + ';\n}\n'
@@ -88,7 +84,12 @@ def processSICD(sicd) :
         wbData, objects = parseImage(sicd)
         over, chips, locs, results = classifyImage(
             network, batchSet, wbData, objects, opts, threads, None)
+
+        # extract info
         labels = network.convertToLabels(results[0])
+        confidence = []
+        for ii, index in enumerate(results[0]) :
+            confidence.append(results[1][ii][index])
 
         # get a base locations for naming
         base = getBase(sicd)
@@ -96,8 +97,9 @@ def processSICD(sicd) :
         # write the chips
         for ii, chip in enumerate(chips) :
             labelStr = labels[ii]
-            Image.fromarray(chip).save(
-                base + '-' + labelStr + '-__' + str(ii) + imExt)
+            Image.fromarray(chip).save(base + '-' + labelStr + 
+                                              '-' + str(confidence[ii]) + 
+                                              '-__' + str(ii) + imExt)
 
         # scale the overview image
         over, factor = scaleOverview(over)
@@ -130,18 +132,21 @@ def detectedFull(sicd) :
 
 def genImageSlider(images) :
     # generate the text block for these images
+    rand = str(random.random())
     textBlock = ''
     for im in images :
+        name = im.split('-')
         textBlock += '<div class="swiper-slide blowup"><img class="{0}" ' \
-                     'src="/static/{1}" />'\
-                     '<p class="banner">{0}</p></div>'.format(im.split('-')[1],
-                                                              im)
+                     'src="/static/{2}?{3}" />'\
+                     '<p class="banner">{0} : {1}</p></div>'.format(
+                         name[1], name[2], im, rand)
     return textBlock
 
 def getFullOverviews() :
     return [detectedFull(sicd) for sicd in getSICDs(sicdDir)]
 
 def genOverview() :
+    rand = str(random.random())
     textBlock = ''
     for sicd in getSICDs(sicdDir) :
         baseSicd = os.path.basename(sicd)
@@ -149,11 +154,10 @@ def genOverview() :
         filename = getBase(sicd) + '_class' + imExt
         if not os.path.exists(filename) :
             filename = getBase(sicd) + '_full' + imExt
-        
-        textBlock += '<div class="swiper-slide" style="background-image:url(../' + filename + ')">' \
-                         '<button id="' + baseSicd + '" ><img src="/static/gear.png" /></button>' \
-                         '<iframe scrolling="no" src="/slider/' + baseSicd + '"></iframe>' \
-                     '</div>\n'
+        textBlock += '<div class="swiper-slide" style="background-image:url(../{0}?{2})">' \
+                         '<button id="{1}" ><img src="/static/icon_red_search.png" /></button>' \
+                         '<iframe scrolling="no" src="/slider/{1}"></iframe>' \
+                     '</div>\n'.format(filename, baseSicd, rand)
 
     return textBlock
 
@@ -172,13 +176,10 @@ def wipeAll() :
 
 @app.route('/process/<sicd>')
 def processImage(sicd) :
-
     return str(processSICD(os.path.join(sicdDir, sicd)))
 
 @app.route('/slider/<sicd>')
 def getSlider(sicd) :
-    import random
-    import fnmatch
     images = fnmatch.filter(os.listdir(staticDir), sicd[:7] + '*__*' + imExt)
     return render_template(
         'image.html', sicd=sicd,
@@ -188,7 +189,6 @@ def getSlider(sicd) :
 
 @app.route('/cnn/')
 def getOveriew() :
-    import random
     return render_template(
         'index.html', 
         datetime=str(random.random()),
@@ -214,4 +214,4 @@ if __name__ == '__main__':
     options = parser.parse_args()
 
     initializeGlobals(options)
-    app.run(host='0.0.0.0', port=4200)
+    app.run(host='0.0.0.0', port=5020)
