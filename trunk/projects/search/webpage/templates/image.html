@@ -1,0 +1,30 @@
+<html>
+<head>
+    <link rel="stylesheet" href="/static/gallery.css?q={{datetime}}" />
+    <link rel="stylesheet" href="/static/swiper.min.css?q={{datetime}}">
+
+    <script src="/static/jquery-3.0.0.min.js?q={{datetime}}"></script>
+    <script src="/static/swiper.min.js?q={{datetime}}"></script>
+    <script src="/static/swiper.jquery.min.js?q={{datetime}}"></script>
+    <style>
+        {{cssStyle|safe}}
+    </style>
+
+</head>
+<body>
+    <div class="swiper-container s1">
+        <div class="swiper-wrapper gallery-swiper">
+            {{chipBlock|safe}}
+        </div>
+    </div>
+    <script>
+      $(document).ready(function () {
+      var swiper1 = new Swiper ('.s1', {
+        direction: 'horizontal',
+        slidesPerView: 4.5,
+        paginationClickable: true,
+        spaceBetween: 5
+      })});
+    </script>
+</body>
+</html>
