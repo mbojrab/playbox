@@ -20,13 +20,12 @@
 
 iframe {
   margin-top: 530;
-  height: 200;
+  height: 230px;
   width: 100%;
   background: transparent;
   overflow: hidden;
   border: none;
   z-index: 3;
-  height: 200px;
 }
 
 .swiper-pagination {
