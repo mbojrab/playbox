@@ -17,16 +17,24 @@ labelColors = 0
 cssStyle = 0
 
 # static globals
-colors = [[36,153,56],
-          [234,96,53],
+colors = [[234,96,53],
           [98,70,107],
-          [255,36,36],
-          [147,163,177],
+          [145, 0, 232],
+          [67,255,20],
           [202,186,200],
           [249,160,63],
-          [66,230,235],
-          [244,228,9],
-          [218,214,214]] # MISC
+          [66,245, 235],
+          [147, 232, 157],
+          [33, 37, 99],
+          [255, 0, 12],
+          [255, 223, 15],
+          [249, 67, 94],
+          [31, 26, 49],
+          [255,10,240],
+          [28, 60, 99],
+          [0, 95, 203],
+          [218, 76, 57],
+          [255,36,36]]
 
 sicdDir = './demoImagery/'
 staticDir = './static/'
@@ -55,8 +63,9 @@ def initializeGlobals(options) :
     for ii, label in enumerate(network.getNetworkLabels()) :
         labelColors[label] = colors[ii]
         hexCode = ('%02x%02x%02x' % tuple(labelColors[label]))
-        cssStyle += 'img.' + label + '{\nborder: 4px #' + hexCode + ' solid;\n}\n'
-        cssStyle += 'img.' + label + ' + p.banner {\nbackground-color: #' + hexCode + ';\n}\n'
+        labelStr = label.replace('-', ' ').replace(' ', '_')
+        cssStyle += 'img.' + labelStr + '{\nborder: 4px #' + hexCode + ' solid;\n}\n'
+        cssStyle += 'img.' + labelStr + ' + p.banner {\nbackground-color: #' + hexCode + ';\n}\n'
 
 def getSICDs(sicdDir) :
     return [os.path.join(sicdDir, f) for f in os.listdir(sicdDir) \
@@ -96,7 +105,7 @@ def processSICD(sicd) :
 
         # write the chips
         for ii, chip in enumerate(chips) :
-            labelStr = labels[ii]
+            labelStr = labels[ii].replace('-', ' ').replace(' ', '_')
             Image.fromarray(chip).save(base + '-' + labelStr + 
                                               '-' + str(confidence[ii]) + 
                                               '-__' + str(ii) + imExt)
@@ -137,9 +146,9 @@ def genImageSlider(images) :
     for im in images :
         name = im.split('-')
         textBlock += '<div class="swiper-slide blowup"><img class="{0}" ' \
-                     'src="/static/{2}?{3}" />'\
-                     '<p class="banner">{0} : {1}</p></div>'.format(
-                         name[1], name[2], im, rand)
+                     'src="/static/{3}?{4}" />'\
+                     '<p class="banner">{1} : {2}</p></div>'.format(
+                         name[1], name[1].replace('_', ' '), name[2], im, rand)
     return textBlock
 
 def getFullOverviews() :
@@ -154,10 +163,11 @@ def genOverview() :
         filename = getBase(sicd) + '_class' + imExt
         if not os.path.exists(filename) :
             filename = getBase(sicd) + '_full' + imExt
-        textBlock += '<div class="swiper-slide" style="background-image:url(../{0}?{2})">' \
+        filename += '?' + rand
+        textBlock += '<div class="swiper-slide" style="background-image:url(../{0})">' \
                          '<button id="{1}" ><img src="/static/icon_red_search.png" /></button>' \
                          '<iframe scrolling="no" src="/slider/{1}"></iframe>' \
-                     '</div>\n'.format(filename, baseSicd, rand)
+                     '</div>\n'.format(filename, baseSicd)
 
     return textBlock
 

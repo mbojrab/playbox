@@ -56,8 +56,7 @@
         p.append(spinner.el);
 
         $.get('/process/' + id, function(data) {
-            
-            p.css('background-image', 'url(../' + data + ')');
+            p.css('background-image', 'url(../' + data + '?' + Math.random().toString() + ')');
 
             refresh($(p).find('iframe'));
             spinner.stop();
