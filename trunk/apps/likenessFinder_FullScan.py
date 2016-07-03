@@ -117,7 +117,7 @@ def createNetwork(image, log=None) :
     else :
         import time
         from ae.net import StackedAENetwork
-        from nn.datasetUtils import loadShared
+        from nn.datasetUtils import toShared
         from ae.convolutionalAE import ConvolutionalAutoEncoder
         from ae.contiguousAE import ContractiveAutoEncoder
         from numpy.random import RandomState
@@ -134,7 +134,7 @@ def createNetwork(image, log=None) :
             log.info('Intializing the SAE...')
 
         # create the SAE
-        network = StackedAENetwork((loadShared(chips, True), None), log=log)
+        network = StackedAENetwork((toShared(chips, True), None), log=log)
         input = t.fmatrix('input')
 
         '''
