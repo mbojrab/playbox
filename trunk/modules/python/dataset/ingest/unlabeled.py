@@ -68,7 +68,7 @@ def ingestImagery(filepath, shared=False, batchSize=1,
        return   : (trainingData, pixelRegion={None})
     '''
     import os
-    from dataset.shared import loadShared
+    from dataset.shared import toShared
     from dataset.pickle import readPickleZip
 
     # read the directory structure and chip it
@@ -81,4 +81,4 @@ def ingestImagery(filepath, shared=False, batchSize=1,
 
     # load each into shared variables -- 
     # this avoids having to copy the data to the GPU between each call
-    return loadShared(train, True, log) if shared is True else train
+    return toShared(train, True, log) if shared is True else train
