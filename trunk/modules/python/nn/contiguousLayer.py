@@ -3,13 +3,12 @@ from nn.layer import Layer
 import numpy as np
 from theano import config, shared, dot, function
 from theano.tensor.nnet import sigmoid
-from theano.tensor import tanh, switch
+from theano.tensor import tanh
 
 class ContiguousLayer(Layer) :
     '''This class describes a Contiguous Neural Layer.
        
        layerID           : unique name identifier for this layer
-       input             : the input buffer for this layer
        inputSize         : number of elements in input buffer. This can also
                            be a tuple of size (batch size, input vector length)
        numNeurons        : number of neurons in this layer
@@ -29,22 +28,13 @@ class ContiguousLayer(Layer) :
        randomNumGen      : generator for the initial weight values - 
                            type is numpy.random.RandomState
     '''
-    def __init__ (self, layerID, input, inputSize, numNeurons,
+    def __init__ (self, layerID, inputSize, numNeurons,
                   learningRate=0.001, momentumRate=0.9, dropout=None,
                   initialWeights=None, initialThresholds=None, activation=tanh,
                   randomNumGen=None) :
-        Layer.__init__(self, layerID, learningRate, momentumRate, dropout)
+        Layer.__init__(self, layerID, learningRate, momentumRate, 
+                       dropout, activation)
 
-        # adjust the input for the correct number of dimensions        
-        if isinstance(input, tuple) :
-            if input[1].ndim > 2 : input = input[0].flatten(2), \
-                                           input[1].flatten(2)
-        else :
-            if input.ndim > 2 : input = input.flatten(2)
-
-        # store the input buffer -- this can either be a tuple or scalar
-        # The input layer will only have a scalar so its duplicated here
-        self.input = input if isinstance(input, tuple) else (input, input)
         self._inputSize = inputSize
         if isinstance(self._inputSize, six.integer_types) or \
            len(self._inputSize) is not 2 :
@@ -64,7 +54,7 @@ class ContiguousLayer(Layer) :
                 high=np.sqrt(6. / (self._inputSize[1] + self._numNeurons)),
                 size=(self._inputSize[1], self._numNeurons)),
                 dtype=config.floatX)
-            if activation == sigmoid :
+            if self._activation == sigmoid :
                 initialWeights *= 4.
         self._weights = shared(value=initialWeights, borrow=True)
 
@@ -74,40 +64,27 @@ class ContiguousLayer(Layer) :
                                          dtype=config.floatX)
         self._thresholds = shared(value=initialThresholds, borrow=True)
 
+    def finalize(self, input) :
+        '''Setup the computation graph for this layer.
+           input : the input variable tuple for this layer
+                   format (inClass, inTrain)
+        '''
+        self.input = input
+
+        # adjust the input for the correct number of dimensions
+        if self.input[0].ndim > 2 : 
+            self.input = self.input[0].flatten(2), self.input[1].flatten(2)
+
         # create the logits
         def findLogit(input, weights, thresholds) :
             return dot(input, weights) + thresholds
         outClass = findLogit(self.input[0], self._weights, self._thresholds)
         outTrain = findLogit(self.input[1], self._weights, self._thresholds)
 
-        # determine dropout if requested
-        if self._dropout is not None :
-            # here there are two possible paths --
-            # outClass : path of execution intended for classification. Here
-            #            all neurons are present and weights must be scaled by
-            #            the dropout factor. This ensures resultant 
-            #            probabilities fall within intended bounds when all
-            #            neurons are present.
-            # outTrain : path of execution for training with dropout. Here each
-            #            neuron's output goes through a Bernoulli Trial. This
-            #            retains a neuron with the probability specified by the
-            #            dropout factor.
-            outClass = outClass / self._dropout
-            outTrain = switch(self._randStream.binomial(
-                size=(self._numNeurons,), p=self._dropout), outTrain, 0)
-
-        # activate the layer --
-        # output is a tuple to represent two possible paths through the
-        # computation graph. 
-        self.output = (outClass, outTrain) if activation is None else \
-                      (activation(outClass), activation(outTrain))
-
         # create a convenience function
+        self.output = self.setupOutput(self._numNeurons, outClass, outTrain)
         self.activate = function([self.input[0]], self.output[0])
 
-    def getWeights(self) :
-        '''This allows the network backprop all layers efficiently.'''
-        return [self._weights, self._thresholds]
     def getInputSize (self) :
         '''(numInputs, pattern size)'''
         return self._inputSize

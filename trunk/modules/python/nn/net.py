@@ -1,5 +1,4 @@
 from nn.layer import Layer
-from nn.profiler import Profiler
 import theano.tensor as t
 import theano
 import numpy as np
@@ -306,6 +305,12 @@ class TrainerNetwork (ClassifierNetwork) :
                              'to call getNetworkInput().')
 
         self._startProfile('Finalizing Network', 'info')
+
+        # finalize the layers to create the computational graphs
+        layerInput = (self._trainData, self._trainData)
+        for layer in self._layers :
+            layer.finalize(layerInput)
+            layerInput = layer.output
 
         # disable the profiler temporarily so we don't get a second entry
         tmp = self._profiler
