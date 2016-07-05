@@ -9,7 +9,7 @@ from nn.convolutionalLayer import ConvolutionalLayer
 from dataset.ingest.labeled import ingestImagery
 from dataset.shared import splitToShared
 from nn.trainUtils import trainSupervised
-from nn.profiler import setupLogging
+from nn.profiler import setupLogging, Profiler
 
 '''This is a simple network in the topology of leNet5 the well-known
    MNIST dataset trainer from Yann LeCun. This is capable of training other
@@ -22,6 +22,9 @@ if __name__ == '__main__' :
                         help='Specify log output file.')
     parser.add_argument('--level', dest='level', default='INFO', type=str, 
                         help='Log Level.')
+    parser.add_argument('--prof', dest='profile', type=str, 
+                        default='Application-Profiler.xml',
+                        help='Specify profile output file.')
     parser.add_argument('--learnC', dest='learnC', type=float, default=.031,
                         help='Rate of learning on Convolutional Layers.')
     parser.add_argument('--learnF', dest='learnF', type=float, default=.015,
@@ -54,8 +57,9 @@ if __name__ == '__main__' :
     options = parser.parse_args()
 
     # setup the logger
-    log = setupLogging('cnnTrainer: ' + options.data,
-                       options.level, options.logfile)
+    logName = 'cnnTrainer: ' + options.data
+    log = setupLogging(logName, options.level, options.logfile)
+    prof = Profiler(log=log, name=logName, profFile=options.profile)
 
     # create a random number generator for efficiency
     from numpy.random import RandomState
@@ -77,19 +81,17 @@ if __name__ == '__main__' :
     network = Net(train, te, labels, regType='L2',
                   regScaleFactor=1. / (options.kernel + options.kernel + 
                                        options.neuron + len(labels)), 
-                  log=log)
+                  prof=prof)
 
     if options.synapse is not None :
         # load a previously saved network
         network.load(options.synapse)
     else :
         log.info('Initializing Network...')
-        input = t.ftensor4('input')
 
         # add convolutional layers
         network.addLayer(ConvolutionalLayer(
-            layerID='c1', input=input, 
-            inputSize=trainSize[1:],
+            layerID='c1', inputSize=trainSize[1:],
             kernelSize=(options.kernel,trainSize[2],5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             dropout=.8 if options.dropout else 1.,
@@ -99,8 +101,7 @@ if __name__ == '__main__' :
         # this way we don't combine the channels kernels we created in 
         # the first layer and destroy our dimensionality
         network.addLayer(ConvolutionalLayer(
-            layerID='c2', input=network.getNetworkOutput(), 
-            inputSize=network.getNetworkOutputSize(), 
+            layerID='c2', inputSize=network.getNetworkOutputSize(), 
             kernelSize=(options.kernel,options.kernel,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             dropout=.5 if options.dropout else 1.,
@@ -108,15 +109,15 @@ if __name__ == '__main__' :
 
         # add fully connected layers
         network.addLayer(ContiguousLayer(
-            layerID='f3', input=network.getNetworkOutput(),
+            layerID='f3', 
             inputSize=(network.getNetworkOutputSize()[0], 
                        reduce(mul, network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, 
             learningRate=options.learnF, momentumRate=options.momentum,
             dropout=.5 if options.dropout else 1., randomNumGen=rng))
         network.addLayer(ContiguousLayer(
-            layerID='f4', input=network.getNetworkOutput(),
-            inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
+            layerID='f4', inputSize=network.getNetworkOutputSize(), 
+            numNeurons=len(labels),
             learningRate=options.learnF, momentumRate=options.momentum,
             activation=None, randomNumGen=rng))
 
