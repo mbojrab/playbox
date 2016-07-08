@@ -182,5 +182,5 @@ if __name__ == '__main__' :
         saveTiledImage(image=ae.reconstruction(train[0][0]),
                        path='cae_filters_reconstructed_' + str(ii+1) + '.png',
                        imageShape=(28, 28), spacing=1)
-        print 'Epoch [' + str(ii) + ']: ' + str(ae.train(train[0][0])) + \
-              ' ' + str(time.time() - start) + 's'
+        print('Epoch [' + str(ii) + ']: ' + str(ae.train(train[0][0])) + \
+              ' ' + str(time.time() - start) + 's')

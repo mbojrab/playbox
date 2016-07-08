@@ -8,7 +8,6 @@ from ae.contiguousAE import ContractiveAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainUnsupervised
-from dataset.shared import splitToShared
 from nn.profiler import setupLogging
 
 '''This is an example Stacked AutoEncoder used for unsupervised pre-training.
@@ -63,14 +62,14 @@ if __name__ == '__main__' :
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
-    train, test, labels = ingestImagery(filepath=options.data, shared=False,
+    train, test, labels = ingestImagery(filepath=options.data, shared=True,
                                         batchSize=options.batchSize, 
                                         holdoutPercentage=options.holdout, 
                                         log=log)
     trainShape = train[0].shape
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = StackedAENetwork(splitToShared(train, borrow=True), log=log)
+    network = StackedAENetwork(train, log=log)
 
     if options.synapse is not None :
         # load a previously saved network
