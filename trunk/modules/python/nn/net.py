@@ -256,24 +256,10 @@ class TrainerNetwork (ClassifierNetwork) :
         self._trainData, self._trainLabels = train
         self._testData, self._testLabels = test
 
-        # TODO: This conditional should be removed once the train is 
-        #       theano.shared.
-        if 'SharedVariable' in str(type(self._trainLabels)) : 
-            self._oneHotIndex = self._trainLabels.ndim == 2
-            self._numTrainBatches = self._trainLabels.shape.eval()[0]
-        else :
-            self._oneHotIndex = True 
-            # TODO: remove this once shared variables are working as this 
-            #       should be handled in dataset.shared.splitToShared
-            self._trainLabels = self._trainLabels.astype('int32')
-            self._numTrainBatches = self._trainLabels.shape[0]
-
+        self._numTrainBatches = self._trainLabels.shape.eval()[0]
         self._numTestBatches = self._testLabels.shape.eval()[0]
         self._numTestSize = self._numTestBatches * \
                             self._testLabels.shape.eval()[1]
-        #self._expectedOutputs = theano.shared(
-        #    value=numpy.zeros(self.getNetworkOutputSize(), dtype='int32'), 
-        #    name='expectedOutputs')
         self._regularization = regType
         self._regScaleFactor = regScaleFactor
 
@@ -286,18 +272,15 @@ class TrainerNetwork (ClassifierNetwork) :
         if '_trainLabels' in dict : del dict['_trainLabels']
         if '_testData' in dict : del dict['_testData']
         if '_testLabels' in dict : del dict['_testLabels']
-        if '_oneHotIndex' in dict : del dict['_oneHotIndex']
         if '_numTrainBatches' in dict : del dict['_numTrainBatches']
         if '_numTestBatches' in dict : del dict['_numTestBatches']
         if '_numTestSize' in dict : del dict['_numTestSize']
         if '_regularization' in dict : del dict['_regularization']
         # remove the functions -- they will be rebuilt JIT
-        if '_checkAccuracyNP' in dict : del dict['_checkAccuracyNP']
         if '_checkAccuracy' in dict : del dict['_checkAccuracy']
         if '_createBatchExpectedOutput' in dict :
             del dict['_createBatchExpectedOutput']
         if '_cost' in dict : del dict['_cost']
-        if '_trainNetworkNP' in dict : del dict['_trainNetworkNP']
         if '_trainNetwork' in dict : del dict['_trainNetwork']
         return dict
 
@@ -305,14 +288,11 @@ class TrainerNetwork (ClassifierNetwork) :
         '''Load network pickle'''
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
-        if hasattr(self, '_checkAccuracyNP') :
-            delattr(self, '_checkAccuracyNP')
         if hasattr(self, '_checkAccuracy') :
             delattr(self, '_checkAccuracy')
         if hasattr(self, '_createBatchExpectedOutput') :
             delattr(self, '_createBatchExpectedOutput')
         if hasattr(self, '_cost') : delattr(self, '_cost')
-        if hasattr(self, '_trainNetworkNP') : delattr(self, '_trainNetworkNP')
         if hasattr(self, '_trainNetwork') : delattr(self, '_trainNetwork')
         ClassifierNetwork.__setstate__(self, dict)
 
@@ -342,32 +322,18 @@ class TrainerNetwork (ClassifierNetwork) :
         # NOTE: the 'input' variable name was created elsewhere and provided as
         #       input to the first layer. We now use that object to connect
         #       our shared buffers.
-        self._checkAccuracyNP = theano.function(
-            [self.getNetworkInput()[0], expectedLabels], numCorrect)
         self._checkAccuracy = theano.function(
             [index], numCorrect, 
             givens={self.getNetworkInput()[0] : self._testData[index],
                     expectedLabels: self._testLabels[index]})
 
-        # setup a looping function to JIT create the expected output vectors --
-        # this saves memory as the expectedOutput matrix is a very sparse
-        # representation, so we built it instead of storing it.
-        def createExpectedOutput(label, sz):
-            return t.set_subtensor(
-                t.zeros((sz,), dtype=theano.config.floatX)[label], 1)
-        outputSize = t.iscalar("outputSize")
-        result, updates = theano.scan(fn=createExpectedOutput,
-                                      outputs_info=None,
-                                      sequences=[expectedLabels],
-                                      non_sequences=[outputSize])
-        self._createBatchExpectedOutput = theano.function(
-            inputs=[expectedLabels, outputSize], outputs=result)
-
         # create the cross entropy function --
         # This is the cost function for the network, and it assumes [0,1]
         # classification labeling. If the expectedOutput is not [0,1], Doc
         # Brown will hit you with a time machine.
-        expectedOutputs = t.fmatrix('expectedOutputs')
+        expectedOutputs = t.fmatrix('expectedOutputs') \
+                          if self._trainLabels.ndim == 3 else \
+                          t.ivector('expectedOutputs')
         xEntropy = crossEntropyLoss(expectedOutputs, self._outTrainSoft, 1)
 
 
@@ -425,19 +391,14 @@ class TrainerNetwork (ClassifierNetwork) :
         #       input to the first layer. We now use that object to connect
         #       our shared buffers.
         # NOTE: This check should only be used until both buffers are in 
-        if self._oneHotIndex :
-            self._trainNetworkNP = theano.function(
-                [self.getNetworkInput()[1], expectedOutputs], 
-                 xEntropy, updates=updates)
-        else :
-            self._trainNetwork = theano.function(
-                [index], xEntropy, updates=updates,
-                givens={self.getNetworkInput()[1]: self._trainData[index],
-                        expectedOutputs: self._trainLabels[index]})
+        self._trainNetwork = theano.function(
+            [index], xEntropy, updates=updates,
+            givens={self.getNetworkInput()[1]: self._trainData[index],
+                    expectedOutputs: self._trainLabels[index]})
         self._endProfile()
 
     #def train(self, index) :
-    def train(self, index, inputs, expectedLabels) :
+    def train(self, index) :
         '''Train the network against the pre-loaded inputs. This accepts 
            a batch index into the pre-compiled input and expectedOutput sets.
 
@@ -445,8 +406,7 @@ class TrainerNetwork (ClassifierNetwork) :
         '''
         self._startProfile('Training Batch [' + str(index) +
                            '/' + str(self._numTrainBatches) + ']', 'debug')
-        if not hasattr(self, '_trainNetwork') and \
-           not hasattr(self, '_trainNetworkNP') :
+        if not hasattr(self, '_trainNetwork') :
             self.finalizeNetwork()
         if not isinstance(index, int) :
             raise Exception('Variable index must be an integer value')
@@ -455,13 +415,7 @@ class TrainerNetwork (ClassifierNetwork) :
 
         # train the input --
         # the user decides if this is online or batch training
-        if self._oneHotIndex :
-            expectedOutputs = self._createBatchExpectedOutput(
-                expectedLabels, self.getNetworkOutputSize()[1])
-            self._trainNetworkNP(inputs, expectedOutputs)
-        else :
-            self._trainNetwork(index)
-
+        self._trainNetwork(index)
         self._endProfile()
 
     def trainEpoch(self, globalEpoch, numEpochs=1) :
@@ -477,8 +431,7 @@ class TrainerNetwork (ClassifierNetwork) :
             #    layer.writeWeights(globalEpoch + localEpoch)
             self._startProfile('Running Epoch [' + 
                                str(globalEpoch + localEpoch) + ']', 'info')
-            for ii in range(self._numTrainBatches) :
-                self.train(ii, self._trainData[ii], self._trainLabels[ii])
+            [self.train(ii) for ii in range(self._numTrainBatches)]
             self._endProfile()
         return globalEpoch + numEpochs
 

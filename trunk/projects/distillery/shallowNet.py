@@ -1,6 +1,7 @@
 import theano.tensor as t
 import argparse
 from time import time
+from six.moves import reduce
 
 from nn.net import ClassifierNetwork as Net
 from nn.contiguousLayer import ContiguousLayer

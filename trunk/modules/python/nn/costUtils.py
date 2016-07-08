@@ -5,15 +5,28 @@ def cropExtremes(x) :
     return t.clip(x, 1e-7, 1.0 - 1e-7)
 
 def crossEntropyLoss (p, q, axis=None, crop=True):
-    ''' for these purposes this is equivalent to Negative Log Likelihood
-        this is the average of all cross-entropies in our guess
-        p    : the target value
-        q    : the current estimate
-        axis : the axis in which to sum across -- used for multi-dimensional
-        crop :
+    '''For these purposes this is equivalent to Negative Log Likelihood
+       this is the average of all cross-entropies in our guess
+
+       NOTE: This method supports two modes. The target values can be specified
+             as either a fmatrix or an ivector. The fmatrix is represented as
+             (batchSize, denseTarget). The ivector is a single dimension where 
+             the vector length is the batchSize and the number in the ith 
+             position is the index into the one hot vector where the one 
+             resides. This ivector representation is a more compact way of 
+             representing one-hot encodings.
+
+       p    : the target value
+       q    : the current estimate
+       axis : the axis in which to sum across -- used for multi-dimensional
+       crop : crop the extremes to protect against segmentation faults
     '''
-    if crop : q = cropExtremes(q)
-    return t.mean(t.sum(t.nnet.binary_crossentropy(q, p), axis=axis))
+    if crop : 
+        q = cropExtremes(q)
+    if p.ndim == 2 :
+        return t.mean(t.sum(t.nnet.binary_crossentropy(q, p), axis=axis))
+    else :
+        return t.mean(t.nnet.crossentropy_categorical_1hot(q, p))
 
 def meanSquaredLoss (p, q) :
     ''' for these purposes this is equivalent to Negative Log Likelihood

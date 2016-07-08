@@ -4,7 +4,6 @@ from ae.net import StackedAENetwork
 from ae.contiguousAE import ContractiveAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.labeled import ingestImagery
-from dataset.shared import splitToShared
 from nn.contiguousLayer import ContiguousLayer
 from nn.trainUtils import trainUnsupervised, trainSupervised
 from nn.net import TrainerNetwork
@@ -76,14 +75,14 @@ if __name__ == '__main__' :
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
-    train, test, labels = ingestImagery(filepath=options.data, shared=False,
+    train, test, labels = ingestImagery(filepath=options.data, shared=True,
                                         batchSize=options.batchSize, 
                                         holdoutPercentage=options.holdout, 
                                         log=log)
-    trainShape = train[0].shape
+    trainShape = train[0].shape.eval()
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = StackedAENetwork(splitToShared(train, borrow=True), log=log)
+    network = StackedAENetwork(train, log=log)
 
     if options.synapse is not None :
         # load a previously saved network
@@ -145,7 +144,7 @@ if __name__ == '__main__' :
     # translate into a neural network --
     # this transfers our unsupervised pre-training into a decent
     # starting condition for our supervised learning
-    network = TrainerNetwork(train, splitToShared(test,  borrow=True), labels,
+    network = TrainerNetwork(train, test, labels,
                              filepath=bestNetwork, log=log)
 
     # add the classification layer
