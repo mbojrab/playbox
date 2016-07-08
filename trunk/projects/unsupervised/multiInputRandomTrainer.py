@@ -1,6 +1,7 @@
 import theano.tensor as t
 import argparse
 from time import time
+from six.moves import reduce
 
 from ae.net import StackedAENetwork
 from ae.contiguousAE import ContractiveAutoEncoder
