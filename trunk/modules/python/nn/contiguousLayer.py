@@ -82,8 +82,7 @@ class ContiguousLayer(Layer) :
         outTrain = findLogit(self.input[1], self._weights, self._thresholds)
 
         # create a convenience function
-        self.output = self.setupOutput(self._numNeurons, outClass, outTrain)
-        self.activate = function([self.input[0]], self.output[0])
+        self.output = self.setupOutput((self._numNeurons,), outClass, outTrain)
 
     def getInputSize (self) :
         '''(numInputs, pattern size)'''

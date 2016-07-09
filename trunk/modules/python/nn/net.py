@@ -275,9 +275,6 @@ class TrainerNetwork (ClassifierNetwork) :
         if '_regularization' in dict : del dict['_regularization']
         # remove the functions -- they will be rebuilt JIT
         if '_checkAccuracy' in dict : del dict['_checkAccuracy']
-        if '_createBatchExpectedOutput' in dict :
-            del dict['_createBatchExpectedOutput']
-        if '_cost' in dict : del dict['_cost']
         if '_trainNetwork' in dict : del dict['_trainNetwork']
         return dict
 
@@ -285,11 +282,7 @@ class TrainerNetwork (ClassifierNetwork) :
         '''Load network pickle'''
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
-        if hasattr(self, '_checkAccuracy') :
-            delattr(self, '_checkAccuracy')
-        if hasattr(self, '_createBatchExpectedOutput') :
-            delattr(self, '_createBatchExpectedOutput')
-        if hasattr(self, '_cost') : delattr(self, '_cost')
+        if hasattr(self, '_checkAccuracy') : delattr(self, '_checkAccuracy')
         if hasattr(self, '_trainNetwork') : delattr(self, '_trainNetwork')
         ClassifierNetwork.__setstate__(self, dict)
 
@@ -307,10 +300,14 @@ class TrainerNetwork (ClassifierNetwork) :
         self._startProfile('Finalizing Network', 'info')
 
         # finalize the layers to create the computational graphs
-        layerInput = (self._trainData, self._trainData)
+        layerInput = (self._trainData[0], self._trainData[0])
         for layer in self._layers :
+            self._startProfile('Finalizing Layer [' + layer.layerID + ']', 
+                               'debug')
             layer.finalize(layerInput)
             layerInput = layer.output
+            self._endProfile()
+
 
         # disable the profiler temporarily so we don't get a second entry
         tmp = self._profiler

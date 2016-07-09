@@ -1,6 +1,6 @@
 from nn.layer import Layer
 import numpy as np
-from theano.tensor import tanh, switch
+from theano.tensor import tanh
 from theano import shared, config, function
 
 class ConvolutionalLayer(Layer) :
@@ -8,7 +8,6 @@ class ConvolutionalLayer(Layer) :
        a series of kernels and subsample.
 
        layerID           : unique name identifier for this layer
-       input             : the input buffer for this layer
        inputSize         : (batch size, channels, rows, columns)
        kernelSize        : (number of kernels, channels, rows, columns)
        downsampleFactor  : (rowFactor, columnFactor)
@@ -28,11 +27,12 @@ class ConvolutionalLayer(Layer) :
        randomNumGen      : generator for the initial weight values - 
                            type is numpy.random.RandomState
     '''
-    def __init__ (self, layerID, input, inputSize, kernelSize, 
+    def __init__ (self, layerID, inputSize, kernelSize, 
                   downsampleFactor, learningRate=0.001, momentumRate=0.9,
                   dropout=None, initialWeights=None, initialThresholds=None,
                   activation=tanh, randomNumGen=None) :
-        Layer.__init__(self, layerID, learningRate, momentumRate, dropout)
+        Layer.__init__(self, layerID, learningRate, momentumRate, dropout,
+                       activation)
 
         # TODO: this check is likely unnecessary
         if inputSize[2] == kernelSize[2] or inputSize[3] == kernelSize[3] :
@@ -104,7 +104,6 @@ class ConvolutionalLayer(Layer) :
         # create a convenience function
         self.output = self.setupOutput(self.getOutputSize()[1:], 
                                        outClass, outTrain)
-        self.activate = function([self.input[0]], self.output[0])
 
     def getInputSize (self) :
         '''The initial input size provided at construction. This is sized

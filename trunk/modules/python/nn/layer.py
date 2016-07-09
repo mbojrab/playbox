@@ -1,5 +1,6 @@
 from theano.tensor.shared_randomstreams import RandomStreams
 from time import time
+from nn.opMap import convertActivation
 
 class Layer () :
     # rng is across all layer types
@@ -33,6 +34,8 @@ class Layer () :
         dict['output'] = None
         dict['_weights'] = fromShared(self._weights)
         dict['_thresholds'] = fromShared(self._thresholds)
+        # convert to a string for pickling purposes
+        dict['_activation'] = convertActivation(self._activation)
         return dict
 
     def __setstate__(self, dict) :
@@ -43,8 +46,10 @@ class Layer () :
         self._weights = shared(value=initialWeights, borrow=True)
         initialThresholds = self._thresholds
         self._thresholds = shared(value=initialThresholds, borrow=True)
+        # convert back to a theano operation
+        self._activation = convertActivation(self._activation)
 
-    def setupOutput(self, numNeurons, outClass, outTrain) :
+    def setupOutput(self, outSize, outClass, outTrain) :
         from theano.tensor import switch
 
         # determine dropout if requested
@@ -61,11 +66,11 @@ class Layer () :
             #            dropout factor.
             outClass = outClass / self._dropout
             outTrain = switch(self._randStream.binomial(
-                size=(numNeurons,), p=self._dropout), outTrain, 0)
+                size=outSize, p=self._dropout), outTrain, 0)
 
         # activate the layer --
         # output is a tuple to represent two possible paths through the
-        # computation graph. 
+        # computation graph.
         return (outClass, outTrain) if self._activation is None else \
                (self._activation(outClass), self._activation(outTrain))
 
