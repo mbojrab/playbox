@@ -76,12 +76,10 @@ if __name__ == '__main__' :
         network.load(options.synapse)
     else :
         log.info('Initializing Network...')
-        input = t.ftensor4('input')
 
         # add convolutional layers
         network.addLayer(ConvolutionalAutoEncoder(
-            layerID='c1', input=input, 
-            inputSize=trainShape[1:], 
+            layerID='c1', inputSize=trainShape[1:], 
             kernelSize=(options.kernel,trainShape[2],5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             dropout=.8 if options.dropout else 1.,
@@ -91,9 +89,7 @@ if __name__ == '__main__' :
         # this way we don't combine the channels kernels we created in 
         # the first layer and destroy our dimensionality
         network.addLayer(ConvolutionalAutoEncoder(
-            layerID='c2',
-            input=network.getNetworkOutput(), 
-            inputSize=network.getNetworkOutputSize(), 
+            layerID='c2', inputSize=network.getNetworkOutputSize(), 
             kernelSize=(options.kernel,options.kernel,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             dropout=.5 if options.dropout else 1., 
@@ -101,7 +97,7 @@ if __name__ == '__main__' :
 
         # add fully connected layers
         network.addLayer(ContractiveAutoEncoder(
-            layerID='f3', input=network.getNetworkOutput(),
+            layerID='f3', 
             inputSize=(network.getNetworkOutputSize()[0], 
                        reduce(mul, network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, learningRate=options.learnF,
