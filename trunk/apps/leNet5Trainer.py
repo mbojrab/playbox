@@ -1,4 +1,3 @@
-import theano.tensor as t
 import argparse
 from time import time
 from six.moves import reduce
