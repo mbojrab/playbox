@@ -1,15 +1,12 @@
 from nn.layer import Layer
-from nn.profiler import Profiler
 import theano.tensor as t
 import theano
 import numpy as np
 from dataset.pickle import writePickleZip, readPickleZip
 
 class Network () :
-    def __init__ (self, log=None) :
-        self._profiler = Profiler(log, 'NeuralNet', 
-                                  './NeuralNet-Profile.xml') if \
-                                  log is not None else None
+    def __init__ (self, prof=None) :
+        self._profiler = prof
         self._layers = []
     def __getstate__(self) :
         '''Save network pickle'''
@@ -87,10 +84,10 @@ class ClassifierNetwork (Network) :
 
        filepath : Path to an already trained network on disk 
                   'None' creates randomized weighting
-       log      : Logger to use
+       prof     : Profiler to use
     '''
-    def __init__ (self, filepath=None, log=None) :
-        Network.__init__(self, log)
+    def __init__ (self, filepath=None, prof=None) :
+        Network.__init__(self, prof)
         self._networkLabels = []
         if filepath is not None :
             self.load(filepath)
@@ -246,11 +243,11 @@ class TrainerNetwork (ClassifierNetwork) :
                   NOTE: a good value is 1. / numTotalNeurons
        filepath : Path to an already trained network on disk 
                   'None' creates randomized weighting
-       log      : Logger to use
+       prof     : Profiler to use
     '''
     def __init__ (self, train, test, labels, regType='L2', regScaleFactor=0.,
-                  filepath=None, log=None) :
-        ClassifierNetwork.__init__(self, filepath=filepath, log=log)
+                  filepath=None, prof=None) :
+        ClassifierNetwork.__init__(self, filepath=filepath, prof=prof)
         if filepath is None :
             self._networkLabels = labels
         self._trainData, self._trainLabels = train
@@ -278,9 +275,6 @@ class TrainerNetwork (ClassifierNetwork) :
         if '_regularization' in dict : del dict['_regularization']
         # remove the functions -- they will be rebuilt JIT
         if '_checkAccuracy' in dict : del dict['_checkAccuracy']
-        if '_createBatchExpectedOutput' in dict :
-            del dict['_createBatchExpectedOutput']
-        if '_cost' in dict : del dict['_cost']
         if '_trainNetwork' in dict : del dict['_trainNetwork']
         return dict
 
@@ -288,11 +282,7 @@ class TrainerNetwork (ClassifierNetwork) :
         '''Load network pickle'''
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
-        if hasattr(self, '_checkAccuracy') :
-            delattr(self, '_checkAccuracy')
-        if hasattr(self, '_createBatchExpectedOutput') :
-            delattr(self, '_createBatchExpectedOutput')
-        if hasattr(self, '_cost') : delattr(self, '_cost')
+        if hasattr(self, '_checkAccuracy') : delattr(self, '_checkAccuracy')
         if hasattr(self, '_trainNetwork') : delattr(self, '_trainNetwork')
         ClassifierNetwork.__setstate__(self, dict)
 
@@ -308,6 +298,16 @@ class TrainerNetwork (ClassifierNetwork) :
                              'to call getNetworkInput().')
 
         self._startProfile('Finalizing Network', 'info')
+
+        # finalize the layers to create the computational graphs
+        layerInput = (self._trainData[0], self._trainData[0])
+        for layer in self._layers :
+            self._startProfile('Finalizing Layer [' + layer.layerID + ']', 
+                               'debug')
+            layer.finalize(layerInput)
+            layerInput = layer.output
+            self._endProfile()
+
 
         # disable the profiler temporarily so we don't get a second entry
         tmp = self._profiler
@@ -429,7 +429,7 @@ class TrainerNetwork (ClassifierNetwork) :
             # DEBUG: For Debugging purposes only 
             #for layer in self._layers :
             #    layer.writeWeights(globalEpoch + localEpoch)
-            self._startProfile('Running Epoch [' + 
+            self._startProfile('Running Epoch [' +
                                str(globalEpoch + localEpoch) + ']', 'info')
             [self.train(ii) for ii in range(self._numTrainBatches)]
             self._endProfile()
@@ -451,147 +451,3 @@ class TrainerNetwork (ClassifierNetwork) :
 
         self._endProfile()
         return acc / float(self._numTestSize) * 100.
-
-if __name__ == "__main__" :
-    labels = t.ivector("lables")
-    outputSize = t.iscalar("outputSize")
-    def createExpectedOutput(label, outputSize):
-        return t.set_subtensor(
-            t.zeros((outputSize,), dtype='float32')[label], 1.)
-    result, updates = theano.scan(fn=createExpectedOutput,
-                                  outputs_info=None,
-                                  sequences=[labels],
-                                  non_sequences=[outputSize])
-    createBatchExpectedOutput = theano.function(
-        inputs=[labels, outputSize], outputs=result)
-
-    # test
-    import numpy
-    labelVect = numpy.asarray([1, 2, 0], dtype=numpy.int32)
-    print(createBatchExpectedOutput(labelVect, 5))
-
-    '''
-    location = t.ivector("location")
-    output_model = t.fvector("output_model")
-    def set_value_at_position(a_location, output_model):
-        return t.set_subtensor(t.zeros_like(output_model)[a_location], 1.)
-    result, updates = theano.scan(fn=set_value_at_position,
-                                  outputs_info=None,
-                                  sequences=[location],
-                                  non_sequences=[output_model])
-    assign_values_at_positions = theano.function(
-        inputs=[location, output_model], 
-        outputs=result)
-
-    # test
-    import numpy
-    test_locations = numpy.asarray([1, 2, 0], dtype=numpy.int32)
-    test_output_model = numpy.zeros((5,), dtype=numpy.float32)
-    print(assign_values_at_positions(test_locations, test_output_model))
-    
-    import numpy as np
-    value = t.fscalar('value')
-    expectedLabels = t.ivector('expectedLabels')
-    expectedOutputs = theano.shared(np.zeros((5,5), dtype='float32'), 
-                                    name='expectedOutputs')
-#    expectedOutputs = theano.shared(value=np.zeros((5,5), dtype='int32'), 
-#                                    name='expectedOutputs')
-    def updateVector(vect, indx, value) :
-        print vect.type
-        print indx.type
-        print value.type
-        return t.set_subtensor(vect[indx], value)
-    results, updates = theano.scan(
-        fn=updateVector,
-        outputs_info=None,
-        sequences=[expectedOutputs, expectedLabels],
-        non_sequences=value)
-
-
-    indx = t.iscalar('indx')
-    updateExpectedMatrix = theano.function(
-        [expectedLabels, value], results[-1])
-
-    labels = np.asarray([1,0,3,4,5], dtype='int32')
-    updateExpectedMatrix(labels, 1.)
-    print expectedOutputs.type
-
-    print expectedOutputs.type
-    theano.function([expectedOutputs], )
-    print dir(t.set_subtensor(expectedOutputs[0], 1.))
-    print expectedOutputs.get_value()
-
-
-    # this shows the execution of a sequence of functions by
-    # combining them into a higher level function
-    a = t.iscalar('a')
-    b = t.iscalar('b')
-
-    out1 = a**2
-    square = theano.function([a], out1)
-
-    out2 = out1**3
-    cube = theano.function([out1], out2)
-
-    total = theano.function([a], out2)
-
-    print square(4)
-    print cube(4)
-    print total(4)
-
-    from contiguousLayer import ContiguousLayer
-    from time import time
-    from datasetUtils import splitToShared
-    import numpy
-
-    input = t.fmatrix('input')
-
-    dim = 1000
-    numNeurons = 10
-    numRuns = 10000
-
-    # this is intentionally getting one of the inputs labels incorrect to
-    # prove the checkAccuracy call is working.
-    trainArr = (numpy.asarray([[range(dim)]], dtype='float32'), 
-                numpy.asarray([[0]], dtype='int32'))
-    testArr  = (numpy.asarray([[range(dim), range(dim), range(dim)]], dtype='float32'), 
-                numpy.asarray([[1, 2, 1]], dtype='int32'))
-
-    print testArr[0].shape
-    print testArr[1].shape
-    train = splitToShared(trainArr, borrow=True)
-    test  = splitToShared(testArr,  borrow=True)
-
-    network = TrainerNetwork(train, test, regType='')
-    network.addLayer(
-        ContiguousLayer('f1', input, dim, numNeurons))
-    network.addLayer(
-        ContiguousLayer('f2', network.getNetworkOutput(), numNeurons, 3))
-
-    print "Classify: " + str(network.classify(testArr[0][0]))
-    print "NLL: " + str(network.check(testArr[0][0], testArr[1][0]))
-
-    # test the classify runtime
-    print "Classifying Inputs..."
-    timer = time()
-    for i in range(numRuns) :
-        out = network.classify(trainArr[0][0])
-    timer = time() - timer
-    print "total time: " + str(timer) + \
-          "s | per input: " + str(timer/numRuns) + "s"
-    print network.classify(testArr[0][0])
-
-    # test the train runtime
-    numRuns = 10000
-    print "Training Network..."
-    timer = time()
-    for ii in range(numRuns) :
-        network.train(0)
-#    network.trainEpoch(0, numRuns)
-    timer = time() - timer
-    print "total time: " + str(timer) + \
-          "s | per input: " + str(timer/numRuns) + "s"
-    print str(network.checkAccuracy() * 100.)
-
-    network.save('e:/out.pkl.gz')
-    '''

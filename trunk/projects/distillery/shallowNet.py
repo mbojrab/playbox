@@ -15,8 +15,6 @@ def createNetwork(inputSize, numKernels, numNeurons, numLabels) :
     from operator import mul
     rng = RandomState(int(time()))
 
-    input = t.ftensor4('input')
-
     trainSize = inputSize
 
     # create the network
@@ -24,22 +22,21 @@ def createNetwork(inputSize, numKernels, numNeurons, numLabels) :
 
     # add convolutional layers
     network.addLayer(ConvolutionalLayer(
-        layerID='c1', input=input, 
-        inputSize=trainSize,
+        layerID='c1', inputSize=trainSize,
         kernelSize=(numKernels,trainSize[1],3,3),
         downsampleFactor=(3,3), randomNumGen=rng,
         learningRate=.08, momentumRate=.1))
     # add fully connected layers
     network.addLayer(ContiguousLayer(
-        layerID='f2', input=network.getNetworkOutput(),
+        layerID='f2', 
         inputSize=(network.getNetworkOutputSize()[0],
                    reduce(mul, network.getNetworkOutputSize()[1:])),
         numNeurons=numNeurons, randomNumGen=rng,
         learningRate=.025, momentumRate=.2))
     network.addLayer(ContiguousLayer(
-        layerID='f3', input=network.getNetworkOutput(),
-        inputSize=network.getNetworkOutputSize(), numNeurons=numLabels,
-        learningRate=.015, momentumRate=.3, activation=None, randomNumGen=rng))
+        layerID='f3', inputSize=network.getNetworkOutputSize(), 
+        numNeurons=numLabels, learningRate=.015, momentumRate=.3, 
+        activation=None, randomNumGen=rng))
 
     return network
     

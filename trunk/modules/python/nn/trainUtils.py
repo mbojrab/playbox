@@ -28,7 +28,7 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=30,
     # train each layer in sequence --
     # first we pre-train the data and at each epoch, we save it to disk
     lastSave = ''
-    globalEpoch = 0
+    globalEpoch = resumeEpoch(synapse)
     for layerIndex in range(network.getNumLayers()) :
         globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 
                                                numEpochs)
@@ -62,7 +62,7 @@ def trainSupervised (network, appName, dataPath, numEpochs=5, stop=30,
 
     degradationCount = 0
     globalCount = lastBest = resumeEpoch(synapse)
-    runningAccuracy = 0.0
+    runningAccuracy = network.checkAccuracy()
     lastSave = ''
     while True :
         timer = time()

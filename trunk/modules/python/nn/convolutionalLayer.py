@@ -1,6 +1,6 @@
 from nn.layer import Layer
 import numpy as np
-from theano.tensor import tanh, switch
+from theano.tensor import tanh
 from theano import shared, config, function
 
 class ConvolutionalLayer(Layer) :
@@ -8,7 +8,6 @@ class ConvolutionalLayer(Layer) :
        a series of kernels and subsample.
 
        layerID           : unique name identifier for this layer
-       input             : the input buffer for this layer
        inputSize         : (batch size, channels, rows, columns)
        kernelSize        : (number of kernels, channels, rows, columns)
        downsampleFactor  : (rowFactor, columnFactor)
@@ -28,11 +27,12 @@ class ConvolutionalLayer(Layer) :
        randomNumGen      : generator for the initial weight values - 
                            type is numpy.random.RandomState
     '''
-    def __init__ (self, layerID, input, inputSize, kernelSize, 
+    def __init__ (self, layerID, inputSize, kernelSize, 
                   downsampleFactor, learningRate=0.001, momentumRate=0.9,
                   dropout=None, initialWeights=None, initialThresholds=None,
                   activation=tanh, randomNumGen=None) :
-        Layer.__init__(self, layerID, learningRate, momentumRate, dropout)
+        Layer.__init__(self, layerID, learningRate, momentumRate, dropout,
+                       activation)
 
         # TODO: this check is likely unnecessary
         if inputSize[2] == kernelSize[2] or inputSize[3] == kernelSize[3] :
@@ -42,11 +42,6 @@ class ConvolutionalLayer(Layer) :
             raise ValueError('ConvolutionalLayer Error: ' +
                              'Number of Channels must match in ' +
                              'inputSize and kernelSize')
-        from theano.tensor.nnet.conv import conv2d
-        from theano.tensor.signal.downsample import max_pool_2d
-
-        # theano variables don't actually preserve buffer sizing
-        self.input = input if isinstance(input, tuple) else (input, input)
 
         self._inputSize = inputSize
         self._kernelSize = kernelSize
@@ -79,8 +74,17 @@ class ConvolutionalLayer(Layer) :
                                          dtype=config.floatX)
         self._thresholds = shared(value=initialThresholds, borrow=True)
 
-        def findLogits(input, weights, 
-                       inputSize, kernelSize, downsampleFactor, thresholds) :
+    def finalize(self, input) :
+        '''Setup the computation graph for this layer.
+           input : the input variable tuple for this layer
+                   format (inClass, inTrain)
+        '''
+        self.input = input
+        def findLogits(input, weights, inputSize, kernelSize, 
+                       downsampleFactor, thresholds) :
+            from theano.tensor.nnet.conv import conv2d
+            from theano.tensor.signal.downsample import max_pool_2d
+
             # create a function to perform the convolution
             convolve = conv2d(input, weights, inputSize, kernelSize)
 
@@ -97,34 +101,10 @@ class ConvolutionalLayer(Layer) :
                               self._inputSize, self._kernelSize,
                               self._downsampleFactor, self._thresholds)
 
-        # determine dropout if requested
-        if self._dropout is not None :
-            # here there are two possible paths --
-            # outClass : path of execution intended for classification. Here
-            #            all neurons are present and weights must be scaled by
-            #            the dropout factor. This ensures resultant 
-            #            probabilities fall within intended bounds when all
-            #            neurons are present.
-            # outTrain : path of execution for training with dropout. Here each
-            #            neuron's output goes through a Bernoulli Trial. This
-            #            retains a neuron with the probability specified by the
-            #            dropout factor.
-            outClass = outClass / self._dropout
-            outTrain = switch(self._randStream.binomial(
-                size=self.getOutputSize()[1:], p=self._dropout), outTrain, 0)
+        # create a convenience function
+        self.output = self.setupOutput(self.getOutputSize()[1:], 
+                                       outClass, outTrain)
 
-        # activate the layer --
-        # output is a tuple to represent two possible paths through the
-        # computation graph. 
-        self.output = (outClass, outTrain) if activation is None else \
-                      (activation(outClass), activation(outTrain))
-
-        # we can call this method to activate the layer
-        self.activate = function([self.input[0]], self.output[0])
-
-    def getWeights(self) :
-        '''This allows the network backprop all layers efficiently.'''
-        return [self._weights, self._thresholds]
     def getInputSize (self) :
         '''The initial input size provided at construction. This is sized
            (batch size, channels, rows, columns)'''

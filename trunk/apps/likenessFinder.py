@@ -99,9 +99,9 @@ def createNetwork(image, log=None) :
             log.info('Loading Network from Disk...')
         network = ClassifierNetwork(options.synapse, log)
 
-        from nn.datasetUtils import loadShared
+        from nn.datasetUtils import toShared
         from ae.net import StackedAENetwork
-        network = StackedAENetwork((loadShared(chips, True), None), log=log)
+        network = StackedAENetwork((toShared(chips, True), None), log=log)
         network.load(options.synapse)
         for ii in range(0, chips.shape[0], 50) :
             import ae.utils
@@ -116,7 +116,7 @@ def createNetwork(image, log=None) :
     else :
         import time
         from ae.net import StackedAENetwork
-        from nn.datasetUtils import loadShared
+        from nn.datasetUtils import toShared
         from ae.convolutionalAE import ConvolutionalAutoEncoder
         from ae.contiguousAE import ContractiveAutoEncoder
         from numpy.random import RandomState
@@ -133,21 +133,17 @@ def createNetwork(image, log=None) :
             log.info('Intializing the SAE...')
 
         # create the SAE
-        network = StackedAENetwork((loadShared(chips, True), None), log=log)
-        #input = t.fmatrix('input')
-        input = t.ftensor4('input')
+        network = StackedAENetwork((toShared(chips, True), None), log=log)
 
         # add convolutional layers
         network.addLayer(ConvolutionalAutoEncoder(
-            layerID='c1', input=input,
-            inputSize=chips.shape[1:], 
+            layerID='c1', inputSize=chips.shape[1:], 
             kernelSize=(options.kernel,chips.shape[2],5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
             learningRate=options.learnC))
         '''
         network.addLayer(ConvolutionalAutoEncoder(
             layerID='c2',
-            input=network.getNetworkOutput(), 
             inputSize=network.getNetworkOutputSize(), 
             kernelSize=(options.kernel,options.kernel,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
@@ -157,30 +153,27 @@ def createNetwork(image, log=None) :
         # add fully connected layers
         numInputs = reduce(mul, network.getNetworkOutputSize()[1:])
         network.addLayer(ContractiveAutoEncoder(
-            layerID='f3', input=network.getNetworkOutput(),
+            layerID='f3', 
             inputSize=(network.getNetworkOutputSize()[0], numInputs),
             numNeurons=options.hidden,
             learningRate=options.learnF, randomNumGen=rng))
         '''
 
         network.addLayer(ContractiveAutoEncoder(
-            layerID='f1', input=input,
+            layerID='f1', 
             inputSize=(chips.shape[1], reduce(mul, chips.shape[2:])),
             numNeurons=500, learningRate=options.learnF,
             contractionRate=options.contrF, randomNumGen=rng))
         network.addLayer(ContractiveAutoEncoder(
-            layerID='f2', input=network.getNetworkOutput(),
-            inputSize=network.getNetworkOutputSize(),
+            layerID='f2', inputSize=network.getNetworkOutputSize(),
             numNeurons=200, learningRate=options.learnF,
             contractionRate=options.contrF, randomNumGen=rng))
         network.addLayer(ContractiveAutoEncoder(
-            layerID='f3', input=network.getNetworkOutput(),
-            inputSize=network.getNetworkOutputSize(),
+            layerID='f3', inputSize=network.getNetworkOutputSize(),
             numNeurons=100, learningRate=options.learnF,
             contractionRate=options.contrF, randomNumGen=rng))
         network.addLayer(ContractiveAutoEncoder(
-            layerID='f4', input=network.getNetworkOutput(),
-            inputSize=network.getNetworkOutputSize(),
+            layerID='f4', inputSize=network.getNetworkOutputSize(),
             numNeurons=50, learningRate=options.learnF,
             contractionRate=options.contrF, randomNumGen=rng))
         '''
