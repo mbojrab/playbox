@@ -76,7 +76,7 @@ class Layer () :
         # computation graph.
         return (self._setActivation(outClass), self._setActivation(outTrain))
 
-    def finalize(self) :
+    def finalize(self, input) :
         raise NotImplementedError('Implement the finalize() method')
 
     def getWeights(self) :
