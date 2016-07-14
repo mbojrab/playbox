@@ -35,6 +35,12 @@ def meanSquaredLoss (p, q) :
     '''
     return t.mean((q - p) ** 2)
 
+def calcLoss(p, q, activation) :
+    '''Specify a loss function using the last layer's activation.'''
+    from theano.nnet import sigmoid
+    return crossEntropyLoss(p, q, 1) if activation == sigmoid else \
+           meanSquaredLoss(p, q)
+
 def leastAbsoluteDeviation(a, batchSize=None, scaleFactor=1.) :
     '''L1-norm provides 'Least Absolute Deviation' --
        built for sparse outputs and is resistent to outliers
