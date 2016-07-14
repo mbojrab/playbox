@@ -5,5 +5,8 @@ class AutoEncoder () :
         '''
         self._contractionRate = contractionRate
 
+    def buildDecoder(self, input) :
+        raise NotImplementedError('Implement the buildDecoder() method')
+
     def getUpdates(self) :
         raise NotImplementedError('Implement the getUpdates() method')
