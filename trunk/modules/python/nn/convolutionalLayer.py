@@ -1,7 +1,7 @@
 from nn.layer import Layer
 import numpy as np
 from theano.tensor import tanh
-from theano import shared, config, function
+from theano import shared, config
 
 class ConvolutionalLayer(Layer) :
     '''This class describes a Convolutional Neural Layer which specifies
@@ -102,8 +102,8 @@ class ConvolutionalLayer(Layer) :
                               self._downsampleFactor, self._thresholds)
 
         # create a convenience function
-        self.output = self.setupOutput(self.getOutputSize()[1:], 
-                                       outClass, outTrain)
+        self.output = self._setOutput(self.getOutputSize()[1:], 
+                                      outClass, outTrain)
 
     def getInputSize (self) :
         '''The initial input size provided at construction. This is sized

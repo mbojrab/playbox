@@ -49,7 +49,10 @@ class Layer () :
         # convert back to a theano operation
         self._activation = convertActivation(self._activation)
 
-    def setupOutput(self, outSize, outClass, outTrain) :
+    def _setActivation(self, out) :
+        return out if self._activation is None else self._activation(out)
+
+    def _setOutput(self, outSize, outClass, outTrain) :
         from theano.tensor import switch
 
         # determine dropout if requested
@@ -71,8 +74,7 @@ class Layer () :
         # activate the layer --
         # output is a tuple to represent two possible paths through the
         # computation graph.
-        return (outClass, outTrain) if self._activation is None else \
-               (self._activation(outClass), self._activation(outTrain))
+        return (self._setActivation(outClass), self._setActivation(outTrain))
 
     def finalize(self) :
         raise NotImplementedError('Implement the finalize() method')
