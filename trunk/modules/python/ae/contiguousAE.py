@@ -4,11 +4,11 @@ import theano.tensor as t
 from ae.encoder import AutoEncoder
 from nn.contiguousLayer import ContiguousLayer
 
-class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
-    '''This class describes a Contractive AutoEncoder (CAE). This is a 
-       unsupervised learning technique which encodes an input (feedforward), 
-       and then decodes the output vector by sending backwards through the
-       layer. This attempts to reconstruct the original input. 
+class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
+    '''This class describes a Contractive AutoEncoder (CAE) for a Contiguous
+       Layer. This is a unsupervised learning technique which encodes an input
+       (feedforward), and then decodes the output vector by sending backwards
+       through the layer. This attempts to reconstruct the original input. 
 
        If the decoded message matches the original input, the encoders is
        considered lossless. Otherwise the loss is calculated and the encoder 
@@ -125,7 +125,7 @@ class ContractiveAutoEncoder(ContiguousLayer, AutoEncoder) :
         # this is our cost function with respect to the original input
         self._cost = calcLoss(self.input[1], decodedInput, self._activation)
         gradients = t.grad(self._cost + self._jacobianCost, self.getWeights())
-        self._updates = [(weights, weights - self.learningRate * gradient)
+        self._updates = [(weights, weights - self._learningRate * gradient)
                          for weights, gradient in zip(self.getWeights(), 
                                                       gradients)]
 
@@ -202,12 +202,12 @@ if __name__ == '__main__' :
     train = (np.reshape(train[0], vectorized), train[1])
 
     input = t.fmatrix()
-    ae = ContractiveAutoEncoder('cae', input=input, 
-                                inputSize=(train[0].shape[1],
-                                           train[0].shape[2]),
-                                numNeurons=options.neuron,
-                                learningRate=options.learn,
-                                dropout=.5 if options.dropout else 1.)
+    ae = ContiguousAutoEncoder('cae', input=input, 
+                               inputSize=(train[0].shape[1],
+                                          train[0].shape[2]),
+                               numNeurons=options.neuron,
+                               learningRate=options.learn,
+                               dropout=.5 if options.dropout else 1.)
     for ii in range(50) :
         start = time.time()
         for jj in range(len(train[0])) :

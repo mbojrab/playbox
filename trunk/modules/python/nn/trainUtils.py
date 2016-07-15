@@ -12,7 +12,7 @@ def renameBestNetwork(lastSave, bestNetwork, log=None) :
 
     return bestNetwork
 
-def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=30, 
+def trainUnsupervised(network, appName, dataPath, numEpochs=5, 
                       synapse=None, base=None, dropout=None, 
                       learnC=None, learnF=None, contrF=None, momentum=None, 
                       kernel=None, neuron=None, log=None) :
@@ -43,10 +43,15 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=30,
                                       layer=layerIndex)
         network.save(lastSave)
 
+    # train the entire network --
+    # this ensures the network fine-tunes its encodings wrt all layers'
+    # encoding and decoding loss.
+    globalEpoch, cost = network.trainEpoch(-1, globalEpoch, numEpochs)
+
     # rename the network which achieved the highest accuracy
     bestNetwork = buildPickleFinal(base=base, appName=appName, 
                                    dataName=os.path.basename(dataPath), 
-                                   epoch=numEpochs)
+                                   epoch=globalEpoch)
     return renameBestNetwork(lastSave, bestNetwork, log)
 
 def trainSupervised (network, appName, dataPath, numEpochs=5, stop=30, 

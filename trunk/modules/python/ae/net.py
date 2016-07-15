@@ -12,13 +12,13 @@ class StackedAENetwork (Network) :
 
        train : theano.shared dataset used for network training in format --
                (numBatches, batchSize, numChannels, rows, cols)
-       log   : Logger to use
+       prof  : Profiler to use
     '''
-    def __init__ (self, train, log=None) :
-        Network.__init__ (self, log)
+    def __init__ (self, train, prof=None) :
+        Network.__init__ (self, prof)
         self._indexVar = t.lscalar('index')
-        self._trainData = train
-        self._numTrainBatches = self._trainData.get_value(borrow=True).shape[0]
+        self._trainData = train[0] if isinstance(train, tuple) else train
+        self._numTrainBatches = self._trainData.shape.eval()[0]
         self._trainGreedy = []
 
     def __buildEncoder(self) :
@@ -27,7 +27,7 @@ class StackedAENetwork (Network) :
            in a layerwise manner.
            NOTE: this uses theano.shared variables for optimized GPU execution
         '''
-        layerInput = self._trainData[0]
+        layerInput = (self._trainData[0], self._trainData[0])
         for encoder in self._layers :
             # forward pass through layers
             self._startProfile('Finalizing Encoder [' + encoder.layerID + ']', 
@@ -60,7 +60,7 @@ class StackedAENetwork (Network) :
         decodedInput = layerInput
 
         # TODO: here we assume the first layer uses sigmoid activation
-        cost = calcLoss(self.input[1], decodedInput, theano.nnet.sigmoid)
+        cost = calcLoss(self._trainData[0], decodedInput, t.nnet.sigmoid)
 
         # build the network-wide training update. 
         updates = []
@@ -76,7 +76,7 @@ class StackedAENetwork (Network) :
                 updates.append((w, w - decoder.getLearningRate() * g))
 
         self._trainNetwork = theano.function(
-            [self._indexVar], cost, updates=updates, 
+            [self._indexVar], [cost, jacobianCost], updates=updates, 
             givens={self.getNetworkInput()[1] : 
                     self._trainData[self._indexVar]})
 
@@ -88,6 +88,7 @@ class StackedAENetwork (Network) :
         if '_trainData' in dict : del dict['_trainData']
         if '_numTrainBatches' in dict : del dict['_numTrainBatches']
         if '_trainGreedy' in dict : del dict['_trainGreedy']
+        if '_trainNetwork' in dict : del dict['_trainNetwork']
         return dict
 
     def __setstate__(self, dict) :
@@ -96,6 +97,7 @@ class StackedAENetwork (Network) :
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
         if hasattr(self, '_trainGreedy') : delattr(self, '_trainGreedy')
+        if hasattr(self, '_trainNetwork') : delattr(self, '_trainNetwork')
         self._trainGreedy = []
         Network.__setstate__(self, dict)
         # rebuild the network
@@ -130,7 +132,7 @@ class StackedAENetwork (Network) :
         self._startProfile('Finalizing Network', 'info')
         self.__buildEncoder()
         self.__buildDecoder()
-        self.endProfile()
+        self._endProfile()
 
     def train(self, layerIndex, index) :
         '''Train the network against the pre-loaded inputs. This accepts
@@ -141,17 +143,22 @@ class StackedAENetwork (Network) :
         '''
         self._startProfile('Training Batch [' + str(index) +
                            '/' + str(self._numTrainBatches) + ']', 'debug')
+        if not hasattr(self, '_trainGreedy') or \
+           not hasattr(self, '_trainNetwork') :
+            self.finalizeNetwork()
         if not isinstance(index, int) :
             raise Exception('Variable index must be an integer value')
         if index >= self._numTrainBatches :
             raise Exception('Variable index out of range for numBatches')
 
         # train the input --
-        # the user decides if this is online or batch training
-        if layerIndex >= 0 :
-            ret = self._trainGreedy[layerIndex](index)
-        else :
+        # the user decides whether this will be a greedy or network training
+        # by passing in a layer index. If the index does not have an associated
+        # layer, it automatically chooses network-wide training.
+        if layerIndex < 0 or layerIndex >= self.getNumLayers() :
             ret = self._trainNetwork(index)
+        else :
+            ret = self._trainGreedy[layerIndex](index)
 
         self._endProfile()
         return ret
@@ -207,7 +214,7 @@ if __name__ == '__main__' :
     import argparse, logging
     from dataset.reader import ingestImagery, pickleDataset
     from dataset.shared import splitToShared
-    from contiguousAE import ContractiveAutoEncoder
+    from contiguousAE import ContiguousAutoEncoder
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--log', dest='logfile', type=str, default=None,
@@ -249,7 +256,7 @@ if __name__ == '__main__' :
 
     network = StackedAENetwork(splitToShared(train, borrow=True), log)
     input = t.fmatrix('input')
-    network.addLayer(ContractiveAutoEncoder(
+    network.addLayer(ContiguousAutoEncoder(
         'cae', input, (vectorized[1], vectorized[2]),
         options.neuron, options.learn, options.contraction))
 

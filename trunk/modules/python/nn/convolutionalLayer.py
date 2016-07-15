@@ -83,13 +83,13 @@ class ConvolutionalLayer(Layer) :
         def findLogits(input, weights, inputSize, kernelSize, 
                        downsampleFactor, thresholds) :
             from theano.tensor.nnet.conv import conv2d
-            from theano.tensor.signal.downsample import max_pool_2d
+            from theano.tensor.signal.pool import pool_2d
 
             # create a function to perform the convolution
             convolve = conv2d(input, weights, inputSize, kernelSize)
 
             # create a function to perform the max pooling
-            pooling = max_pool_2d(convolve, downsampleFactor, True)
+            pooling = pool_2d(convolve, downsampleFactor, True)
 
             # the output buffer is now connected to a sequence of operations
             return pooling + thresholds.dimshuffle('x', 0, 'x', 'x')

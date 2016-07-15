@@ -53,7 +53,7 @@ def pickleDataset(filepath, batchSize=1, log=None, chipFunc=None, **kwargs) :
     # return the output filename
     return outputFile
 
-def ingestImagery(filepath, shared=False, batchSize=1,
+def ingestImagery(filepath, shared=True, batchSize=1,
                   log=None, chipFunc=None, **kwargs) :
     '''Load the unlabeled dataset into memory. This reads and chips any
        imagery found within the filepath according the the options sent to the

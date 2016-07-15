@@ -5,27 +5,27 @@ from ae.encoder import AutoEncoder
 from nn.convolutionalLayer import ConvolutionalLayer
 from theano.tensor.nnet.conv import conv2d
 
-def max_unpool_2d(input, upsampleFactor) :
+def unpool_2d(input, inShape, upsampleFactor) :
     '''Perform perforated upsample from paper : 
        "Image Super-Resolution with Fast Approximate 
         Convolutional Sparse Coding"
     '''
-    outputShape = [input.shape[1],
-                   input.shape[2] * upsampleFactor[0],
-                   input.shape[3] * upsampleFactor[1]]
-    numElems = input.shape[2] * input.shape[3]
+    outputShape = [inShape[1], 
+                   inShape[2] * upsampleFactor[0],
+                   inShape[3] * upsampleFactor[1]]
+    numElems = inShape[2] * inShape[3]
     upsampNumElems = numElems * np.prod(upsampleFactor)
 
     upsamp = t.zeros((numElems, upsampNumElems))
     rows = t.arange(numElems)
     cols = rows * upsampleFactor[0] + \
-           (rows / input.shape[2] * upsampleFactor[1] * input.shape[3])
-    upsamp = t.set_subtensor(upsamp[rows, cols], 1.)
+           (rows / inShape[2] * upsampleFactor[1] * inShape[3])
+    upsamp = t.set_subtensor(upsamp[rows, cols.astype('int64')], 1.)
 
-    flat = t.reshape(input, (input.shape[0], outputShape[0], 
-                             input.shape[2] * input.shape[3]))
+    flat = t.reshape(input, (inShape[0], outputShape[0], 
+                             inShape[2] * inShape[3]))
     upsampflat = t.dot(flat, upsamp)
-    return t.reshape(upsampflat, (input.shape[0], outputShape[0],
+    return t.reshape(upsampflat, (inShape[0], outputShape[0],
                                   outputShape[1], outputShape[2]))
 
 class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
@@ -123,13 +123,14 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                           kernelSize[2], kernelSize[3])
         return t.reshape(self._weights, (kernelBackSize))
 
-    def _decode(self, input, weightsBack) :
+    def _decode(self, input) :
+        weightsBack = self._getWeightsBack()
         deconvolve = conv2d(input, weightsBack, self.getFeatureSize(), 
                             weightsBack.shape.eval(), border_mode='full')
         return self._setActivation(
             deconvolve + self._thresholdsBack.dimshuffle('x', 0, 'x', 'x'))
 
-    def finalize(self, input, inputFull) :
+    def finalize(self, input) :
         '''Setup the computation graph for this layer.
            input : the input variable tuple for this layer
                    format (inClass, inTrain)
@@ -144,7 +145,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # and runs the output back through the network in reverse. The net
         # effect is to reconstruct the input, and ultimately to see how well
         # the network is at encoding the message.
-        unpooling = max_unpool_2d(self.output[1], self._downsampleFactor)
+        unpooling = unpool_2d(self.output[1], self.output[1].shape.eval(),
+                              self._downsampleFactor)
         decodedInput = self._decode(unpooling)
         self.reconstruction = function([self.input[1]], decodedInput)
 
@@ -163,7 +165,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         #       and does not help convergence or regularization. It was removed
         self._cost = calcLoss(self.input[1], decodedInput, self._activation)
         gradients = t.grad(self._cost + self._jacobianCost, self.getWeights())
-        self._updates = [(weights, weights - self.learningRate * gradient)
+        self._updates = [(weights, weights - self._learningRate * gradient)
                          for weights, gradient in zip(self.getWeights(), 
                                                       gradients)]
 
@@ -179,10 +181,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
            encoder has been created. The decoder is ran in the opposite
            direction.
         '''
-        weightsBack = self._getWeightsBack()
-        return self._setDecode(
-            max_unpool_2d(input, self._downsampleFactor), 
-            weightsBack, weightsBack.shape.eval())
+        return self._decode(unpool_2d(input, self.getOutputSize(),
+                                      self._downsampleFactor))
 
     def getWeights(self) :
         '''Update to account for the decode thresholds.'''

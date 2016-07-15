@@ -101,7 +101,7 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
     # return the output filename
     return outputFile
 
-def ingestImagery(filepath, shared=False, log=None, **kwargs) :
+def ingestImagery(filepath, shared=True, log=None, **kwargs) :
     '''Load the labeled dataset into memory. This is formatted such that the
        directory structure becomes the labels, and all imagery within the 
        directory will be assigned this label. All images in any directory is
