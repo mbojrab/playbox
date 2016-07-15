@@ -5,29 +5,6 @@ from ae.encoder import AutoEncoder
 from nn.convolutionalLayer import ConvolutionalLayer
 from theano.tensor.nnet.conv import conv2d
 
-def unpool_2d(input, inShape, upsampleFactor) :
-    '''Perform perforated upsample from paper : 
-       "Image Super-Resolution with Fast Approximate 
-        Convolutional Sparse Coding"
-    '''
-    outputShape = [inShape[1], 
-                   inShape[2] * upsampleFactor[0],
-                   inShape[3] * upsampleFactor[1]]
-    numElems = inShape[2] * inShape[3]
-    upsampNumElems = numElems * np.prod(upsampleFactor)
-
-    upsamp = t.zeros((numElems, upsampNumElems))
-    rows = t.arange(numElems)
-    cols = rows * upsampleFactor[0] + \
-           (rows / inShape[2] * upsampleFactor[1] * inShape[3])
-    upsamp = t.set_subtensor(upsamp[rows, cols.astype('int64')], 1.)
-
-    flat = t.reshape(input, (inShape[0], outputShape[0], 
-                             inShape[2] * inShape[3]))
-    upsampflat = t.dot(flat, upsamp)
-    return t.reshape(upsampflat, (inShape[0], outputShape[0],
-                                  outputShape[1], outputShape[2]))
-
 class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
     '''This class describes a Contractive AutoEncoder (CAE) for a convolutional
        layer. This differs from the normal CAE 
@@ -116,8 +93,17 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         if hasattr(self, '_trainLayer') : delattr(self, '_trainLayer')
         ConvolutionalLayer.__setstate__(self, dict)
 
+    def _unpool_2d(self, input, upsampleFactor) :
+        '''This method performs the opposite of pool_2d. This uses the index
+           which produced the largest input during pooling in order to produce
+           the sparse upsample.
+        '''
+        op = t.signal.pool.Pool(ds=upsampleFactor, ignore_border=True, 
+                                st=None, padding=(0, 0), mode='max')
+        return op.grad((self._prePoolingInput[1],), (input,))[0]
+
     def _getWeightsBack(self) :
-        '''Calculate the weights used for decoding.'''        
+        '''Calculate the weights used for decoding.'''
         kernelSize = self.getKernelSize()
         kernelBackSize = (kernelSize[1], kernelSize[0], 
                           kernelSize[2], kernelSize[3])
@@ -145,8 +131,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # and runs the output back through the network in reverse. The net
         # effect is to reconstruct the input, and ultimately to see how well
         # the network is at encoding the message.
-        unpooling = unpool_2d(self.output[1], self.output[1].shape.eval(),
-                              self._downsampleFactor)
+        unpooling = self._unpool_2d(self.output[1], self._downsampleFactor)
         decodedInput = self._decode(unpooling)
         self.reconstruction = function([self.input[1]], decodedInput)
 
@@ -181,8 +166,10 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
            encoder has been created. The decoder is ran in the opposite
            direction.
         '''
-        return self._decode(unpool_2d(input, self.getOutputSize(),
-                                      self._downsampleFactor))
+        # NOTE: the output may come back as a different shape than it left
+        #       so we reshape here just in case.
+        return self._decode(self._unpool_2d(
+            t.reshape(input, self.getOutputSize()), self._downsampleFactor))
 
     def getWeights(self) :
         '''Update to account for the decode thresholds.'''
