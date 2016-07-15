@@ -74,6 +74,18 @@ class ConvolutionalLayer(Layer) :
                                          dtype=config.floatX)
         self._thresholds = shared(value=initialThresholds, borrow=True)
 
+    def __getstate__(self) :
+        '''Save layer pickle'''
+        dict = Layer.__getstate__(self)
+        dict['_prePoolingInput'] = None
+        return dict
+
+    def __setstate__(self, dict) :
+        '''Load layer pickle'''
+        if hasattr(self, '_prePoolingInput') : 
+            delattr(self, '_prePoolingInput')
+        Layer.__setstate__(self, dict)
+
     def finalize(self, input) :
         '''Setup the computation graph for this layer.
            input : the input variable tuple for this layer
@@ -89,17 +101,20 @@ class ConvolutionalLayer(Layer) :
             convolve = conv2d(input, weights, inputSize, kernelSize)
 
             # create a function to perform the max pooling
-            pooling = pool_2d(convolve, downsampleFactor, True)
+            pooling = pool_2d(convolve, downsampleFactor, ignore_border=True)
 
             # the output buffer is now connected to a sequence of operations
-            return pooling + thresholds.dimshuffle('x', 0, 'x', 'x')
+            return pooling + thresholds.dimshuffle('x', 0, 'x', 'x'), convolve
 
-        outClass = findLogits(self.input[0], self._weights,
-                              self._inputSize, self._kernelSize,
-                              self._downsampleFactor, self._thresholds)
-        outTrain = findLogits(self.input[1], self._weights,
-                              self._inputSize, self._kernelSize,
-                              self._downsampleFactor, self._thresholds)
+        outClass, convClass = findLogits(self.input[0], self._weights, 
+                                         self._inputSize, self._kernelSize,
+                                         self._downsampleFactor, 
+                                         self._thresholds)
+        outTrain, convTrain = findLogits(self.input[1], self._weights, 
+                                         self._inputSize, self._kernelSize,
+                                         self._downsampleFactor, 
+                                         self._thresholds)
+        self._prePoolingInput = (convClass, convTrain)
 
         # create a convenience function
         self.output = self._setOutput(self.getOutputSize()[1:], 

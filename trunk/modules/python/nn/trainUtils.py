@@ -26,10 +26,14 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5,
                  pre-trainer for the Neural Network
     '''
     # train each layer in sequence --
-    # first we pre-train the data and at each epoch, we save it to disk
+    # first we pre-train the data and at each epoch, we save each to disk
+    #
+    # the last iteration trains the network as a whole --
+    # this ensures the network fine-tunes its encodings wrt to all layers'
+    # encoding and decoding loss.
     lastSave = ''
     globalEpoch = resumeEpoch(synapse)
-    for layerIndex in range(network.getNumLayers()) :
+    for layerIndex in range(network.getNumLayers() + 1) :
         globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 
                                                numEpochs)
         lastSave = buildPickleInterim(base=base,
@@ -42,11 +46,6 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5,
                                       neuron=neuron,
                                       layer=layerIndex)
         network.save(lastSave)
-
-    # train the entire network --
-    # this ensures the network fine-tunes its encodings wrt all layers'
-    # encoding and decoding loss.
-    globalEpoch, cost = network.trainEpoch(-1, globalEpoch, numEpochs)
 
     # rename the network which achieved the highest accuracy
     bestNetwork = buildPickleFinal(base=base, appName=appName, 

@@ -60,6 +60,7 @@ class StackedAENetwork (Network) :
         decodedInput = layerInput
 
         # TODO: here we assume the first layer uses sigmoid activation
+        self._startProfile('Setting up Network-wide Decoder', 'debug')
         cost = calcLoss(self._trainData[0], decodedInput, t.nnet.sigmoid)
 
         # build the network-wide training update. 
@@ -79,6 +80,7 @@ class StackedAENetwork (Network) :
             [self._indexVar], [cost, jacobianCost], updates=updates, 
             givens={self.getNetworkInput()[1] : 
                     self._trainData[self._indexVar]})
+        self._endProfile()
 
     def __getstate__(self) :
         '''Save network pickle'''
@@ -180,6 +182,17 @@ class StackedAENetwork (Network) :
             locCost = []
             for ii in range(self._numTrainBatches) :
                 locCost.append(self.train(layerIndex, ii))
+            '''
+            reconstructedInput = self._layers[layerIndex].reconstruction(
+                                    self._trainData.get_value(borrow=True)[0])
+            from dataset.debugger import saveTiledImage
+            saveTiledImage(image=reconstructedInput,
+                           path=self._layers[layerIndex].layerID + '_reconstruction_' + 
+                                str(globalEpoch+localEpoch) + '.png',
+                           imageShape=tuple(self._layers[layerIndex].getInputSize()[-2:]),
+                           spacing=1,
+                           interleave=True)
+            '''
 
             locCost = np.mean(locCost, axis=0)
             self._startProfile(layerEpochStr + ' Cost: ' + \
