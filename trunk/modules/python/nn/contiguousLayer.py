@@ -1,7 +1,7 @@
 import six
 from nn.layer import Layer
 import numpy as np
-from theano import config, shared, dot, function
+from theano import config, shared, dot
 from theano.tensor.nnet import sigmoid
 from theano.tensor import tanh
 
@@ -82,7 +82,7 @@ class ContiguousLayer(Layer) :
         outTrain = findLogit(self.input[1], self._weights, self._thresholds)
 
         # create a convenience function
-        self.output = self.setupOutput((self._numNeurons,), outClass, outTrain)
+        self.output = self._setOutput((self._numNeurons,), outClass, outTrain)
 
     def getInputSize (self) :
         '''(numInputs, pattern size)'''

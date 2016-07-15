@@ -4,7 +4,7 @@ from time import time
 from six.moves import reduce
 
 from ae.net import StackedAENetwork
-from ae.contiguousAE import ContractiveAutoEncoder
+from ae.contiguousAE import ContiguousAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.unlabeled import ingestImagery
 from dataset.chip import randomChip
@@ -49,7 +49,7 @@ def buildStackedAENetwork(train,
     layerInputSize = (layerInputSize[0], reduce(mul, layerInputSize[1:]))
     for n,l,m,dr in zip(neuronFull, learnFull, momentumFull, dropoutFull) :
         # add a fully-connected layer as defined
-        network.addLayer(ContractiveAutoEncoder(
+        network.addLayer(ContiguousAutoEncoder(
             layerID='fully' + str(layerCount), 
             inputSize=layerInputSize, numNeurons=n, learningRate=l,
             dropout=dr, randomNumGen=rng))            

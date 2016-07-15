@@ -3,7 +3,7 @@ import os
 import numpy as np
 from six.moves import reduce
 from PIL import Image, ImageDraw, ImageFont
-from nn.profiler import setupLogging
+from nn.profiler import setupLogging, Profiler
 
 options = None
 windowName = 'Kirtland AF Base'
@@ -37,7 +37,7 @@ def selectRegion (event, x, y, flags, param) :
                      misLocation[1][0], misLocation[1][1]))),
                     (1, 1, options.chipSize, options.chipSize)))[1][0]
             if refLocation == None :
-                print "Please select a reference region!"
+                print("Please select a reference region!")
             else :
                 likeness = np.dot(referenceVector, matchVector)
 
@@ -97,11 +97,13 @@ def createNetwork(image, log=None) :
     if options.synapse is not None :
         if log is not None :
             log.info('Loading Network from Disk...')
-        network = ClassifierNetwork(options.synapse, log)
+        prof = Profiler(log=log, name='profile', 
+                        profFile='./likelinessFinder-profile.xml')
+        network = ClassifierNetwork(options.synapse, prof)
 
         from nn.datasetUtils import toShared
         from ae.net import StackedAENetwork
-        network = StackedAENetwork((toShared(chips, True), None), log=log)
+        network = StackedAENetwork((toShared(chips, True), None), prof=prof)
         network.load(options.synapse)
         for ii in range(0, chips.shape[0], 50) :
             import ae.utils
@@ -118,9 +120,8 @@ def createNetwork(image, log=None) :
         from ae.net import StackedAENetwork
         from nn.datasetUtils import toShared
         from ae.convolutionalAE import ConvolutionalAutoEncoder
-        from ae.contiguousAE import ContractiveAutoEncoder
+        from ae.contiguousAE import ContiguousAutoEncoder
         from numpy.random import RandomState
-        import theano.tensor as t
         from operator import mul
 
         if log is not None :
@@ -133,7 +134,7 @@ def createNetwork(image, log=None) :
             log.info('Intializing the SAE...')
 
         # create the SAE
-        network = StackedAENetwork((toShared(chips, True), None), log=log)
+        network = StackedAENetwork((toShared(chips, True), None), prof=prof)
 
         # add convolutional layers
         network.addLayer(ConvolutionalAutoEncoder(
@@ -152,27 +153,27 @@ def createNetwork(image, log=None) :
 
         # add fully connected layers
         numInputs = reduce(mul, network.getNetworkOutputSize()[1:])
-        network.addLayer(ContractiveAutoEncoder(
+        network.addLayer(ContiguousAutoEncoder(
             layerID='f3', 
             inputSize=(network.getNetworkOutputSize()[0], numInputs),
             numNeurons=options.hidden,
             learningRate=options.learnF, randomNumGen=rng))
         '''
 
-        network.addLayer(ContractiveAutoEncoder(
+        network.addLayer(ContiguousAutoEncoder(
             layerID='f1', 
             inputSize=(chips.shape[1], reduce(mul, chips.shape[2:])),
             numNeurons=500, learningRate=options.learnF,
             contractionRate=options.contrF, randomNumGen=rng))
-        network.addLayer(ContractiveAutoEncoder(
+        network.addLayer(ContiguousAutoEncoder(
             layerID='f2', inputSize=network.getNetworkOutputSize(),
             numNeurons=200, learningRate=options.learnF,
             contractionRate=options.contrF, randomNumGen=rng))
-        network.addLayer(ContractiveAutoEncoder(
+        network.addLayer(ContiguousAutoEncoder(
             layerID='f3', inputSize=network.getNetworkOutputSize(),
             numNeurons=100, learningRate=options.learnF,
             contractionRate=options.contrF, randomNumGen=rng))
-        network.addLayer(ContractiveAutoEncoder(
+        network.addLayer(ContiguousAutoEncoder(
             layerID='f4', inputSize=network.getNetworkOutputSize(),
             numNeurons=50, learningRate=options.learnF,
             contractionRate=options.contrF, randomNumGen=rng))
@@ -195,18 +196,18 @@ def createNetwork(image, log=None) :
                 for localEpoch in range(options.numEpochs) :
                     layerEpochStr = 'Layer[' + str(layerIndex) + '] Epoch[' + \
                                     str(globalEpoch + localEpoch) + ']'
-                    print 'Running ' + layerEpochStr
+                    print('Running ' + layerEpochStr)
                     locCost = []
                     for ii in range(chips.shape[0]) :
                         locCost.append(network.train(layerIndex, ii))
 
                     locCost = np.mean(locCost, axis=0)
                     if isinstance(locCost, tuple) :
-                        print layerEpochStr + ' Cost: ' + \
+                        print(layerEpochStr + ' Cost: ' + \
                               str(locCost[0]) + ' - Jacob: ' + \
-                              str(locCost[1])
+                              str(locCost[1]))
                     else :
-                        print layerEpochStr + ' Cost: ' + str(locCost)
+                        print(layerEpochStr + ' Cost: ' + str(locCost))
                     globCost.append(locCost)
 
                     network.writeWeights(layerIndex, globalEpoch + localEpoch)
@@ -267,7 +268,8 @@ if __name__ == '__main__' :
     options = parser.parse_args()
 
     # setup the logger
-    log = setupLogging('likenessFinder', options.level, options.logfile)
+    logName = 'likenessFinder: ' + options.data
+    log = setupLogging(logName, options.level, options.logfile)
 
     # read the file into memory
     if log is not None :

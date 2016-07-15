@@ -5,7 +5,7 @@ import numpy as np
 from six.moves import reduce
 from PIL import Image, ImageDraw
 from nn.datasetUtils import normalize
-from nn.profiler import setupLogging
+from nn.profiler import setupLogging, Profiler
 
 options = None
 windowName = 'Kirtland AF Base'
@@ -105,23 +105,23 @@ def createNetwork(image, log=None) :
     # divide the image into chips
     chips, regions = subdivideImage(image, options.chipSize, 5,
                                     options.batchSize, False)
-    print 'Chips Cut: ' + str(chips.shape)
+    print('Chips Cut: ' + str(chips.shape))
+    prof = Profiler(log=log, name='profile', 
+                    profFile='./likelinessFinder_FullScan-profile.xml')
 
     # load a previously created network
     if options.synapse is not None :
         if log is not None :
             log.info('Loading Network from Disk...')
-        network = ClassifierNetwork(options.synapse, log)
+        network = ClassifierNetwork(options.synapse, prof)
 
     # create a newly trained network on the specified image
     else :
         import time
         from ae.net import StackedAENetwork
         from nn.datasetUtils import toShared
-        from ae.convolutionalAE import ConvolutionalAutoEncoder
-        from ae.contiguousAE import ContractiveAutoEncoder
+        from ae.contiguousAE import ContiguousAutoEncoder
         from numpy.random import RandomState
-        import theano.tensor as t
         from operator import mul
 
         if log is not None :
@@ -134,7 +134,7 @@ def createNetwork(image, log=None) :
             log.info('Intializing the SAE...')
 
         # create the SAE
-        network = StackedAENetwork((toShared(chips, True), None), log=log)
+        network = StackedAENetwork((toShared(chips, True), None), prof=prof)
 
         '''
         # add convolutional layers
@@ -151,27 +151,27 @@ def createNetwork(image, log=None) :
 
         # add fully connected layers
         numInputs = reduce(mul, network.getNetworkOutputSize()[1:])
-        network.addLayer(ContractiveAutoEncoder(
+        network.addLayer(ContiguousAutoEncoder(
             layerID='f3', 
             inputSize=(network.getNetworkOutputSize()[0], numInputs),
             numNeurons=int(options.hidden*1.5),
             learningRate=options.learnF, randomNumGen=rng))
         '''
         from theano.tensor import tanh
-        network.addLayer(ContractiveAutoEncoder(
+        network.addLayer(ContiguousAutoEncoder(
             layerID='f1', 
             inputSize=(chips.shape[1], reduce(mul, chips.shape[2:])),
             numNeurons=500, learningRate=options.learnF, activation=tanh,
             contractionRate=options.contrF, randomNumGen=rng))
-        network.addLayer(ContractiveAutoEncoder(
+        network.addLayer(ContiguousAutoEncoder(
             layerID='f2', inputSize=network.getNetworkOutputSize(),
             numNeurons=200, learningRate=options.learnF, activation=tanh,
             contractionRate=options.contrF, randomNumGen=rng))
-        network.addLayer(ContractiveAutoEncoder(
+        network.addLayer(ContiguousAutoEncoder(
             layerID='f3', inputSize=network.getNetworkOutputSize(),
             numNeurons=100, learningRate=options.learnF, activation=tanh,
             contractionRate=options.contrF, randomNumGen=rng))
-        network.addLayer(ContractiveAutoEncoder(
+        network.addLayer(ContiguousAutoEncoder(
             layerID='f4', inputSize=network.getNetworkOutputSize(),
             numNeurons=50, learningRate=options.learnF, activation=tanh,
             contractionRate=options.contrF, randomNumGen=rng))
@@ -193,18 +193,18 @@ def createNetwork(image, log=None) :
                 for localEpoch in range(options.numEpochs) :
                     layerEpochStr = 'Layer[' + str(layerIndex) + '] Epoch[' + \
                                     str(globalEpoch + localEpoch) + ']'
-                    print 'Running ' + layerEpochStr
+                    print('Running ' + layerEpochStr)
                     locCost = []
                     for ii in range(chips.shape[0]) :
                         locCost.append(network.train(layerIndex, ii))
 
                     locCost = np.mean(locCost, axis=0)
                     if isinstance(locCost, tuple) :
-                        print layerEpochStr + ' Cost: ' + \
+                        print(layerEpochStr + ' Cost: ' + \
                               str(locCost[0]) + ' - Jacob: ' + \
-                              str(locCost[1])
+                              str(locCost[1]))
                     else :
-                        print layerEpochStr + ' Cost: ' + str(locCost)
+                        print(layerEpochStr + ' Cost: ' + str(locCost))
                     globCost.append(locCost)
 
                     if layerIndex == 0 :

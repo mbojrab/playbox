@@ -12,21 +12,73 @@ class StackedAENetwork (Network) :
 
        train : theano.shared dataset used for network training in format --
                (numBatches, batchSize, numChannels, rows, cols)
-       log   : Logger to use
+       prof  : Profiler to use
     '''
-    def __init__ (self, train, log=None) :
-        Network.__init__ (self, log)
+    def __init__ (self, train, prof=None) :
+        Network.__init__ (self, prof)
         self._indexVar = t.lscalar('index')
-        self._trainData = train
-        self._numTrainBatches = self._trainData.get_value(borrow=True).shape[0]
-        self._greedyTrainer = []
+        self._trainData = train[0] if isinstance(train, tuple) else train
+        self._numTrainBatches = self._trainData.shape.eval()[0]
+        self._trainGreedy = []
 
-    def __buildAE(self, encoder) :
-        out, updates = encoder.getUpdates()
-        self._greedyTrainer.append(
-            theano.function([self._indexVar], out, updates=updates,
-                            givens={self.getNetworkInput()[1] : 
-                                    self._trainData[self._indexVar]}))
+    def __buildEncoder(self) :
+        '''Build the greedy-layerwise function --
+           All layers start with the input original input, however are updated
+           in a layerwise manner.
+           NOTE: this uses theano.shared variables for optimized GPU execution
+        '''
+        layerInput = (self._trainData[0], self._trainData[0])
+        for encoder in self._layers :
+            # forward pass through layers
+            self._startProfile('Finalizing Encoder [' + encoder.layerID + ']', 
+                               'debug')
+            encoder.finalize(layerInput)
+            out, up = encoder.getUpdates()
+            self._trainGreedy.append(
+                theano.function([self._indexVar], out, updates=up,
+                                givens={self.getNetworkInput()[1] : 
+                                        self._trainData[self._indexVar]}))
+            layerInput = encoder.output
+            self._endProfile()
+
+    def __buildDecoder(self) :
+        '''Build the decoding section and the network-wide training method.'''
+        from nn.costUtils import calcLoss
+
+        # setup the decoders -- 
+        # this is the second half of the network and is equivalent to the
+        # encoder network reversed.
+        jacobianCost = 0
+        layerInput = self._layers[-1].output[1]
+        for decoder in reversed(self._layers) :
+            # backward pass through layers
+            self._startProfile('Finalizing Decoder [' + decoder.layerID + ']', 
+                               'debug')
+            jacobianCost += decoder.getUpdates()[0][1]
+            layerInput = decoder.buildDecoder(layerInput)
+            self._endProfile()
+        decodedInput = layerInput
+
+        # TODO: here we assume the first layer uses sigmoid activation
+        cost = calcLoss(self._trainData[0], decodedInput, t.nnet.sigmoid)
+
+        # build the network-wide training update. 
+        updates = []
+        for decoder in reversed(self._layers) :
+            
+            # build the gradients
+            layerWeights = decoder.getWeights()
+            gradients = t.grad(cost + jacobianCost, layerWeights,
+                               disconnected_inputs='warn')
+
+            # add the weight update
+            for w, g in zip(layerWeights, gradients) :
+                updates.append((w, w - decoder.getLearningRate() * g))
+
+        self._trainNetwork = theano.function(
+            [self._indexVar], [cost, jacobianCost], updates=updates, 
+            givens={self.getNetworkInput()[1] : 
+                    self._trainData[self._indexVar]})
 
     def __getstate__(self) :
         '''Save network pickle'''
@@ -35,19 +87,23 @@ class StackedAENetwork (Network) :
         if '_indexVar' in dict : del dict['_indexVar']
         if '_trainData' in dict : del dict['_trainData']
         if '_numTrainBatches' in dict : del dict['_numTrainBatches']
-        if '_greedyTrainer' in dict : del dict['_greedyTrainer']
+        if '_trainGreedy' in dict : del dict['_trainGreedy']
+        if '_trainNetwork' in dict : del dict['_trainNetwork']
         return dict
 
     def __setstate__(self, dict) :
         '''Load network pickle'''
+        self._indexVar = t.lscalar('index')
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
-        if hasattr(self, '_greedyTrainer') : delattr(self, '_greedyTrainer')
-        self._greedyTrainer = []
+        if hasattr(self, '_trainGreedy') : delattr(self, '_trainGreedy')
+        if hasattr(self, '_trainNetwork') : delattr(self, '_trainNetwork')
+        self._trainGreedy = []
         Network.__setstate__(self, dict)
         # rebuild the network
+        layerInput = self._trainData[0]
         for encoder in self._layers :
-            self.__buildAE(encoder)
+            layerInput = self.__buildAE(encoder, layerInput)
 
     def addLayer(self, encoder) :
         '''Add an autoencoder to the network. It is the responsibility of the 
@@ -61,11 +117,21 @@ class StackedAENetwork (Network) :
 
         # add it to our layer list
         self._layers.append(encoder)
+        self._endProfile()
 
-        # all layers start with the input original input, however are updated
-        # in a layerwise manner. --
-        # NOTE: this uses theano.shared variables for optimized GPU execution
-        self.__buildAE(encoder)
+    def finalizeNetwork(self) :
+        '''Setup the network based on the current network configuration.
+           This is used to create several network-wide functions so they will
+           be pre-compiled and optimized when we need them. The only function
+           across all network types is classify()
+        '''
+        if len(self._layers) == 0 :
+            raise IndexError('Network must have at least one layer' +
+                             'to call finalizeNetwork().')
+
+        self._startProfile('Finalizing Network', 'info')
+        self.__buildEncoder()
+        self.__buildDecoder()
         self._endProfile()
 
     def train(self, layerIndex, index) :
@@ -77,14 +143,22 @@ class StackedAENetwork (Network) :
         '''
         self._startProfile('Training Batch [' + str(index) +
                            '/' + str(self._numTrainBatches) + ']', 'debug')
+        if not hasattr(self, '_trainGreedy') or \
+           not hasattr(self, '_trainNetwork') :
+            self.finalizeNetwork()
         if not isinstance(index, int) :
             raise Exception('Variable index must be an integer value')
         if index >= self._numTrainBatches :
             raise Exception('Variable index out of range for numBatches')
 
         # train the input --
-        # the user decides if this is online or batch training
-        ret = self._greedyTrainer[layerIndex](index)
+        # the user decides whether this will be a greedy or network training
+        # by passing in a layer index. If the index does not have an associated
+        # layer, it automatically chooses network-wide training.
+        if layerIndex < 0 or layerIndex >= self.getNumLayers() :
+            ret = self._trainNetwork(index)
+        else :
+            ret = self._trainGreedy[layerIndex](index)
 
         self._endProfile()
         return ret
@@ -140,7 +214,7 @@ if __name__ == '__main__' :
     import argparse, logging
     from dataset.reader import ingestImagery, pickleDataset
     from dataset.shared import splitToShared
-    from contiguousAE import ContractiveAutoEncoder
+    from contiguousAE import ContiguousAutoEncoder
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--log', dest='logfile', type=str, default=None,
@@ -182,7 +256,7 @@ if __name__ == '__main__' :
 
     network = StackedAENetwork(splitToShared(train, borrow=True), log)
     input = t.fmatrix('input')
-    network.addLayer(ContractiveAutoEncoder(
+    network.addLayer(ContiguousAutoEncoder(
         'cae', input, (vectorized[1], vectorized[2]),
         options.neuron, options.learn, options.contraction))
 

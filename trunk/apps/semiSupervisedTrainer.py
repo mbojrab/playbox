@@ -1,7 +1,6 @@
-import theano.tensor as t
 from six.moves import reduce
 from ae.net import StackedAENetwork
-from ae.contiguousAE import ContractiveAutoEncoder
+from ae.contiguousAE import ContiguousAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.labeled import ingestImagery
 from nn.contiguousLayer import ContiguousLayer
@@ -9,7 +8,7 @@ from nn.trainUtils import trainUnsupervised, trainSupervised
 from nn.net import TrainerNetwork
 import argparse
 from time import time
-from nn.profiler import setupLogging
+from nn.profiler import setupLogging, Profiler
 
 if __name__ == '__main__' :
     '''This application runs semi-supervised training on a given dataset. The
@@ -25,6 +24,9 @@ if __name__ == '__main__' :
                         help='Specify log output file.')
     parser.add_argument('--level', dest='level', default='INFO', type=str, 
                         help='Log Level.')
+    parser.add_argument('--prof', dest='profile', type=str, 
+                        default='Application-Profiler.xml',
+                        help='Specify profile output file.')
     parser.add_argument('--learnC', dest='learnC', type=float, default=.0031,
                         help='Rate of learning on Convolutional Layers.')
     parser.add_argument('--learnF', dest='learnF', type=float, default=.0015,
@@ -65,8 +67,9 @@ if __name__ == '__main__' :
     options = parser.parse_args()
 
     # setup the logger
-    log = setupLogging('semiSupervisedTrainer: ' + options.data,
-                       options.level, options.logfile)
+    logName = 'semiSupervisedTrainer: ' + options.data
+    log = setupLogging(logName, options.level, options.logfile)
+    prof = Profiler(log=log, name=logName, profFile=options.profile)
 
     # create a random number generator for efficiency
     from numpy.random import RandomState
@@ -82,7 +85,7 @@ if __name__ == '__main__' :
     trainShape = train[0].shape.eval()
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = StackedAENetwork(train, log=log)
+    network = StackedAENetwork(train, prof=prof)
 
     if options.synapse is not None :
         # load a previously saved network
@@ -109,7 +112,7 @@ if __name__ == '__main__' :
             learningRate=options.learnC))
 
         # add fully connected layers
-        network.addLayer(ContractiveAutoEncoder(
+        network.addLayer(ContiguousAutoEncoder(
             layerID='f3', 
             inputSize=(network.getNetworkOutputSize()[0], 
                        reduce(mul, network.getNetworkOutputSize()[1:])),
@@ -141,7 +144,7 @@ if __name__ == '__main__' :
     # this transfers our unsupervised pre-training into a decent
     # starting condition for our supervised learning
     network = TrainerNetwork(train, test, labels,
-                             filepath=bestNetwork, log=log)
+                             filepath=bestNetwork, prof=prof)
 
     # add the classification layer
     network.addLayer(ContiguousLayer(

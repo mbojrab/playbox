@@ -23,7 +23,7 @@ def crossEntropyLoss (p, q, axis=None, crop=True):
     '''
     if crop : 
         q = cropExtremes(q)
-    if p.ndim == 2 :
+    if p.ndim > 1 :
         return t.mean(t.sum(t.nnet.binary_crossentropy(q, p), axis=axis))
     else :
         return t.mean(t.nnet.crossentropy_categorical_1hot(q, p))
@@ -34,6 +34,11 @@ def meanSquaredLoss (p, q) :
         q    : the current estimate
     '''
     return t.mean((q - p) ** 2)
+
+def calcLoss(p, q, activation) :
+    '''Specify a loss function using the last layer's activation.'''
+    return crossEntropyLoss(p, q, 1) if activation == t.nnet.sigmoid else \
+           meanSquaredLoss(p, q)
 
 def leastAbsoluteDeviation(a, batchSize=None, scaleFactor=1.) :
     '''L1-norm provides 'Least Absolute Deviation' --

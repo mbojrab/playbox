@@ -1,14 +1,13 @@
-import theano.tensor as t
 import argparse
 from time import time
 from six.moves import reduce
 
 from ae.net import StackedAENetwork
-from ae.contiguousAE import ContractiveAutoEncoder
+from ae.contiguousAE import ContiguousAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainUnsupervised
-from nn.profiler import setupLogging
+from nn.profiler import setupLogging, Profiler
 
 '''This is an example Stacked AutoEncoder used for unsupervised pre-training.
    The network topology should match that of the finalize Neural Network
@@ -21,6 +20,9 @@ if __name__ == '__main__' :
                         help='Specify log output file.')
     parser.add_argument('--level', dest='level', default='INFO', type=str, 
                         help='Log Level.')
+    parser.add_argument('--prof', dest='profile', type=str, 
+                        default='Application-Profiler.xml',
+                        help='Specify profile output file.')
     parser.add_argument('--learnC', dest='learnC', type=float, default=.0031,
                         help='Rate of learning on Convolutional Layers.')
     parser.add_argument('--learnF', dest='learnF', type=float, default=.0015,
@@ -52,8 +54,9 @@ if __name__ == '__main__' :
     options = parser.parse_args()
 
     # setup the logger
-    log = setupLogging('cnnPreTrainer: ' + options.data,
-                       options.level, options.logfile)
+    logName = 'cnnPreTrainer: ' + options.data
+    log = setupLogging(logName, options.level, options.logfile)
+    prof = Profiler(log=log, name=logName, profFile=options.profile)
 
     # create a random number generator for efficiency
     from numpy.random import RandomState
@@ -66,10 +69,10 @@ if __name__ == '__main__' :
                                         batchSize=options.batchSize, 
                                         holdoutPercentage=options.holdout, 
                                         log=log)
-    trainShape = train[0].shape
+    trainShape = train[0].shape.eval()
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = StackedAENetwork(train, log=log)
+    network = StackedAENetwork(train, prof=prof)
 
     if options.synapse is not None :
         # load a previously saved network
@@ -96,7 +99,7 @@ if __name__ == '__main__' :
             learningRate=options.learnC))
 
         # add fully connected layers
-        network.addLayer(ContractiveAutoEncoder(
+        network.addLayer(ContiguousAutoEncoder(
             layerID='f3', 
             inputSize=(network.getNetworkOutputSize()[0], 
                        reduce(mul, network.getNetworkOutputSize()[1:])),
@@ -111,7 +114,7 @@ if __name__ == '__main__' :
 
     # train the SAE
     trainUnsupervised(network, __file__, options.data, 
-                      numEpochs=options.limit, stop=options.stop, 
+                      numEpochs=options.numEpochs,
                       synapse=options.synapse, base=options.base, 
                       dropout=options.dropout, learnC=options.learnC,
                       learnF=options.learnF, contrF=options.contrF, 

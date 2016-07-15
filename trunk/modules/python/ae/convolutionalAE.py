@@ -4,29 +4,28 @@ import theano.tensor as t
 from ae.encoder import AutoEncoder
 from nn.convolutionalLayer import ConvolutionalLayer
 from theano.tensor.nnet.conv import conv2d
-from nn.costUtils import crossEntropyLoss, meanSquaredLoss, leastSquares
 
-def max_unpool_2d(input, upsampleFactor) :
+def unpool_2d(input, inShape, upsampleFactor) :
     '''Perform perforated upsample from paper : 
        "Image Super-Resolution with Fast Approximate 
         Convolutional Sparse Coding"
     '''
-    outputShape = [input.shape[1],
-                   input.shape[2] * upsampleFactor[0],
-                   input.shape[3] * upsampleFactor[1]]
-    numElems = input.shape[2] * input.shape[3]
+    outputShape = [inShape[1], 
+                   inShape[2] * upsampleFactor[0],
+                   inShape[3] * upsampleFactor[1]]
+    numElems = inShape[2] * inShape[3]
     upsampNumElems = numElems * np.prod(upsampleFactor)
 
     upsamp = t.zeros((numElems, upsampNumElems))
     rows = t.arange(numElems)
     cols = rows * upsampleFactor[0] + \
-           (rows / input.shape[2] * upsampleFactor[1] * input.shape[3])
-    upsamp = t.set_subtensor(upsamp[rows, cols], 1.)
+           (rows / inShape[2] * upsampleFactor[1] * inShape[3])
+    upsamp = t.set_subtensor(upsamp[rows, cols.astype('int64')], 1.)
 
-    flat = t.reshape(input, (input.shape[0], outputShape[0], 
-                             input.shape[2] * input.shape[3]))
+    flat = t.reshape(input, (inShape[0], outputShape[0], 
+                             inShape[2] * inShape[3]))
     upsampflat = t.dot(flat, upsamp)
-    return t.reshape(upsampflat, (input.shape[0], outputShape[0],
+    return t.reshape(upsampflat, (inShape[0], outputShape[0],
                                   outputShape[1], outputShape[2]))
 
 class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
@@ -46,7 +45,6 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
        labeled data.
 
        layerID          : unique name identifier for this layer
-       input            : the input buffer for this layer
        inputSize        : (batch size, channels, rows, columns)
        kernelSize       : (number of kernels, channels, rows, columns)
        downsampleFactor : (rowFactor, columnFactor)
@@ -65,14 +63,13 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                           this must be a function with a derivative form
        randomNumGen     : generator for the initial weight values
     '''
-    def __init__ (self, layerID, input, inputSize, kernelSize, 
+    def __init__ (self, layerID, inputSize, kernelSize, 
                   downsampleFactor, learningRate=0.001,
                   dropout=None, contractionRate=None,
                   initialWeights=None, initialHidThresh=None,
                   initialVisThresh=None, activation=t.nnet.sigmoid,
                   randomNumGen=None) :
         ConvolutionalLayer.__init__(self, layerID=layerID,
-                                    input=input,
                                     inputSize=inputSize,
                                     kernelSize=kernelSize,
                                     downsampleFactor=downsampleFactor,
@@ -86,36 +83,78 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                                    contractionRate is None else \
                                    contractionRate)
 
-        kernelSize = self.getKernelSize()
-        kernelBackSize = (kernelSize[1], kernelSize[0], 
-                          kernelSize[2], kernelSize[3])
-        self._weightsBack = t.reshape(self._weights, 
-                                      (kernelBackSize))
-
         # setup initial values for the hidden thresholds
         if initialVisThresh is None :
             initialVisThresh = np.zeros((self._inputSize[1],), 
                                         dtype=config.floatX)
         self._thresholdsBack = shared(value=initialVisThresh, borrow=True)
 
+    def __getstate__(self) :
+        '''Save network pickle'''
+        from dataset.shared import fromShared
+        dict = ConvolutionalLayer.__getstate__(self)
+        dict['_thresholdsBack'] = fromShared(self._thresholdsBack)
+        # remove the functions -- they will be rebuilt JIT
+        if 'reconstruction' in dict : del dict['reconstruction']
+        if '_jacobianCost' in dict : del dict['_jacobianCost']
+        if '_cost' in dict : del dict['_cost']
+        if '_updates' in dict : del dict['_updates']
+        if '_trainLayer' in dict : del dict['_trainLayer']
+        return dict
+
+    def __setstate__(self, dict) :
+        '''Load network pickle'''
+        from theano import shared
+        initialThresholdsBack = self._thresholdsBack
+        self._thresholdsBack = shared(value=initialThresholdsBack, borrow=True)
+        # remove any current functions from the object so we force the
+        # theano functions to be rebuilt with the new buffers
+        if hasattr(self, 'reconstruction') : delattr(self, 'reconstruction')
+        if hasattr(self, '_jacobianCost') : delattr(self, '_jacobianCost')
+        if hasattr(self, '_cost') : delattr(self, '_cost')
+        if hasattr(self, '_updates') : delattr(self, '_updates')
+        if hasattr(self, '_trainLayer') : delattr(self, '_trainLayer')
+        ConvolutionalLayer.__setstate__(self, dict)
+
+    def _getWeightsBack(self) :
+        '''Calculate the weights used for decoding.'''        
+        kernelSize = self.getKernelSize()
+        kernelBackSize = (kernelSize[1], kernelSize[0], 
+                          kernelSize[2], kernelSize[3])
+        return t.reshape(self._weights, (kernelBackSize))
+
+    def _decode(self, input) :
+        weightsBack = self._getWeightsBack()
+        deconvolve = conv2d(input, weightsBack, self.getFeatureSize(), 
+                            weightsBack.shape.eval(), border_mode='full')
+        return self._setActivation(
+            deconvolve + self._thresholdsBack.dimshuffle('x', 0, 'x', 'x'))
+
+    def finalize(self, input) :
+        '''Setup the computation graph for this layer.
+           input : the input variable tuple for this layer
+                   format (inClass, inTrain)
+        '''
+        from nn.costUtils import calcLoss, leastSquares
+        ConvolutionalLayer.finalize(self, input)
+
+        weightsBack = self._getWeightsBack()
+
         # setup the decoder --
         # this take the output of the feedforward process as input and
         # and runs the output back through the network in reverse. The net
         # effect is to reconstruct the input, and ultimately to see how well
         # the network is at encoding the message.
-        unpooling = max_unpool_2d(self.output[1], self._downsampleFactor)
-        deconvolve = conv2d(unpooling, self._weightsBack,
-                            self.getFeatureSize(), kernelBackSize, 
-                            border_mode='full')
-        out = deconvolve + self._thresholdsBack.dimshuffle('x', 0, 'x', 'x')
-        self._decodedInput = out if activation is None else activation(out)
-        self.reconstruction = function([self.input[1]], self._decodedInput)
+        unpooling = unpool_2d(self.output[1], self.output[1].shape.eval(),
+                              self._downsampleFactor)
+        decodedInput = self._decode(unpooling)
+        self.reconstruction = function([self.input[1]], decodedInput)
 
         # compute the jacobian cost of the output --
         # This works as a sparsity constraint in case the hidden vector is
         # larger than the input vector.
-        jacobianMat = conv2d(unpooling * (1 - unpooling), self._weightsBack,
-                             self.getFeatureSize(), kernelBackSize, 
+        jacobianMat = conv2d(unpooling * (1 - unpooling), weightsBack,
+                             self.getFeatureSize(), weightsBack.shape.eval(), 
                              border_mode='full')
         self._jacobianCost = leastSquares(jacobianMat, self._inputSize[0], 
                                           self._contractionRate)
@@ -124,13 +163,9 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # this is our cost function with respect to the original input
         # NOTE: The jacobian was computed however takes much longer to process
         #       and does not help convergence or regularization. It was removed
-        if activation == t.nnet.sigmoid :
-            self._cost = crossEntropyLoss(self.input[1], self._decodedInput, 1)
-        else :
-            self._cost = meanSquaredLoss(self.input[1], self._decodedInput)
-
+        self._cost = calcLoss(self.input[1], decodedInput, self._activation)
         gradients = t.grad(self._cost + self._jacobianCost, self.getWeights())
-        self._updates = [(weights, weights - learningRate * gradient)
+        self._updates = [(weights, weights - self._learningRate * gradient)
                          for weights, gradient in zip(self.getWeights(), 
                                                       gradients)]
 
@@ -140,6 +175,14 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         self._trainLayer = function([self.input[1]], 
                                     [self._cost, self._jacobianCost],
                                     updates=self._updates)
+
+    def buildDecoder(self, input) :
+        '''Calculate the decoding component. This should be used after the
+           encoder has been created. The decoder is ran in the opposite
+           direction.
+        '''
+        return self._decode(unpool_2d(input, self.getOutputSize(),
+                                      self._downsampleFactor))
 
     def getWeights(self) :
         '''Update to account for the decode thresholds.'''

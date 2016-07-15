@@ -102,6 +102,7 @@ class ClassifierNetwork (Network) :
         if '_classify' in dict : del dict['_classify']
         if '_classifyAndSoftmax' in dict : del dict['_classifyAndSoftmax']
         return dict
+
     def __setstate__(self, dict) :
         '''Load network pickle'''
         # remove any current functions from the object so we force the
