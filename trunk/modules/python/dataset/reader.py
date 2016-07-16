@@ -26,28 +26,36 @@ def convertPhaseAmp(imData, log=None) :
     return np.resize(a, (2, imageDims[0], imageDims[1]))
 
 '''TODO: These methods may need to be implemented as derived classes.'''
-def readSICD(image, log=None) :
-    '''This method should read a prepare the data for training or testing.'''
+def openSICD(image, log=None) :
+    '''This method reads the XML and complex data from SICD.'''
     import pysix.six_sicd
 
     # setup the schema validation if the user has it specified
     schemaPaths = pysix.six_sicd.VectorString()
-    if os.environ.has_key('SIX_SCHEMA_PATH') :
+    if 'SIX_SCHEMA_PATH' in os.environ :
         schemaPaths.push_back(os.environ['SIX_SCHEMA_PATH'])
 
     # read the image components --
     # wbData    : the raw IQ image data
     # cmplxData : the struct for sicd metadata
     wbData, cmplxData = pysix.six_sicd.read(image, schemaPaths)
+    return (wbData, cmplxData)
+
+def readSICD(image, log=None) :
+    '''This method should read and prepare the data for training or testing.'''
+    wbData, cmplxData = openSICD(image, log)
     return convertPhaseAmp(wbData, log)
 
 def readSIDD(image, log=None) :
     '''This method should read a prepare the data for training or testing.'''
     raise NotImplementedError('Implement the datasetUtils.readSIDD() method')
 
-def readSIO(image, log=None) :
+def openSIO(image, log=None) :
     import coda.sio_lite
-    imData = coda.sio_lite.read(image)
+    return coda.sio_lite.read(image)
+
+def readSIO(image, log=None) :
+    imData = openSIO(image, log)
     if imData.dtype == np.complex64 :
         return convertPhaseAmp(imData, log)
     else :
