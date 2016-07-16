@@ -44,8 +44,7 @@ class Network () :
         '''
         self._startProfile('Loading network from disk [' + str(filepath) +
                            ']', 'info')
-        if '.pkl.gz' in filepath :
-            self.__setstate__(readPickleZip(filepath))
+        self.__setstate__(readPickleZip(filepath))
         self._endProfile()
     def getNumLayers(self) :
         return len(self._layers)
@@ -86,15 +85,18 @@ class ClassifierNetwork (Network) :
                   'None' creates randomized weighting
        prof     : Profiler to use
     '''
-    def __init__ (self, filepath=None, prof=None) :
+    def __init__ (self, filepath=None, softmaxTemp=1., prof=None) :
         Network.__init__(self, prof)
         self._networkLabels = []
         if filepath is not None :
             self.load(filepath)
+        self._sofmaxTemp = softmaxTemp
 
     def __getstate__(self) :
         '''Save network pickle'''
         dict = Network.__getstate__(self)
+        # always use the most recent one specified by the user.
+        dict['_softmaxTemp'] = None
         # remove the functions -- they will be rebuilt JIT
         if '_outClassSoft' in dict : del dict['_outClassSoft']
         if '_outTrainSoft' in dict : del dict['_outTrainSoft']
@@ -117,7 +119,10 @@ class ClassifierNetwork (Network) :
             delattr(self, '_classify')
         if hasattr(self, '_classifyAndSoftmax') : 
             delattr(self, '_classifyAndSoftmax')
+        # preserve the user specified softmaxTemp
+        tmp = self._sofmaxTemp
         Network.__setstate__(self, dict)
+        self._sofmaxTemp = tmp
 
     def getNetworkLabels(self) :
         '''Return the Labels for the network. All other interactions with
@@ -149,6 +154,7 @@ class ClassifierNetwork (Network) :
            be pre-compiled and optimized when we need them. The only function
            across all network types is classify()
         '''
+        from nn.probUtils import softmaxAction
         if len(self._layers) == 0 :
             raise IndexError('Network must have at least one layer' +
                              'to call finalizeNetwork().')
@@ -161,10 +167,10 @@ class ClassifierNetwork (Network) :
         # This takes as its input, the first layer's input, and uses the final
         # layer's output as the function (ie the network classification).
         outClass, outTrain = self.getNetworkOutput()
-        self._outClassSoft = t.nnet.softmax(outClass)
-        self._outTrainSoft = t.nnet.softmax(outTrain)
+        self._outClassSoft = softmaxAction(outClass, temp=self._sofmaxTemp)
+        self._outTrainSoft = softmaxAction(outTrain, temp=self._sofmaxTemp)
         self._outClassMax = t.argmax(self._outClassSoft, axis=1)
-        self._classify = theano.function([self.getNetworkInput()[0]], 
+        self._classify = theano.function([self.getNetworkInput()[0]],
                                          self._outClassMax)
         self._classifyAndSoftmax = theano.function(
             [self.getNetworkInput()[0]], 
@@ -247,8 +253,9 @@ class TrainerNetwork (ClassifierNetwork) :
        prof     : Profiler to use
     '''
     def __init__ (self, train, test, labels, regType='L2', regScaleFactor=0.,
-                  filepath=None, prof=None) :
-        ClassifierNetwork.__init__(self, filepath=filepath, prof=prof)
+                  filepath=None, softmaxTemp=1., prof=None) :
+        ClassifierNetwork.__init__(self, filepath=filepath, prof=prof,
+                                   softmaxTemp=softmaxTemp)
         if filepath is None :
             self._networkLabels = labels
         self._trainData, self._trainLabels = train
@@ -344,13 +351,13 @@ class TrainerNetwork (ClassifierNetwork) :
         # built for sparse outputs and is resistent to outliers
         if self._regularization == 'L1' :
             reg = leastAbsoluteDeviation(
-                [l.getWeights()[0] for l in self._layers], 
+                [layer.getWeights()[0] for layer in self._layers], 
                 self._regScaleFactor)
         # L2-norm provides 'Least Squares' --
         # built for dense outputs and is computationally stable at small errors
         elif self._regularization == 'L2' :
             reg = leastSquares(
-                [l.getWeights()[0] for l in self._layers],
+                [layer.getWeights()[0] for layer in self._layers],
                 self._regScaleFactor)
 
 
