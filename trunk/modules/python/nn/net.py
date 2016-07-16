@@ -128,7 +128,7 @@ class ClassifierNetwork (Network) :
 
     def convertToLabels(self, labelIndices) :
         '''Return the string labels for a vector of indices.'''
-        return [self._networkLabels[ii] for ii in self._networkLabels]
+        return [self._networkLabels[ii] for ii in labelIndices]
 
     def addLayer(self, layer) :
         '''Add a Layer to the network. It is the responsibility of the user
