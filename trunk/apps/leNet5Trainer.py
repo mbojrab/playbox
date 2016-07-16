@@ -38,6 +38,8 @@ if __name__ == '__main__' :
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
                         help='Number of Neurons in Hidden Layer.')
+    parser.add_argument('--soft', dest='softness', type=float, default=1.0,
+                        help='Softmax temperature to use for softness.')
     parser.add_argument('--limit', dest='limit', type=int, default=5,
                         help='Number of runs between validation checks.')
     parser.add_argument('--stop', dest='stop', type=int, default=5,
@@ -76,7 +78,7 @@ if __name__ == '__main__' :
     network = Net(train, test, labels, regType='L2',
                   regScaleFactor=1. / (options.kernel + options.kernel + 
                                        options.neuron + len(labels)), 
-                  prof=prof)
+                  softmaxTemp=options.softness, prof=prof)
 
     if options.synapse is not None :
         # load a previously saved network

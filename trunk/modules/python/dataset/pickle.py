@@ -41,7 +41,7 @@ def readPickleZip (inFile, log=None) :
        log    : Logger to use
     '''
     if not inFile.endswith('pkl.gz') and not inFile.endswith('pkl3.gz') :
-        raise Exception('The file must end in the pkl.gz extension.')
+        raise Exception('The file must end in the pkl*.gz extension.')
     if log is not None :
         log.info('Load the data into memory')
     with gzip.open(inFile, 'rb') as f :
