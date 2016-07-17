@@ -1,9 +1,8 @@
-import theano.tensor as t
 import argparse
 from time import time
 from six.moves import reduce
 
-from ae.net import StackedAENetwork
+from ae.net import TrainerSAENetwork
 from ae.contiguousAE import ContiguousAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.unlabeled import ingestImagery
@@ -11,17 +10,17 @@ from dataset.chip import randomChip
 from nn.trainUtils import trainUnsupervised
 from nn.profiler import setupLogging
 
-def buildStackedAENetwork(train,
-                          kernelConv, kernelSizeConv, downsampleConv, 
-                          learnConv, momentumConv, dropoutConv,
-                          neuronFull, learnFull, momentumFull, dropoutFull, 
-                          log=None) :
+def buildTrainerSAENetwork(train,
+                           kernelConv, kernelSizeConv, downsampleConv, 
+                           learnConv, momentumConv, dropoutConv,
+                           neuronFull, learnFull, momentumFull, dropoutFull, 
+                           log=None) :
     from operator import mul
     from numpy.random import RandomState
     rng = RandomState(int(time()))
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = StackedAENetwork(train, log=log)
+    network = TrainerSAENetwork(train, log=log)
 
     if log is not None :
         log.info('Initialize the Network')
@@ -126,10 +125,10 @@ if __name__ == '__main__' :
 
     if options.synapse is not None :
         # load a previously saved network
-        network = StackedAENetwork(train, log=log)
+        network = TrainerSAENetwork(train, log=log)
         network.load(options.synapse)
     else :
-        network = buildStackedAENetwork(
+        network = buildTrainerSAENetwork(
             train, log=log,
             kernelConv=options.kernel, 
             kernelSizeConv=options.kernelSize, 

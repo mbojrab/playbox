@@ -1,5 +1,5 @@
 from six.moves import reduce
-from ae.net import StackedAENetwork
+from ae.net import TrainerSAENetwork
 from ae.contiguousAE import ContiguousAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.labeled import ingestImagery
@@ -45,6 +45,8 @@ if __name__ == '__main__' :
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
                         help='Number of Neurons in Hidden Layer.')
+    parser.add_argument('--soft', dest='softness', type=float, default=0.0,
+                        help='Softmax temperature to use for softness.')
     parser.add_argument('--epoch', dest='numEpochs', type=int, default=15,
                         help='Number of epochs to run per layer during ' +
                              'unsupervised pre-training.')
@@ -85,7 +87,7 @@ if __name__ == '__main__' :
     trainShape = train[0].shape.eval()
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = StackedAENetwork(train, prof=prof)
+    network = TrainerSAENetwork(train, softmaxTemp=options.softness, prof=prof)
 
     if options.synapse is not None :
         # load a previously saved network
@@ -137,9 +139,6 @@ if __name__ == '__main__' :
                                     kernel=options.kernel, 
                                     neuron=options.neuron, log=log)
 
-    # cleanup the network -- this ensures the profile is written
-    del network
-
     # translate into a neural network --
     # this transfers our unsupervised pre-training into a decent
     # starting condition for our supervised learning
@@ -159,6 +158,3 @@ if __name__ == '__main__' :
                     dropout=options.dropout, learnC=options.learnC, 
                     learnF=options.learnF, momentum=options.momentum, 
                     kernel=options.kernel, neuron=options.neuron, log=log)
-
-    # cleanup the network -- this ensures the profile is written
-    del network

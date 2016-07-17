@@ -37,8 +37,30 @@ def meanSquaredLoss (p, q) :
 
 def calcLoss(p, q, activation) :
     '''Specify a loss function using the last layer's activation.'''
-    return crossEntropyLoss(p, q, 1) if activation == t.nnet.sigmoid else \
+    if q.ndim > 2 :
+        axis = q.ndim - 2
+    else :  
+        axis = 1
+    return crossEntropyLoss(p, q, axis) if activation == t.nnet.sigmoid else \
            meanSquaredLoss(p, q)
+
+def calcSparsityConstraint(output, outShape) :
+    '''Calculate the Kullback-Leibler sparsity based on the number of neurons.
+    '''
+    from six.moves import reduce
+    from operator import mul
+
+    if len(outShape) > 2 :
+        numElems = reduce(mul, outShape[1:])
+        axis = len(outShape) - 2
+    else :
+        numElems = outShape[1]
+        axis = 1
+
+    sparseCon  = 1. / numElems
+    return t.mean(t.sum(sparseCon * t.log(sparseCon / output) +
+                        (1. - sparseCon) * t.log((1. - sparseCon) / 
+                                                 (1. - output)), axis=axis))
 
 def leastAbsoluteDeviation(a, batchSize=None, scaleFactor=1.) :
     '''L1-norm provides 'Least Absolute Deviation' --

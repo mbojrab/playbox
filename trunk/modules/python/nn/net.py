@@ -75,19 +75,22 @@ class Network () :
                              'to call getNetworkOutputSize().')
         return self._layers[-1].getOutputSize()
 
+
 class ClassifierNetwork (Network) :
     '''The ClassifierNetwork object allows the user to build multi-layer neural
        networks of various topologies easily. This class provides users with 
        functionality to load a trained Network from disk and begin classifying
        inputs. 
 
-       filepath : Path to an already trained network on disk 
-                  'None' creates randomized weighting
-       prof     : Profiler to use
+       filepath    : Path to an already trained network on disk 
+                     'None' creates randomized weighting
+       softmaxTemp : Temperature for the softmax method. A larger value softens
+                     the output from softmax. A value of 1.0 return a standard
+                     softmax result.
+       prof        : Profiler to use
     '''
     def __init__ (self, filepath=None, softmaxTemp=1., prof=None) :
         Network.__init__(self, prof)
-        self._networkLabels = []
         if filepath is not None :
             self.load(filepath)
         self._sofmaxTemp = softmaxTemp
@@ -124,22 +127,8 @@ class ClassifierNetwork (Network) :
         Network.__setstate__(self, dict)
         self._sofmaxTemp = tmp
 
-    def getNetworkLabels(self) :
-        '''Return the Labels for the network. All other interactions with
-           training and accuracy deal with the label index, so this decodes
-           it into a string classification.
-        '''
-        return self._networkLabels
-
-    def convertToLabels(self, labelIndices) :
-        '''Return the string labels for a vector of indices.'''
-        return [self._networkLabels[ii] for ii in labelIndices]
-
     def addLayer(self, layer) :
-        '''Add a Layer to the network. It is the responsibility of the user
-           to connect the current network's output as the input to the next
-           layer.
-        '''
+        '''Add a Layer to the network.'''
         if not isinstance(layer, Layer) :
             raise TypeError('addLayer is expecting a Layer object.')
         self._startProfile('Adding a layer to the network', 'debug')
@@ -209,7 +198,39 @@ class ClassifierNetwork (Network) :
         self._endProfile()
         return classIndex, softmax
 
-class TrainerNetwork (ClassifierNetwork) :
+
+class LabeledClassifierNetwork (ClassifierNetwork) :
+    '''The LabeledClassifierNetwork adds labeling to the classification.
+
+       labels      : Labels for the classification layer
+       filepath    : Path to an already trained network on disk 
+                     'None' creates randomized weighting
+       softmaxTemp : Temperature for the softmax method. A larger value softens
+                     the output from softmax. A value of 1.0 return a standard
+                     softmax result.
+       prof        : Profiler to use
+    '''
+    def __init__ (self, labels, filepath=None, softmaxTemp=1., prof=None) :
+        ClassifierNetwork.__init__(self, filepath, softmaxTemp, prof)
+        self._networkLabels = []
+
+        # if we loaded a synapse use the labels from the file
+        if filepath is None :
+            self._networkLabels = labels
+
+    def getNetworkLabels(self) :
+        '''Return the Labels for the network. All other interactions with
+           training and accuracy deal with the label index, so this decodes
+           it into a string classification.
+        '''
+        return self._networkLabels
+
+    def convertToLabels(self, labelIndices) :
+        '''Return the string labels for a vector of indices.'''
+        return [self._networkLabels[ii] for ii in labelIndices]
+
+
+class TrainerNetwork (LabeledClassifierNetwork) :
     '''This network allows for training data on a theano.shared wrapped
        dataset for optimal execution. Because the dataset will be accessed 
        repetitively over the course of training, the shared variables are
@@ -254,10 +275,8 @@ class TrainerNetwork (ClassifierNetwork) :
     '''
     def __init__ (self, train, test, labels, regType='L2', regScaleFactor=0.,
                   filepath=None, softmaxTemp=1., prof=None) :
-        ClassifierNetwork.__init__(self, filepath=filepath, prof=prof,
-                                   softmaxTemp=softmaxTemp)
-        if filepath is None :
-            self._networkLabels = labels
+        LabeledClassifierNetwork.__init__(self, labels, filepath=filepath,
+                                          softmaxTemp=softmaxTemp, prof=prof)
         self._trainData, self._trainLabels = train
         self._testData, self._testLabels = test
 

@@ -117,7 +117,7 @@ def createNetwork(image, log=None) :
     # create a newly trained network on the specified image
     else :
         import time
-        from ae.net import StackedAENetwork
+        from ae.net import TrainerSAENetwork
         from nn.datasetUtils import toShared
         from ae.convolutionalAE import ConvolutionalAutoEncoder
         from ae.contiguousAE import ContiguousAutoEncoder
@@ -134,7 +134,7 @@ def createNetwork(image, log=None) :
             log.info('Intializing the SAE...')
 
         # create the SAE
-        network = StackedAENetwork((toShared(chips, True), None), prof=prof)
+        network = TrainerSAENetwork((toShared(chips, True), None), prof=prof)
 
         # add convolutional layers
         network.addLayer(ConvolutionalAutoEncoder(

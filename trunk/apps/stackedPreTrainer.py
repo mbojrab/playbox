@@ -2,7 +2,7 @@ import argparse
 from time import time
 from six.moves import reduce
 
-from ae.net import StackedAENetwork
+from ae.net import TrainerSAENetwork as Net
 from ae.contiguousAE import ContiguousAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.labeled import ingestImagery
@@ -39,6 +39,8 @@ if __name__ == '__main__' :
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
                         help='Number of Neurons in Hidden Layer.')
+    parser.add_argument('--soft', dest='softness', type=float, default=0.0,
+                        help='Softmax temperature to use for softness.')
     parser.add_argument('--epoch', dest='numEpochs', type=int, default=15,
                         help='Number of epochs to run per layer.')
     parser.add_argument('--holdout', dest='holdout', type=float, default=.05,
@@ -72,7 +74,7 @@ if __name__ == '__main__' :
     trainShape = train[0].shape.eval()
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = StackedAENetwork(train, prof=prof)
+    network = Net(train, softmaxTemp=options.softness, prof=prof)
 
     if options.synapse is not None :
         # load a previously saved network
@@ -104,7 +106,7 @@ if __name__ == '__main__' :
             inputSize=(network.getNetworkOutputSize()[0], 
                        reduce(mul, network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, learningRate=options.learnF,
-            dropout=.5 if options.dropout else 1., randomNumGen=rng))
+            randomNumGen=rng))
 
         # the final output layer is removed from the normal NN --
         # the output layer is special, as it makes decisions about
@@ -120,5 +122,3 @@ if __name__ == '__main__' :
                       learnF=options.learnF, contrF=options.contrF, 
                       kernel=options.kernel, neuron=options.neuron, log=log)
 
-    # cleanup the network -- this ensures the profile is written
-    del network
