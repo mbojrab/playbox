@@ -125,4 +125,3 @@ if __name__ == '__main__' :
                     learnF=options.learnF, momentum=options.momentum, 
                     kernel=options.kernel, neuron=options.neuron, 
                     log=log)
-    del network
