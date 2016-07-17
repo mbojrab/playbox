@@ -1,4 +1,3 @@
-import theano.tensor as t
 import argparse
 from time import time
 from six.moves import reduce
@@ -11,17 +10,17 @@ from dataset.chip import randomChip
 from nn.trainUtils import trainUnsupervised
 from nn.profiler import setupLogging
 
-def buildStackedAENetwork(train,
-                          kernelConv, kernelSizeConv, downsampleConv, 
-                          learnConv, momentumConv, dropoutConv,
-                          neuronFull, learnFull, momentumFull, dropoutFull, 
-                          log=None) :
+def buildTrainerSAENetwork(train,
+                           kernelConv, kernelSizeConv, downsampleConv, 
+                           learnConv, momentumConv, dropoutConv,
+                           neuronFull, learnFull, momentumFull, dropoutFull, 
+                           log=None) :
     from operator import mul
     from numpy.random import RandomState
     rng = RandomState(int(time()))
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = StackedAENetwork(train, log=log)
+    network = TrainerSAENetwork(train, log=log)
 
     if log is not None :
         log.info('Initialize the Network')
@@ -129,7 +128,7 @@ if __name__ == '__main__' :
         network = TrainerSAENetwork(train, log=log)
         network.load(options.synapse)
     else :
-        network = buildStackedAENetwork(
+        network = buildTrainerSAENetwork(
             train, log=log,
             kernelConv=options.kernel, 
             kernelSizeConv=options.kernelSize, 
