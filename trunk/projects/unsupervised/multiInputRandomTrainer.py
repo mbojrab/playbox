@@ -3,7 +3,7 @@ import argparse
 from time import time
 from six.moves import reduce
 
-from ae.net import StackedAENetwork
+from ae.net import TrainerSAENetwork
 from ae.contiguousAE import ContiguousAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.unlabeled import ingestImagery
@@ -126,7 +126,7 @@ if __name__ == '__main__' :
 
     if options.synapse is not None :
         # load a previously saved network
-        network = StackedAENetwork(train, log=log)
+        network = TrainerSAENetwork(train, log=log)
         network.load(options.synapse)
     else :
         network = buildStackedAENetwork(
