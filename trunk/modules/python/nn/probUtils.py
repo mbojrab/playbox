@@ -6,5 +6,8 @@ def softmaxAction(input, temp=1.) :
        temp >  1 : softer Softmax return
     '''
     import theano.tensor as t
-    eIn = t.exp(input / temp)
-    return eIn * (1. / eIn.sum(axis=0))
+    if temp == 0. :
+        return input
+    else :
+        eIn = t.exp(input / temp)
+        return eIn * (1. / eIn.sum(axis=0))
