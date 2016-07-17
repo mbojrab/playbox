@@ -73,13 +73,16 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
 
     def __buildDecoder(self) :
         '''Build the decoding section and the network-wide training method.'''
-        from nn.costUtils import calcLoss
+        from nn.costUtils import calcLoss, calcSparsityConstraint
 
         # setup the decoders -- 
         # this is the second half of the network and is equivalent to the
         # encoder network reversed.
-        jacobianCost = 0
         layerInput = self._layers[-1].output[1]
+        sparseConstr = calcSparsityConstraint(layerInput, 
+                                              self.getNetworkOutputSize())
+
+        jacobianCost = 0
         for decoder in reversed(self._layers) :
             # backward pass through layers
             self._startProfile('Finalizing Decoder [' + decoder.layerID + ']', 
@@ -92,6 +95,7 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
         # TODO: here we assume the first layer uses sigmoid activation
         self._startProfile('Setting up Network-wide Decoder', 'debug')
         cost = calcLoss(self._trainData[0], decodedInput, t.nnet.sigmoid)
+        costs = [cost, jacobianCost, sparseConstr]
 
         # build the network-wide training update. 
         updates = []
@@ -99,7 +103,7 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
             
             # build the gradients
             layerWeights = decoder.getWeights()
-            gradients = t.grad(cost + jacobianCost, layerWeights,
+            gradients = t.grad(t.sum(costs), layerWeights, 
                                disconnected_inputs='warn')
 
             # add the weight update
@@ -107,7 +111,7 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
                 updates.append((w, w - decoder.getLearningRate() * g))
 
         self._trainNetwork = theano.function(
-            [self._indexVar], [cost, jacobianCost], updates=updates, 
+            [self._indexVar], costs, updates=updates, 
             givens={self.getNetworkInput()[1] : 
                     self._trainData[self._indexVar]})
         self._endProfile()
@@ -144,7 +148,15 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
                              'to call finalizeNetwork().')
 
         self._startProfile('Finalizing Network', 'info')
+
         self.__buildEncoder()
+
+        # disable the profiler temporarily so we don't get a second entry
+        tmp = self._profiler
+        self._profiler = None
+        ClassifierNetwork.finalizeNetwork(self)
+        self._profiler = tmp
+
         self.__buildDecoder()
         self._endProfile()
 
@@ -209,7 +221,8 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
             locCost = np.mean(locCost, axis=0)
             self._startProfile(layerEpochStr + ' Cost: ' + \
                                str(locCost[0]) + ' - Jacob: ' + \
-                               str(locCost[1]), 'info')
+                               str(locCost[1]) + ' - Sparsity: ' + \
+                               str(locCost[2]), 'info')
             globCost.append(locCost)
 
             self._endProfile()

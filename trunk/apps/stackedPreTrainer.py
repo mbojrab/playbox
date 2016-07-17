@@ -106,7 +106,7 @@ if __name__ == '__main__' :
             inputSize=(network.getNetworkOutputSize()[0], 
                        reduce(mul, network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, learningRate=options.learnF,
-            dropout=.5 if options.dropout else 1., randomNumGen=rng))
+            randomNumGen=rng))
 
         # the final output layer is removed from the normal NN --
         # the output layer is special, as it makes decisions about
@@ -121,3 +121,4 @@ if __name__ == '__main__' :
                       dropout=options.dropout, learnC=options.learnC,
                       learnF=options.learnF, contrF=options.contrF, 
                       kernel=options.kernel, neuron=options.neuron, log=log)
+
