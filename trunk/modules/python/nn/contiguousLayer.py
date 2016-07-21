@@ -1,8 +1,6 @@
 import six
 from nn.layer import Layer
-import numpy as np
-from theano import config, shared, dot
-from theano.tensor.nnet import sigmoid
+from theano import dot
 from theano.tensor import tanh
 
 class ContiguousLayer(Layer) :
@@ -41,28 +39,14 @@ class ContiguousLayer(Layer) :
             self._inputSize = (1, inputSize)
         self._numNeurons = numNeurons
 
-        # setup initial values for the weights
-        if initialWeights is None :
-            # create a rng if its needed
-            if randomNumGen is None :
-               from numpy.random import RandomState
-               from time import time
-               randomNumGen = RandomState(int(time()))
 
-            initialWeights = np.asarray(randomNumGen.uniform(
-                low=-np.sqrt(6. / (self._inputSize[1] + self._numNeurons)),
-                high=np.sqrt(6. / (self._inputSize[1] + self._numNeurons)),
-                size=(self._inputSize[1], self._numNeurons)),
-                dtype=config.floatX)
-            if self._activation == sigmoid :
-                initialWeights *= 4.
-        self._weights = shared(value=initialWeights, borrow=True)
-
-        # setup initial values for the thresholds
-        if initialThresholds is None :
-            initialThresholds = np.zeros((self._numNeurons,),
-                                         dtype=config.floatX)
-        self._thresholds = shared(value=initialThresholds, borrow=True)
+        # create weights based on the optimal distribution for the activation
+        if initialWeights is None or initialThresholds is None :
+            self._initializeWeights(
+                size=(self._inputSize[1], self._numNeurons), 
+                fanIn=self._inputSize[1],
+                fanOut=self._numNeurons,
+                randomNumGen=randomNumGen)
 
     def finalize(self, input) :
         '''Setup the computation graph for this layer.

@@ -1,7 +1,6 @@
 from nn.layer import Layer
 import numpy as np
 from theano.tensor import tanh
-from theano import shared, config
 
 class ConvolutionalLayer(Layer) :
     '''This class describes a Convolutional Neural Layer which specifies
@@ -47,32 +46,13 @@ class ConvolutionalLayer(Layer) :
         self._kernelSize = kernelSize
         self._downsampleFactor = downsampleFactor
 
-        # setup initial values for the weights -- if necessary
-        if initialWeights is None :
-            # create a rng if its needed
-            if randomNumGen is None :
-                from numpy.random import RandomState
-                from time import time
-                randomNumGen = RandomState(int(time()))
-
-            # this creates optimal initial weights by randomizing them
-            # to an appropriate range around zero, which leads to better
-            # convergence.
-            downRate = np.prod(self._downsampleFactor)
-            fanIn = np.prod(self._kernelSize[1:])
-            fanOut = self._kernelSize[0] * \
-                     np.prod(self._kernelSize[2:]) / downRate
-            scaleFactor = np.sqrt(6. / (fanIn + fanOut))
-            initialWeights = np.asarray(randomNumGen.uniform(
-                    low=-scaleFactor, high=scaleFactor, size=self._kernelSize),
-                    dtype=config.floatX)
-        self._weights = shared(value=initialWeights, borrow=True)
-
-        # setup initial values for the thresholds -- if necessary
-        if initialThresholds is None :
-            initialThresholds = np.zeros((self._kernelSize[0],),
-                                         dtype=config.floatX)
-        self._thresholds = shared(value=initialThresholds, borrow=True)
+        # create weights based on the optimal distribution for the activation
+        if initialWeights is None or initialThresholds is None :
+            self._initializeWeights(
+                size=self._kernelSize, 
+                fanIn=np.prod(self._inputSize[1:]),
+                fanOut=self._kernelSize[0],
+                randomNumGen=randomNumGen)
 
     def __getstate__(self) :
         '''Save layer pickle'''
