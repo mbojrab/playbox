@@ -8,8 +8,9 @@ def convertActivation(op) :
         return op
 
     # create a map to perform the conversion
-    opMap = {'tanh' : theano.tensor.tanh, 
-             'sigmoid' : theano.tensor.nnet.sigmoid}
+    opMap = {'tanh'    : theano.tensor.tanh, 
+             'sigmoid' : theano.tensor.nnet.sigmoid,
+             'relu'    : theano.tensor.nnet.relu}
 
     # attempt to perform the lookup
     if op in opMap.keys() :
