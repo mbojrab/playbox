@@ -139,7 +139,7 @@ class ClassifierNetwork (Network) :
         self._layers.append(layer)
         self._endProfile()
 
-    def finalizeNetwork(self) :
+    def finalizeNetwork(self, networkInput) :
         '''Setup the network based on the current network configuration.
            This is used to create several network-wide functions so they will
            be pre-compiled and optimized when we need them. The only function
@@ -151,6 +151,16 @@ class ClassifierNetwork (Network) :
                              'to call finalizeNetwork().')
 
         self._startProfile('Finalizing Network', 'info')
+
+        # finalize the layers to create the computational graphs
+        layerInput = (networkInput, networkInput) \
+                     if not isinstance(networkInput, tuple) else networkInput
+        for layer in self._layers :
+            self._startProfile('Finalizing Layer [' + layer.layerID + ']', 
+                               'debug')
+            layer.finalize(layerInput)
+            layerInput = layer.output
+            self._endProfile()
 
         # create one function that activates the entire network --
         # Here we use softmax on the network output to produce a normalized 
@@ -173,9 +183,12 @@ class ClassifierNetwork (Network) :
            numpy.ndarray with dimensions specified by the first layer of the 
            network. The output is the index of the softmax classification.
         '''
+        from dataset.shared import toShared
         self._startProfile('Classifying the Inputs', 'debug')
         if not hasattr(self, '_classify') :
-            self.finalizeNetwork()
+            inp = toShared(inputs, borrow=True) \
+                  if 'SharedVariable' in str(type(inputs)) else inputs
+            self.finalizeNetwork(inp)
 
         # activating the last layer triggers all previous 
         # layers due to dependencies we've enforced
@@ -190,9 +203,12 @@ class ClassifierNetwork (Network) :
 
            return : (classification index, softmax vector)
         '''
+        from dataset.shared import toShared
         self._startProfile('Classifying the Inputs', 'debug')
         if not hasattr(self, '_classifyAndSoftmax') :
-            self.finalizeNetwork()
+            inp = toShared(inputs, borrow=True) \
+                  if 'SharedVariable' in str(type(inputs)) else inputs
+            self.finalizeNetwork(inp)
 
         # activating the last layer triggers all previous 
         # layers due to dependencies we've enforced
@@ -315,7 +331,7 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         if hasattr(self, '_trainNetwork') : delattr(self, '_trainNetwork')
         ClassifierNetwork.__setstate__(self, dict)
 
-    def finalizeNetwork(self) :
+    def finalizeNetwork(self, networkInput) :
         '''Setup the network based on the current network configuration.
            This creates several network-wide functions so they will be
            pre-compiled and optimized when we need them.
@@ -328,20 +344,10 @@ class TrainerNetwork (LabeledClassifierNetwork) :
 
         self._startProfile('Finalizing Network', 'info')
 
-        # finalize the layers to create the computational graphs
-        layerInput = (self._trainData[0], self._trainData[0])
-        for layer in self._layers :
-            self._startProfile('Finalizing Layer [' + layer.layerID + ']', 
-                               'debug')
-            layer.finalize(layerInput)
-            layerInput = layer.output
-            self._endProfile()
-
-
         # disable the profiler temporarily so we don't get a second entry
         tmp = self._profiler
         self._profiler = None
-        ClassifierNetwork.finalizeNetwork(self)
+        ClassifierNetwork.finalizeNetwork(self, networkInput)
         self._profiler = tmp
 
         # create a function to quickly check the accuracy against the test set
@@ -436,7 +442,7 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         self._startProfile('Training Batch [' + str(index) +
                            '/' + str(self._numTrainBatches) + ']', 'debug')
         if not hasattr(self, '_trainNetwork') :
-            self.finalizeNetwork()
+            self.finalizeNetwork(self._trainData[0])
         if not isinstance(index, int) :
             raise Exception('Variable index must be an integer value')
         if index >= self._numTrainBatches :
@@ -471,7 +477,7 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         '''
         self._startProfile('Checking Accuracy', 'debug')
         if not hasattr(self, '_checkAccuracy') :
-            self.finalizeNetwork()
+            self.finalizeNetwork(self._trainData[0])
 
         # return the sum of all correctly classified targets
         acc = 0.0
