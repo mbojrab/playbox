@@ -4,7 +4,7 @@ from nn.net import ClassifierNetwork, TrainerNetwork
 from dataset.pickle import readPickleZip
 from dataset.shared import splitToShared
 from nn.trainUtils import trainSupervised
-from nn.profiler import setupLogging
+from nn.profiler import setupLogging, Profiler
 
 '''This application will distill dark knowledge out of existing networks and
    into a pickled dataset which can be used as training for smaller deployable
@@ -19,6 +19,9 @@ if __name__ == '__main__' :
                         help='Specify log output file.')
     parser.add_argument('--level', dest='level', default='INFO', type=str, 
                         help='Log Level.')
+    parser.add_argument('--prof', dest='profile', type=str, 
+                        default='Application-Profiler.xml',
+                        help='Specify profile output file.')
     parser.add_argument('--limit', dest='limit', type=int, default=5,
                         help='Number of runs between validation checks.')
     parser.add_argument('--stop', dest='stop', type=int, default=5,
@@ -47,8 +50,9 @@ if __name__ == '__main__' :
     options = parser.parse_args()
 
     # setup the logger
-    log = setupLogging('distillery: ' + options.data, 
-                       options.level, options.logfile)
+    logName = 'distillery: ' + options.data
+    log = setupLogging(logName, options.level, options.logfile)
+    prof = Profiler(log=log, name=logName, profFile=options.profile)
 
     # if the user specified a deep network and dataset, then distill the
     # knowledge into a new pickle to use for training.
@@ -62,7 +66,9 @@ if __name__ == '__main__' :
                             'specify a dataset to distill using --data.')
 
         # distill knowledge out of the deep network into a pickle
-        deepNet = ClassifierNetwork(filepath=options.deep, log=log)
+        deepNet = ClassifierNetwork(filepath=options.deep,
+                                    softmaxTemp=options.softness,
+                                    prof=prof)
         options.dark = distillKnowledge(deepNet=deepNet,
                                         filepath=options.data,
                                         batchSize=options.batchSize, 
@@ -73,7 +79,8 @@ if __name__ == '__main__' :
     train, test, labels = readPickleZip(options.dark, log)
     shallowNet = TrainerNetwork(splitToShared(train, castLabelInt=False), 
                                 splitToShared(test), labels,
-                                filepath=options.shallow, log=log)
+                                filepath=options.shallow,
+                                softmaxTemp=options.softness, prof=prof)
 
     trainSupervised(shallowNet, __file__, options.data, 
                     numEpochs=options.limit, stop=options.stop, 
