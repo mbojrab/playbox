@@ -91,9 +91,11 @@ class ClassifierNetwork (Network) :
     '''
     def __init__ (self, filepath=None, softmaxTemp=1., prof=None) :
         Network.__init__(self, prof)
+        self._sofmaxTemp = softmaxTemp
+
+        # NOTE: this must be the last thing performed in init
         if filepath is not None :
             self.load(filepath)
-        self._sofmaxTemp = softmaxTemp
 
     def __getstate__(self) :
         '''Save network pickle'''
