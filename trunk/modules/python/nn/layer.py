@@ -78,7 +78,7 @@ class Layer () :
             initialWeights = np.asarray(randomNumGen.uniform(
                 low=-scaleFactor, high=scaleFactor, size=size),
                 dtype=config.floatX)
-            initialThresholds = np.ones((fanOut,), dtype=config.floatX)
+            initialThresholds = np.zeros((fanOut,), dtype=config.floatX)
 
         elif self._activation == t.nnet.sigmoid or \
              self._activation == t.tanh or \
@@ -88,7 +88,7 @@ class Layer () :
             initialWeights = np.asarray(randomNumGen.uniform(
                 low=-scaleFactor, high=scaleFactor, size=size),
                 dtype=config.floatX)
-            initialThresholds = np.zeros((fanOut,), dtype=config.floatX)
+            initialThresholds = np.ones((fanOut,), dtype=config.floatX)
 
             # re-adjust for sigmoid
             if self._activation == t.nnet.sigmoid :
