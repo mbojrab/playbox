@@ -2,6 +2,7 @@ import argparse
 from time import time
 from six.moves import reduce
 
+import theano.tensor as t
 from nn.net import TrainerNetwork as Net
 from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer
@@ -23,30 +24,30 @@ if __name__ == '__main__' :
     parser.add_argument('--prof', dest='profile', type=str, 
                         default='Application-Profiler.xml',
                         help='Specify profile output file.')
-    parser.add_argument('--learnC', dest='learnC', type=float, default=.031,
+    parser.add_argument('--learnC', dest='learnC', type=float, default=.08,
                         help='Rate of learning on Convolutional Layers.')
-    parser.add_argument('--learnF', dest='learnF', type=float, default=.015,
+    parser.add_argument('--learnF', dest='learnF', type=float, default=.02,
                         help='Rate of learning on Fully-Connected Layers.')
     parser.add_argument('--momentum', dest='momentum', type=float, default=.1,
                         help='Momentum rate all layers.')
-    parser.add_argument('--dropout', dest='dropout', type=bool, default=False,
+    parser.add_argument('--dropout', dest='dropout', type=bool, default=True,
                         help='Enable dropout throughout the network. Dropout '\
                              'percentages are based on optimal reported '\
                              'results. NOTE: Networks using dropout need to '\
                              'increase both neural breadth and learning rates')
-    parser.add_argument('--kernel', dest='kernel', type=int, default=6,
+    parser.add_argument('--kernel', dest='kernel', type=int, default=80,
                         help='Number of Convolutional Kernels in each Layer.')
-    parser.add_argument('--neuron', dest='neuron', type=int, default=120,
+    parser.add_argument('--neuron', dest='neuron', type=int, default=200,
                         help='Number of Neurons in Hidden Layer.')
     parser.add_argument('--soft', dest='softness', type=float, default=1.0,
                         help='Softmax temperature to use for softness.')
-    parser.add_argument('--limit', dest='limit', type=int, default=5,
+    parser.add_argument('--limit', dest='limit', type=int, default=2,
                         help='Number of runs between validation checks.')
-    parser.add_argument('--stop', dest='stop', type=int, default=5,
+    parser.add_argument('--stop', dest='stop', type=int, default=20,
                         help='Number of inferior validation checks to end.')
     parser.add_argument('--holdout', dest='holdout', type=float, default=.05,
                         help='Percent of data to be held out for testing.')
-    parser.add_argument('--batch', dest='batchSize', type=int, default=5,
+    parser.add_argument('--batch', dest='batchSize', type=int, default=50,
                         help='Batch size for training and test sets.')
     parser.add_argument('--base', dest='base', type=str, default='./leNet5',
                         help='Base name of the network output and temp files.')
@@ -109,7 +110,7 @@ if __name__ == '__main__' :
             layerID='f3', 
             inputSize=(network.getNetworkOutputSize()[0], 
                        reduce(mul, network.getNetworkOutputSize()[1:])),
-            numNeurons=options.neuron, 
+            numNeurons=options.neuron,
             learningRate=options.learnF, momentumRate=options.momentum,
             dropout=.5 if options.dropout else 1., randomNumGen=rng))
         network.addLayer(ContiguousLayer(
