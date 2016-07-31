@@ -169,8 +169,8 @@ class ClassifierNetwork (Network) :
         if not hasattr(self, '_classify') :
             from dataset.shared import toShared
             inp = toShared(inputs, borrow=True) \
-                  if 'SharedVariable'in str(type(inputs)) else inputs
-            self.finalizeNetwork(inp)
+                  if 'SharedVariable' not in str(type(inputs)) else inputs
+            self.finalizeNetwork(inp[:])
 
         # activating the last layer triggers all previous 
         # layers due to dependencies we've enforced
@@ -189,8 +189,8 @@ class ClassifierNetwork (Network) :
         if not hasattr(self, '_classifyAndSoftmax') :
             from dataset.shared import toShared
             inp = toShared(inputs, borrow=True) \
-                  if 'SharedVariable'in str(type(inputs)) else inputs
-            self.finalizeNetwork(inp)
+                  if 'SharedVariable' not in str(type(inputs)) else inputs
+            self.finalizeNetwork(inp[:])
 
         # activating the last layer triggers all previous 
         # layers due to dependencies we've enforced
