@@ -4,6 +4,10 @@ def distillKnowledge(deepNet, filepath, batchSize=50,
     import numpy as np
     from dataset.ingest.labeled import ingestImagery
     from dataset.pickle import writePickleZip
+    from distill.net import DistilleryClassifier
+
+    if not isinstance(deepNet, DistilleryClassifier) :
+        raise ValueError('The network must be setup as a DistilleryNetwork.')
 
     # build a new pickle with this information
     # TODO: NETWORKS NEED UNIQUE LABEL IDENTIFIERS WHICH CAN BE ADDED HERE
@@ -30,11 +34,11 @@ def distillKnowledge(deepNet, filepath, batchSize=50,
         log.info('Distilling knowledge from deep network')
 
     # distill knowledge into a pickle which can be used to train other networks
-    darkLabels = [deepNet.classifyAndSoftmax(dataset)[1] \
-                  for dataset in train[0]]
+    batchSize = train[0].shape[0]
+    darkLabels = [deepNet.softTarget(dataset) for dataset in train[0]]
     labelDims = [len(darkLabels)] + list(darkLabels[0].shape)
     darkLabels = np.reshape(np.concatenate(darkLabels), labelDims)
-    train = train[0], darkLabels
+    train = train[0], train[1], darkLabels
 
     # pickle the dataset
     writePickleZip(outputFile, (train, test, labels), log)

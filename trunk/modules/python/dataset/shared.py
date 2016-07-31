@@ -39,9 +39,18 @@ def splitToShared(x, borrow=True, castLabelInt=True, log=None) :
        return      : Shared Variable equivalents for these items
                      Format - (data, label)
     '''
-    data, label = x
+    data, label = x[:2]
+
+    # transfer the data
     data = toShared(data, borrow, log)
+
+    # transfer the hard labels
     label = toShared(label, borrow, log)
     if castLabelInt :
         label = t.tensor.cast(label, 'int32')
-    return data, label
+    ret = [data, label]
+
+    # exchange any remaining entries
+    if len(x) > 2 :
+        ret.extend([toShared(d, borrow, log) for d in x[2:]])
+    return ret
