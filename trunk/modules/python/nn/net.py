@@ -51,13 +51,13 @@ class Network () :
     def getNetworkInput(self) :
         '''Return the first layer's input'''
         if len(self._layers) == 0 :
-            raise IndexError('Network must have at least one layer' +
+            raise IndexError('Network must have at least one layer ' +
                              'to call getNetworkInput().')
         return self._layers[0].input
     def getNetworkInputSize(self) :
         '''Return the first layer's input size'''
         if len(self._layers) == 0 :
-            raise IndexError('Network must have at least one layer' +
+            raise IndexError('Network must have at least one layer ' +
                              'to call getNetworkInputSize().')
         return self._layers[0].getInputSize()
     def getNetworkOutput(self) :
@@ -65,13 +65,13 @@ class Network () :
            the next layer.
         '''
         if len(self._layers) == 0 :
-            raise IndexError('Network must have at least one layer' +
+            raise IndexError('Network must have at least one layer ' +
                              'to call getNetworkOutput().')
         return self._layers[-1].output
     def getNetworkOutputSize(self) :
         '''Return the last layer's output size.'''
         if len(self._layers) == 0 :
-            raise IndexError('Network must have at least one layer' +
+            raise IndexError('Network must have at least one layer ' +
                              'to call getNetworkOutputSize().')
         return self._layers[-1].getOutputSize()
 
@@ -84,14 +84,10 @@ class ClassifierNetwork (Network) :
 
        filepath    : Path to an already trained network on disk 
                      'None' creates randomized weighting
-       softmaxTemp : Temperature for the softmax method. A larger value softens
-                     the output from softmax. A value of 1.0 return a standard
-                     softmax result.
        prof        : Profiler to use
     '''
-    def __init__ (self, filepath=None, softmaxTemp=1., prof=None) :
+    def __init__ (self, filepath=None, prof=None) :
         Network.__init__(self, prof)
-        self._sofmaxTemp = softmaxTemp
 
         # NOTE: this must be the last thing performed in init
         if filepath is not None :
@@ -100,11 +96,7 @@ class ClassifierNetwork (Network) :
     def __getstate__(self) :
         '''Save network pickle'''
         dict = Network.__getstate__(self)
-        # always use the most recent one specified by the user.
-        dict['_softmaxTemp'] = None
         # remove the functions -- they will be rebuilt JIT
-        if '_outClassSoft' in dict : del dict['_outClassSoft']
-        if '_outTrainSoft' in dict : del dict['_outTrainSoft']
         if '_outClassMax' in dict : del dict['_outClassMax']
         if '_classify' in dict : del dict['_classify']
         if '_classifyAndSoftmax' in dict : del dict['_classifyAndSoftmax']
@@ -114,20 +106,13 @@ class ClassifierNetwork (Network) :
         '''Load network pickle'''
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
-        if hasattr(self, '_outClassSoft') : 
-            delattr(self, '_outClassSoft')
-        if hasattr(self, '_outTrainSoft') : 
-            delattr(self, '_outTrainSoft')
         if hasattr(self, '_outClassMax') : 
             delattr(self, '_outClassMax')
         if hasattr(self, '_classify') : 
             delattr(self, '_classify')
         if hasattr(self, '_classifyAndSoftmax') : 
             delattr(self, '_classifyAndSoftmax')
-        # preserve the user specified softmaxTemp
-        tmp = self._sofmaxTemp
         Network.__setstate__(self, dict)
-        self._sofmaxTemp = tmp
 
     def addLayer(self, layer) :
         '''Add a Layer to the network.'''
@@ -139,33 +124,40 @@ class ClassifierNetwork (Network) :
         self._layers.append(layer)
         self._endProfile()
 
-    def finalizeNetwork(self) :
+    def finalizeNetwork(self, networkInput) :
         '''Setup the network based on the current network configuration.
            This is used to create several network-wide functions so they will
            be pre-compiled and optimized when we need them. The only function
            across all network types is classify()
         '''
-        from nn.probUtils import softmaxAction
         if len(self._layers) == 0 :
             raise IndexError('Network must have at least one layer' +
                              'to call finalizeNetwork().')
 
         self._startProfile('Finalizing Network', 'info')
 
+        # finalize the layers to create the computational graphs
+        layerInput = (networkInput, networkInput) \
+                     if not isinstance(networkInput, tuple) else networkInput
+        for layer in self._layers :
+            self._startProfile('Finalizing Layer [' + layer.layerID + ']', 
+                               'debug')
+            layer.finalize(layerInput)
+            layerInput = layer.output
+            self._endProfile()
+
         # create one function that activates the entire network --
         # Here we use softmax on the network output to produce a normalized 
         # output prediction, which emphasizes significant neural responses.
         # This takes as its input, the first layer's input, and uses the final
         # layer's output as the function (ie the network classification).
-        outClass, outTrain = self.getNetworkOutput()
-        self._outClassSoft = softmaxAction(outClass, temp=self._sofmaxTemp)
-        self._outTrainSoft = softmaxAction(outTrain, temp=self._sofmaxTemp)
-        self._outClassMax = t.argmax(self._outClassSoft, axis=1)
+        outClass = t.nnet.softmax(self.getNetworkOutput()[0])
+        self._outClassMax = t.argmax(outClass, axis=1)
         self._classify = theano.function([self.getNetworkInput()[0]],
                                          self._outClassMax)
         self._classifyAndSoftmax = theano.function(
             [self.getNetworkInput()[0]], 
-            [self._outClassMax, self._outClassSoft])
+            [self._outClassMax, outClass])
         self._endProfile()
 
     def classify (self, inputs) :
@@ -175,7 +167,10 @@ class ClassifierNetwork (Network) :
         '''
         self._startProfile('Classifying the Inputs', 'debug')
         if not hasattr(self, '_classify') :
-            self.finalizeNetwork()
+            from dataset.shared import toShared
+            inp = toShared(inputs, borrow=True) \
+                  if 'SharedVariable'in str(type(inputs)) else inputs
+            self.finalizeNetwork(inp)
 
         # activating the last layer triggers all previous 
         # layers due to dependencies we've enforced
@@ -192,7 +187,10 @@ class ClassifierNetwork (Network) :
         '''
         self._startProfile('Classifying the Inputs', 'debug')
         if not hasattr(self, '_classifyAndSoftmax') :
-            self.finalizeNetwork()
+            from dataset.shared import toShared
+            inp = toShared(inputs, borrow=True) \
+                  if 'SharedVariable'in str(type(inputs)) else inputs
+            self.finalizeNetwork(inp)
 
         # activating the last layer triggers all previous 
         # layers due to dependencies we've enforced
@@ -207,13 +205,10 @@ class LabeledClassifierNetwork (ClassifierNetwork) :
        labels      : Labels for the classification layer
        filepath    : Path to an already trained network on disk 
                      'None' creates randomized weighting
-       softmaxTemp : Temperature for the softmax method. A larger value softens
-                     the output from softmax. A value of 1.0 return a standard
-                     softmax result.
        prof        : Profiler to use
     '''
-    def __init__ (self, labels, filepath=None, softmaxTemp=1., prof=None) :
-        ClassifierNetwork.__init__(self, filepath, softmaxTemp, prof)
+    def __init__ (self, labels, filepath=None, prof=None) :
+        ClassifierNetwork.__init__(self, filepath, prof)
         self._networkLabels = []
 
         # if we loaded a synapse use the labels from the file
@@ -244,21 +239,14 @@ class TrainerNetwork (LabeledClassifierNetwork) :
        loss function.
 
        train    : theano.shared dataset used for network training in format
-                  NOTE: Currently the user is allowed to pass two variable
-                        types for this field. --
-
-                        If the user is passing an index
-                        equivalent for the label, the user must pass data as a
-                        numpy.ndarray and formatted:
+                  NOTE: Currently the user is allowed to pass two formats
+                        for this field. --
 
                         (((numBatches, batchSize, numChannels, rows, cols)), 
-                         (numBatches, oneHotIndex))
-
-                        If the user passes a vector for the expected label the
-                        values must be theano.shared variables and formatted:
+                          (numBatches, oneHotIndex))
 
                         (((numBatches, batchSize, numChannels, rows, cols)), 
-                         (numBatches, batchSize, expectedOutputVect))
+                          (numBatches, batchSize, expectedOutputVect))
 
        test     : theano.shared dataset used for network testing in format --
                   (((numBatches, batchSize, numChannels, rows, cols)), 
@@ -276,9 +264,9 @@ class TrainerNetwork (LabeledClassifierNetwork) :
        prof     : Profiler to use
     '''
     def __init__ (self, train, test, labels, regType='L2', regScaleFactor=0.,
-                  filepath=None, softmaxTemp=1., prof=None) :
+                  filepath=None, prof=None) :
         LabeledClassifierNetwork.__init__(self, labels, filepath=filepath,
-                                          softmaxTemp=softmaxTemp, prof=prof)
+                                          prof=prof)
         self._trainData, self._trainLabels = train
         self._testData, self._testLabels = test
 
@@ -315,33 +303,74 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         if hasattr(self, '_trainNetwork') : delattr(self, '_trainNetwork')
         ClassifierNetwork.__setstate__(self, dict)
 
-    def finalizeNetwork(self) :
+    def _compileRegularization(self) :
+        '''Calculate the requested regularization to add to loss.'''
+        from nn.costUtils import leastAbsoluteDeviation, leastSquares
+
+        # calculate a regularization term -- if desired
+        reg = 0.0
+        # L1-norm provides 'Least Absolute Deviation' --
+        # built for sparse outputs and is resistent to outliers
+        if self._regularization == 'L1' :
+            reg = leastAbsoluteDeviation(
+                [layer.getWeights()[0] for layer in self._layers], 
+                self._regScaleFactor)
+        # L2-norm provides 'Least Squares' --
+        # built for dense outputs and is computationally stable at small errors
+        elif self._regularization == 'L2' :
+            reg = leastSquares(
+                [layer.getWeights()[0] for layer in self._layers],
+                self._regScaleFactor)
+        return reg
+
+    def _compileUpdates(self, loss) :
+        '''Create the weight updates required during training.'''
+        updates = []
+        for layer in reversed(self._layers) :
+
+            # pull the rate variables
+            layerLearningRate = layer.getLearningRate()
+            layerMomentumRate = layer.getMomentumRate()
+
+            # build the gradients
+            layerWeights = layer.getWeights()
+            gradients = t.grad(loss, layerWeights, disconnected_inputs='warn')
+
+            # add the weight update
+            for w, g in zip(layerWeights, gradients) :
+
+                if layerMomentumRate > 0. :
+                    # setup a second buffer for storing momentum
+                    previousWeightUpdate = theano.shared(
+                        np.zeros(w.get_value().shape, theano.config.floatX),
+                        borrow=True)
+
+                    # add two updates --
+                    # perform weight update and save the previous update
+                    updates.append((w, w + previousWeightUpdate))
+                    updates.append((previousWeightUpdate,
+                                    previousWeightUpdate * layerMomentumRate -
+                                    layerLearningRate * g))
+                else :
+                    updates.append((w, w - layerLearningRate * g))
+        return updates
+
+    def finalizeNetwork(self, networkInput) :
         '''Setup the network based on the current network configuration.
            This creates several network-wide functions so they will be
            pre-compiled and optimized when we need them.
         '''
         from nn.costUtils import crossEntropyLoss
-        from nn.costUtils import leastAbsoluteDeviation, leastSquares
         if len(self._layers) == 0 :
             raise IndexError('Network must have at least one layer' +
                              'to call getNetworkInput().')
 
         self._startProfile('Finalizing Network', 'info')
 
-        # finalize the layers to create the computational graphs
-        layerInput = (self._trainData[0], self._trainData[0])
-        for layer in self._layers :
-            self._startProfile('Finalizing Layer [' + layer.layerID + ']', 
-                               'debug')
-            layer.finalize(layerInput)
-            layerInput = layer.output
-            self._endProfile()
-
-
         # disable the profiler temporarily so we don't get a second entry
         tmp = self._profiler
         self._profiler = None
-        ClassifierNetwork.finalizeNetwork(self)
+        ClassifierNetwork.finalizeNetwork(self, networkInput)
         self._profiler = tmp
 
         # create a function to quickly check the accuracy against the test set
@@ -363,58 +392,14 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         expectedOutputs = t.fmatrix('expectedOutputs') \
                           if self._trainLabels.ndim == 3 else \
                           t.ivector('expectedOutputs')
-        xEntropy = crossEntropyLoss(expectedOutputs, self._outTrainSoft, 1)
-
-
-        # calculate a regularization term -- if desired
-        reg = 0.0
-        # L1-norm provides 'Least Absolute Deviation' --
-        # built for sparse outputs and is resistent to outliers
-        if self._regularization == 'L1' :
-            reg = leastAbsoluteDeviation(
-                [layer.getWeights()[0] for layer in self._layers], 
-                self._regScaleFactor)
-        # L2-norm provides 'Least Squares' --
-        # built for dense outputs and is computationally stable at small errors
-        elif self._regularization == 'L2' :
-            reg = leastSquares(
-                [layer.getWeights()[0] for layer in self._layers],
-                self._regScaleFactor)
-
+        outTrain = t.nnet.softmax(self.getNetworkOutput()[1])
+        xEntropy = crossEntropyLoss(expectedOutputs, outTrain, 1)
 
         # create the function for back propagation of all layers --
         # weight/bias are added in reverse order because they will
         # be used back propagation, which runs output to input
-        updates = []
-        for layer in reversed(self._layers) :
-
-            # pull the rate variables
-            layerLearningRate = layer.getLearningRate()
-            layerMomentumRate = layer.getMomentumRate()
-
-            # build the gradients
-            layerWeights = layer.getWeights()
-            gradients = t.grad(xEntropy + reg, layerWeights,
-                               disconnected_inputs='warn')
-
-            # add the weight update
-            for w, g in zip(layerWeights, gradients) :
-
-                if layerMomentumRate > 0. :
-                    # setup a second buffer for storing momentum
-                    previousWeightUpdate = theano.shared(
-                        np.zeros(w.get_value().shape, theano.config.floatX),
-                        borrow=True)
-
-                    # add two updates --
-                    # perform weight update and save the previous update
-                    updates.append((w, w + previousWeightUpdate))
-                    updates.append((previousWeightUpdate,
-                                    previousWeightUpdate * layerMomentumRate -
-                                    layerLearningRate * g))
-                else :
-                    updates.append((w, w - layerLearningRate * g))
-
+        updates = self._compileUpdates(
+            xEntropy + self._compileRegularization())
 
         # NOTE: the 'input' variable name was create elsewhere and provided as
         #       input to the first layer. We now use that object to connect
@@ -436,7 +421,7 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         self._startProfile('Training Batch [' + str(index) +
                            '/' + str(self._numTrainBatches) + ']', 'debug')
         if not hasattr(self, '_trainNetwork') :
-            self.finalizeNetwork()
+            self.finalizeNetwork(self._trainData[0])
         if not isinstance(index, int) :
             raise Exception('Variable index must be an integer value')
         if index >= self._numTrainBatches :
@@ -471,7 +456,7 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         '''
         self._startProfile('Checking Accuracy', 'debug')
         if not hasattr(self, '_checkAccuracy') :
-            self.finalizeNetwork()
+            self.finalizeNetwork(self._trainData[0])
 
         # return the sum of all correctly classified targets
         acc = 0.0
