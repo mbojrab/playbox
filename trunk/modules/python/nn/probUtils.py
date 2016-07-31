@@ -9,5 +9,5 @@ def softmaxAction(input, temp=1.) :
     if temp == 0. :
         return input
     else :
-        eIn = t.exp(input / temp)
-        return eIn * (1. / eIn.sum(axis=0))
+        eIn = t.exp((input - input.max(axis=0, keepdims=True)) / temp)
+        return eIn * (1. / eIn.sum(axis=0, keepdims=True))
