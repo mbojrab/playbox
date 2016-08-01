@@ -65,8 +65,10 @@ if __name__ == '__main__' :
                         help='Number of runs between validation checks.')
     parser.add_argument('--stop', dest='stop', type=int, default=5,
                         help='Number of inferior validation checks to end.')
-    parser.add_argument('--softness', dest='softness', type=float, default=3,
+    parser.add_argument('--softness', dest='softness', type=float, default=4.0,
                         help='Softness factor in softmax function.')
+    parser.add_argument('--factor', dest='factor', type=float, default=0.8,
+                        help='Factor of error coming from deep transfer.')
     parser.add_argument('--holdout', dest='holdout', type=float, default=.05,
                         help='Percent of data to be held out for testing.')
     parser.add_argument('--batch', dest='batchSize', type=int, default=50,
@@ -76,6 +78,8 @@ if __name__ == '__main__' :
     parser.add_argument('--deep', dest='deep', type=str, default=None,
                         help='Synapse for the deep network to distill. This ' +
                         'network should be trained and ready.')
+    parser.add_argument('--syn', dest='synapse', type=str, default=None,
+                        help='Load from a previously saved network.')
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
                                      'training and test sets. This can be ' + 
                                      'the location of a dark pickle.')
@@ -105,10 +109,13 @@ if __name__ == '__main__' :
 
     # create a file with pre-initialized weights so both networks use the same
     # baseline for testing.
-    networkFile = createNetwork(inputSize=inputSize[1:],
-                                numKernels=options.kernel,
-                                numNeurons=options.neuron,
-                                numLabels=len(labels))
+    if options.synapse is None :
+        networkFile = createNetwork(inputSize=inputSize[1:],
+                                    numKernels=options.kernel,
+                                    numNeurons=options.neuron,
+                                    numLabels=len(labels))
+    else :
+        networkFile = options.synapse
 
     # load the nn.net.TrainerNetwork
     baseNet = TrainerNetwork(
@@ -127,7 +134,7 @@ if __name__ == '__main__' :
                   train, test, labels, regType='L2',
                   regScaleFactor=1. / (options.kernel + options.kernel + 
                                        options.neuron + len(labels)),
-                  softmaxTemp=4.0, transFactor=.8,
+                  softmaxTemp=options.softness, transFactor=options.factor,
                   filepath=networkFile, prof=prof)
     # user has not specified a dark pickle infused with additional knowledge
     # from a deep network. In this case, we had the deep network directly to
@@ -161,4 +168,5 @@ if __name__ == '__main__' :
         prof.endProfile()
 
     # cleanup the area
-    os.remove(networkFile)
+    if options.synapse is None :
+        os.remove(networkFile)
