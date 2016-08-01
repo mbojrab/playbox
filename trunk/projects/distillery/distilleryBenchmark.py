@@ -1,5 +1,6 @@
 import argparse, os
 
+from nn.net import TrainerNetwork
 from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer
 from dataset.ingest.labeled import ingestImagery
@@ -42,7 +43,10 @@ def createNetwork(inputSize, numKernels, numNeurons, numLabels) :
     return localPath
 
 
-'''This application will distill a deep network into a shallow one.'''
+'''This application will test the performance of a distilled network vs the 
+   baseline with only the one-hot labels. Performance will be measured both
+   in inference-time speed gains and in accuracy from the original network.
+'''
 if __name__ == '__main__' :
 
     parser = argparse.ArgumentParser()
@@ -113,7 +117,19 @@ if __name__ == '__main__' :
     else :
         networkFile = options.synapse
 
-    # load the shallow network
+    # load the nn.net.TrainerNetwork
+    baseNet = TrainerNetwork(
+                  train[:2], test, labels, regType='L2',
+                  regScaleFactor=1. / (options.kernel + options.kernel + 
+                                       options.neuron + len(labels)),
+                  filepath=networkFile, prof=prof)
+
+    # perform baseline training
+    baseFile = trainSupervised(baseNet, __file__, options.data, 
+                               numEpochs=options.limit, stop=options.stop, 
+                               base=options.base + '_baseline', log=log)
+
+    # load the distill.DistilleryTrainer
     distNet = DistilleryTrainer(
                   train, test, labels, regType='L2',
                   regScaleFactor=1. / (options.kernel + options.kernel + 
@@ -130,6 +146,26 @@ if __name__ == '__main__' :
     distFile = trainSupervised(distNet, __file__, options.data, 
                                numEpochs=options.limit, stop=options.stop, 
                                base=options.base + '_distilled', log=log)
+
+    # load a new network to collect statistics
+    network = TrainerNetwork(
+                train[:2], test, labels, regType='L2',
+                regScaleFactor=1. / (options.kernel + options.kernel + 
+                                     options.neuron + len(labels)), 
+                prof=prof)
+
+    # collect the statistics on performance
+    prof.startProfile('Checking Statistics')
+    accStat = -1.0
+    for f in (baseFile, distFile) :
+        prof.startProfile('Loading [' + f + ']')
+        network.load(f)
+        timer = time()
+        curAcc = network.checkAccuracy()
+        log.info('Checking Accuracy - {0}s ' \
+                 '\n\tCorrect   : {1}% \n\tIncorrect : {2}%'.format(
+                 time() - timer, curAcc, (100-curAcc)))
+        prof.endProfile()
 
     # cleanup the area
     if options.synapse is None :

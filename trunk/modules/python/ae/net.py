@@ -11,13 +11,10 @@ class ClassifierSAENetwork (ClassifierNetwork) :
 
        filepath    : Path to an already trained network on disk 
                      'None' creates randomized weighting
-       softmaxTemp : Temperature for the softmax method. A larger value softens
-                     the output from softmax. A value of 1.0 return a standard
-                     softmax result.
        prof        : Profiler to use
     '''
-    def __init__ (self, filepath=None, softmaxTemp=0., prof=None) :
-        ClassifierNetwork.__init__(self, filepath, softmaxTemp, prof)
+    def __init__ (self, filepath=None, prof=None) :
+        ClassifierNetwork.__init__(self, filepath, prof)
 
     def addLayer(self, encoder) :
         '''Add an autoencoder to the network.'''
@@ -44,8 +41,8 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
                (numBatches, batchSize, numChannels, rows, cols)
        prof  : Profiler to use
     '''
-    def __init__ (self, train, filepath=None, softmaxTemp=0., prof=None) :
-        ClassifierSAENetwork.__init__ (self, filepath, softmaxTemp, prof)
+    def __init__ (self, train, filepath=None, prof=None) :
+        ClassifierSAENetwork.__init__ (self, filepath, prof)
         self._indexVar = t.lscalar('index')
         self._trainData = train[0] if isinstance(train, tuple) else train
         self._numTrainBatches = self._trainData.shape.eval()[0]
@@ -137,7 +134,7 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
         self._trainGreedy = []
         ClassifierSAENetwork.__setstate__(self, dict)
 
-    def finalizeNetwork(self) :
+    def finalizeNetwork(self, networkInputs) :
         '''Setup the network based on the current network configuration.
            This is used to create several network-wide functions so they will
            be pre-compiled and optimized when we need them. The only function
@@ -154,7 +151,7 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
         # disable the profiler temporarily so we don't get a second entry
         tmp = self._profiler
         self._profiler = None
-        ClassifierNetwork.finalizeNetwork(self)
+        ClassifierNetwork.finalizeNetwork(self, networkInputs)
         self._profiler = tmp
 
         self.__buildDecoder()
@@ -171,7 +168,7 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
                            '/' + str(self._numTrainBatches) + ']', 'debug')
         if not hasattr(self, '_trainGreedy') or \
            not hasattr(self, '_trainNetwork') :
-            self.finalizeNetwork()
+            self.finalizeNetwork(self._trainData[0])
         if not isinstance(index, int) :
             raise Exception('Variable index must be an integer value')
         if index >= self._numTrainBatches :
@@ -230,5 +227,3 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
 
             #self.writeWeights(layerIndex, globalEpoch + localEpoch)
         return globalEpoch + numEpochs, globCost
-
-

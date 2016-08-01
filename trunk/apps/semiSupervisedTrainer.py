@@ -45,8 +45,6 @@ if __name__ == '__main__' :
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
                         help='Number of Neurons in Hidden Layer.')
-    parser.add_argument('--soft', dest='softness', type=float, default=0.0,
-                        help='Softmax temperature to use for softness.')
     parser.add_argument('--epoch', dest='numEpochs', type=int, default=15,
                         help='Number of epochs to run per layer during ' +
                              'unsupervised pre-training.')
@@ -87,7 +85,7 @@ if __name__ == '__main__' :
     trainShape = train[0].shape.eval()
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = TrainerSAENetwork(train, softmaxTemp=options.softness, prof=prof)
+    network = TrainerSAENetwork(train, prof=prof)
 
     if options.synapse is not None :
         # load a previously saved network

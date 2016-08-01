@@ -31,8 +31,17 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5,
     # the last iteration trains the network as a whole --
     # this ensures the network fine-tunes its encodings wrt to all layers'
     # encoding and decoding loss.
-    lastSave = ''
     globalEpoch = resumeEpoch(synapse)
+    lastSave = buildPickleInterim(base=base,
+                                  epoch=globalEpoch,
+                                  dropout=dropout,
+                                  learnC=learnC,
+                                  learnF=learnF,
+                                  contrF=contrF,
+                                  kernel=kernel,
+                                  neuron=neuron,
+                                  layer=0)
+    network.save(lastSave)
     for layerIndex in range(network.getNumLayers() + 1) :
         globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 
                                                numEpochs)
@@ -67,7 +76,15 @@ def trainSupervised (network, appName, dataPath, numEpochs=5, stop=30,
     degradationCount = 0
     globalCount = lastBest = resumeEpoch(synapse)
     runningAccuracy = network.checkAccuracy()
-    lastSave = ''
+    lastSave = buildPickleInterim(base=base,
+                                  epoch=lastBest,
+                                  dropout=dropout,
+                                  learnC=learnC,
+                                  learnF=learnF,
+                                  momentum=momentum,
+                                  kernel=kernel,
+                                  neuron=neuron)
+    network.save(lastSave)
     while True :
         timer = time()
 
