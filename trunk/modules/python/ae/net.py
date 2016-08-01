@@ -4,10 +4,13 @@ from nn.net import ClassifierNetwork
 from ae.encoder import AutoEncoder
 import numpy as np
 
-class ClassifierSAENetwork (ClassifierNetwork) :
-    '''The ClassifierSAENetwork object allows autoencoders to be stacked such
-       that the output of one autoencoder becomes the input to another. This 
-       network creates the necessary connections to stack the autoencoders.
+class SAENetwork (ClassifierNetwork) :
+    '''The SAENetwork object allows autoencoders to be stacked such that the 
+       output of one autoencoder becomes the input to another. This network
+       creates the necessary connections to stack the autoencoders.
+
+       This object provides basic encoding through the classify, and
+       classifyAndSoftmax functionality provided by the base class.
 
        filepath    : Path to an already trained network on disk 
                      'None' creates randomized weighting
@@ -27,6 +30,128 @@ class ClassifierSAENetwork (ClassifierNetwork) :
         return self._layers[layerIndex]
     def writeWeights(self, layerIndex, epoch) :
         self._layers[layerIndex].writeWeights(epoch)
+
+class ClassifierSAENetwork (SAENetwork) :
+    '''The ClassifierSAENetwork adds the ability to classify a provided input
+       against a target encoding feature matrix. The user must provide an
+       example input(s), which the network then uses to determine similities
+       between the feature data and the provided input.
+
+       targetData  : Batch of inputs to compare all inputs against. The network
+                     identify its response to these inputs, then attempt to
+                     determine between this target set and all future inputs.
+                     NOTE: object is assumed to be numpy.ndarray.
+       filepath    : Path to an already trained network on disk 
+                     'None' creates randomized weighting
+       softmaxTemp : Temperature for the softmax method. A larger value softens
+                     the output from softmax. A value of 1.0 return a standard
+                     softmax result.
+       prof        : Profiler to use
+    '''
+    def __init__ (self, targetData, filepath=None, softmaxTemp=0., prof=None) :
+        SAENetwork.__init__(self, filepath, softmaxTemp, prof)
+        self._targetData = targetData
+
+    def __getstate__(self) :
+        '''Save network pickle'''
+        dict = SAENetwork.__getstate__(self)
+        # remove the training and test datasets before pickling. This both
+        # saves disk space, and makes trained networks allow transfer learning
+        if '_targetData' in dict : del dict['_targetData']
+        if '_targetEncodings' in dict : del dict['_targetEncodings']
+        # remove the functions -- they will be rebuilt JIT
+        if '_closeness' in dict : del dict['_closeness']
+        return dict
+
+    def __setstate__(self, dict) :
+        '''Load network pickle'''
+        # remove any current functions from the object so we force the
+        # theano functions to be rebuilt with the new buffers
+        if hasattr(self, '_closeness') : delattr(self, '_closeness')
+        SAENetwork.__setstate__(self, dict)
+
+    def finalizeNetwork(self, networkInput) :
+        '''Setup the network based on the current network configuration.
+           This creates several network-wide functions so they will be
+           pre-compiled and optimized when we need them.
+        '''
+        from dataset.shared import toShared
+        if len(self._layers) == 0 :
+            raise IndexError('Network must have at least one layer' +
+                             'to call getNetworkInput().')
+
+        self._startProfile('Finalizing Network', 'info')
+
+        # disable the profiler temporarily so we don't get a second entry
+        tmp = self._profiler
+        self._profiler = None
+        SAENetwork.finalizeNetwork(self, networkInput)
+        self._profiler = tmp
+
+        # produce the encoded feature matrix --
+        # this matrix will be used for all closeness calculations
+        self._targetEncodings = []
+        batchSize = networkInput.shape[0] \
+                    if 'SharedVariable' not in str(type(networkInput)) else \
+                    networkInput.get_value(borrow=True).shape[0]
+        # TODO: use the logic from MNIST to get this working
+        #for ii in range(int(self._targetData.shape[0] / batchSize) - 1) :
+        #    self._targetEncodings.extend(
+        #        self.classify(self._targetData[ii]))
+        #self._targetEncodings.extend(
+        #        self.classify(self._targetData[ii]))
+        self._targetEncodings = toShared(self._targetEncodings, borrow=True)
+
+        # TODO: Check if this should be the raw logit from the output layer or
+        #       the softmax return of the output layer.
+        # TODO: This needs to be updated to handle matrix vs matrix cosine
+        #       similarities between all pairs of vectors
+        # setup the closeness execution graph based on target information
+        targets = t.fmatrix('targets')
+        cosineSimilarity = t.sum(targets * self._outClassSoft) / \
+                           t.sqrt(t.sum(targets ** 2) * \
+                                  t.sum(self._outClassSoft ** 2))
+        self._closeness = t.function([self.getNetworkInput()[0]],
+                                     cosineSimilarity.T)
+
+    def closeness(self, inputs) :
+        '''This is a form of classification for SAE networks. The network has
+           been provided a target input, which we now use to determine the
+           similarity of this input against that target set. 
+
+           NOTE: Response of 1.0 indicates equality. The lower number indicate
+                 less overlap between features.
+        '''
+        from dataset.shared import toShared
+        self._startProfile('Determining Closeness of Inputs', 'debug')
+        if not hasattr(self, '_classify') :
+            inp = toShared(inputs, borrow=True) \
+                  if 'SharedVariable' not in str(type(inputs)) else inputs
+            self.finalizeNetwork(inp[:])
+
+        # test out similar this input is compared with the targets
+        cosineMatrix = self._closeness(inputs)
+        self._endProfile()
+        return cosineMatrix
+
+    def closenessAndEncoding (self, inputs) :
+        '''This is a form of classification for SAE networks. The network has
+           been provided a target input, which we now use to determine the
+           similarity of this input against that target set. 
+
+           This method is additionally setup to return the raw encoding for the
+           inputs provided.
+
+           return : (classification index, softmax vector)
+        '''
+        self._startProfile('Determining Closeness of Inputs', 'debug')
+
+        # TODO: this needs to be updated if the encodings should not be the
+        #       result of a softmax on the logits.
+        cosineMatrix, encodings = (self.closeness(inputs), 
+                                   self.classifyAndSoftmax(inputs)[1])
+        self._endProfile()
+        return cosineMatrix, encodings
 
 
 class TrainerSAENetwork (ClassifierSAENetwork) :
