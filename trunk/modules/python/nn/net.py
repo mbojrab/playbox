@@ -168,7 +168,7 @@ class ClassifierNetwork (Network) :
         # This takes as its input, the first layer's input, and uses the final
         # layer's output as the function (ie the network classification).
         outClass, outTrain = self.getNetworkOutput()
-        self._outClassSoft = softmaxAction(outClass, temp=self._sofmaxTemp)
+        self._outClassSoft = t.nnet.softmax(outClass)
         self._outTrainSoft = softmaxAction(outTrain, temp=self._sofmaxTemp)
         self._outClassMax = t.argmax(self._outClassSoft, axis=1)
         self._classify = theano.function([self.getNetworkInput()[0]],
