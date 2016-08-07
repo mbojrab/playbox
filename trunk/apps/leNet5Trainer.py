@@ -60,6 +60,7 @@ if __name__ == '__main__' :
     prof = Profiler(log=log, name=logName, profFile=options.profile)
 
     # create a random number generator for efficiency
+    import theano.tensor as t
     from numpy.random import RandomState
     from operator import mul
     rng = RandomState(int(time()))
@@ -73,9 +74,9 @@ if __name__ == '__main__' :
     trainSize = train[0].shape.eval()
 
     # create the network -- LeNet-5
-    network = Net(train, test, labels, regType='L2',
-                  regScaleFactor=1. / (options.kernel + options.kernel + 
-                                       options.neuron + len(labels)), 
+    network = Net(train, test, labels, regType='L2', 
+                  regScaleFactor=1. / (2 * options.kernel * 5 * 5 + 
+                                       options.neuron + len(labels)),
                   prof=prof)
 
     if options.synapse is not None :
@@ -88,9 +89,10 @@ if __name__ == '__main__' :
         network.addLayer(ConvolutionalLayer(
             layerID='c1', inputSize=trainSize[1:],
             kernelSize=(options.kernel,trainSize[2],5,5),
-            downsampleFactor=(2,2), randomNumGen=rng,
+            downsampleFactor=(2,2),
+            learningRate=options.learnC, momentumRate=options.momentum,
             dropout=.8 if options.dropout else 1.,
-            learningRate=options.learnC, momentumRate=options.momentum))
+            activation=t.nnet.relu, randomNumGen=rng))
 
         # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
         # this way we don't combine the channels kernels we created in 
@@ -98,9 +100,10 @@ if __name__ == '__main__' :
         network.addLayer(ConvolutionalLayer(
             layerID='c2', inputSize=network.getNetworkOutputSize(), 
             kernelSize=(options.kernel,options.kernel,5,5),
-            downsampleFactor=(2,2), randomNumGen=rng,
-            dropout=.5 if options.dropout else 1.,
-            learningRate=options.learnC, momentumRate=options.momentum))
+            downsampleFactor=(2,2), 
+            learningRate=options.learnC, momentumRate=options.momentum,
+            dropout=.5 if options.dropout else 1., 
+            activation=t.nnet.relu, randomNumGen=rng))
 
         # add fully connected layers
         network.addLayer(ContiguousLayer(
@@ -109,12 +112,13 @@ if __name__ == '__main__' :
                        reduce(mul, network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, 
             learningRate=options.learnF, momentumRate=options.momentum,
-            dropout=.5 if options.dropout else 1., randomNumGen=rng))
+            dropout=.5 if options.dropout else 1.,
+            activation=t.nnet.relu, randomNumGen=rng))
         network.addLayer(ContiguousLayer(
             layerID='f4', inputSize=network.getNetworkOutputSize(), 
             numNeurons=len(labels),
             learningRate=options.learnF, momentumRate=options.momentum,
-            activation=None, randomNumGen=rng))
+            activation=t.nnet.relu, randomNumGen=rng))
 
     trainSupervised(network, __file__, options.data, 
                     numEpochs=options.limit, stop=options.stop, 
