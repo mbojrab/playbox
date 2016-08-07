@@ -313,14 +313,14 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         # built for sparse outputs and is resistent to outliers
         if self._regularization == 'L1' :
             reg = leastAbsoluteDeviation(
-                [layer.getWeights()[0] for layer in self._layers], 
-                self._regScaleFactor)
+                [layer.getWeights()[0] for layer in self._layers],
+                batchSize=None, scaleFactor=self._regScaleFactor)
         # L2-norm provides 'Least Squares' --
         # built for dense outputs and is computationally stable at small errors
         elif self._regularization == 'L2' :
             reg = leastSquares(
                 [layer.getWeights()[0] for layer in self._layers],
-                self._regScaleFactor)
+                batchSize=None, scaleFactor=self._regScaleFactor)
         return reg
 
     def _compileUpdates(self, loss) :
