@@ -75,30 +75,32 @@ class Layer () :
 
         if self._activation == t.nnet.relu :
             scaleFactor = np.sqrt(2. / fanIn)
-            initialWeights = np.asarray(randomNumGen.uniform(
-                low=-scaleFactor, high=scaleFactor, size=size),
-                dtype=config.floatX)
-            initialThresholds = np.zeros((fanOut,), dtype=config.floatX)
+            initialWeights = np.resize(np.asarray(
+                randomNumGen.randn(np.prod(np.array(size))) * scaleFactor, 
+                dtype=config.floatX), size)
 
         elif self._activation == t.nnet.sigmoid or \
              self._activation == t.tanh or \
              self._activation == None :
 
             scaleFactor = np.sqrt(6. / (fanIn + fanOut))
-            initialWeights = np.asarray(randomNumGen.uniform(
-                low=-scaleFactor, high=scaleFactor, size=size),
-                dtype=config.floatX)
-            initialThresholds = np.ones((fanOut,), dtype=config.floatX)
 
             # re-adjust for sigmoid
             if self._activation == t.nnet.sigmoid :
-                initialWeights *= 4.
+                scaleFactor *= 4.
+
+            initialWeights = np.asarray(randomNumGen.uniform(
+                low=-scaleFactor, high=scaleFactor, size=size),
+                dtype=config.floatX)
+
         else :
             raise ValueError('Unsupported activation encountered. Add weight-'\
                              'initialization support for this activation type')
 
         # load the weights into shared variables
         self._weights = shared(value=initialWeights, borrow=True)
+
+        initialThresholds = np.zeros((fanOut,), dtype=config.floatX)
         self._thresholds = shared(value=initialThresholds, borrow=True)
 
     def _setActivation(self, out) :
