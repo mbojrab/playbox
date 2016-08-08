@@ -7,6 +7,10 @@ def normalize(v) :
     minimum, maximum = np.amin(v), np.amax(v)
     return (v - minimum) / (maximum - minimum)
 
+def statisticalNorm(v) :
+    '''Zero-mean and unit variance.'''
+    return normalize((v - v.mean()) / v.std())
+
 def convertPhaseAmp(imData, log=None) :
     '''Extract the phase and amplitude components of a complex number.
        This is assumed to be a better classifier than the raw IQ image.
@@ -82,9 +86,10 @@ def readNITF(image, log=None) :
     # read the bands and interleave them by band --
     # this assumes the image is non-complex and treats bands as color.
     a = np.concatenate(imageReader.read(window))
+    a = np.resize(statisticalNorm(a), 
+                  (segment.subheader.getBandCount(),
+                   window.numRows, window.numCols))
 
-    a = np.resize(normalize(a), (segment.subheader.getBandCount(),
-                                 window.numRows, window.numCols))
     # explicitly close the handle -- for peace of mind
     reader.io.close()
     return a
@@ -96,14 +101,15 @@ def makePILImageBandContiguous(img, log=None) :
     '''
     if img.mode == 'RBG' or img.mode == 'RGB' :
         # channels are interleaved by band
-        a = np.asarray(np.concatenate(map(normalize, img.split())), 
+        a = np.asarray(np.concatenate(
+                       [statisticalNorm(np.asarray(x)) for x in img.split()]),
                        dtype=t.config.floatX)
         a = np.resize(a, (3, img.size[1], img.size[0]))
         return a if img.mode == 'RGB' else a[[0,2,1],:,:]
     elif img.mode == 'L' :
         # just one channel
         a = np.asarray(img.getdata(), dtype=t.config.floatX)
-        return np.resize(normalize(a), (1, img.size[1], img.size[0]))
+        return np.resize(statisticalNorm(a), (1, img.size[1], img.size[0]))
 
 def readPILImage(image, log=None) :
     '''This method should be used for all regular image formats from JPEG,
