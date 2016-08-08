@@ -164,6 +164,9 @@ def ingestImagery(filepath, shared=True, log=None, **kwargs) :
     from dataset.shared import splitToShared
     from dataset.pickle import readPickleZip
 
+    if not os.path.exists(filepath) :
+        raise ValueError('The path specified does not exist.')
+
     # read the directory structure and pickle it up
     if os.path.isdir(filepath) :
         filepath = pickleDataset(filepath, log=log, **kwargs)
