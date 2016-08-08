@@ -96,9 +96,9 @@ def makePILImageBandContiguous(img, log=None) :
     '''
     if img.mode == 'RBG' or img.mode == 'RGB' :
         # channels are interleaved by band
-        a = np.asarray(np.concatenate(img.split()), 
+        a = np.asarray(np.concatenate(map(normalize, img.split())), 
                        dtype=t.config.floatX)
-        a = np.resize(normalize(a), (3, img.size[1], img.size[0]))
+        a = np.resize(a, (3, img.size[1], img.size[0]))
         return a if img.mode == 'RGB' else a[[0,2,1],:,:]
     elif img.mode == 'L' :
         # just one channel
