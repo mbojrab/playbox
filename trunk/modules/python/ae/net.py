@@ -48,9 +48,8 @@ class ClassifierSAENetwork (SAENetwork) :
                      softmax result.
        prof        : Profiler to use
     '''
-    def __init__ (self, targetData, filepath=None, softmaxTemp=0., prof=None) :
+    def __init__ (self, filepath=None, softmaxTemp=0., prof=None) :
         SAENetwork.__init__(self, filepath, softmaxTemp, prof)
-        self._targetData = targetData
 
     def __getstate__(self) :
         '''Save network pickle'''
@@ -75,7 +74,6 @@ class ClassifierSAENetwork (SAENetwork) :
            This creates several network-wide functions so they will be
            pre-compiled and optimized when we need them.
         '''
-        from dataset.shared import toShared
         if len(self._layers) == 0 :
             raise IndexError('Network must have at least one layer' +
                              'to call getNetworkInput().')
@@ -88,20 +86,6 @@ class ClassifierSAENetwork (SAENetwork) :
         SAENetwork.finalizeNetwork(self, networkInput)
         self._profiler = tmp
 
-        # produce the encoded feature matrix --
-        # this matrix will be used for all closeness calculations
-        self._targetEncodings = []
-        batchSize = networkInput.shape[0] \
-                    if 'SharedVariable' not in str(type(networkInput)) else \
-                    networkInput.get_value(borrow=True).shape[0]
-        # TODO: use the logic from MNIST to get this working
-        #for ii in range(int(self._targetData.shape[0] / batchSize) - 1) :
-        #    self._targetEncodings.extend(
-        #        self.classify(self._targetData[ii]))
-        #self._targetEncodings.extend(
-        #        self.classify(self._targetData[ii]))
-        self._targetEncodings = toShared(self._targetEncodings, borrow=True)
-
         # TODO: Check if this should be the raw logit from the output layer or
         #       the softmax return of the output layer.
         # TODO: This needs to be updated to handle matrix vs matrix cosine
@@ -112,7 +96,47 @@ class ClassifierSAENetwork (SAENetwork) :
                            t.sqrt(t.sum(targets ** 2) * \
                                   t.sum(self._outClassSoft ** 2))
         self._closeness = t.function([self.getNetworkInput()[0]],
-                                     cosineSimilarity.T)
+                                     cosineSimilarity.T,
+                                     givens={targets: self._targetEncodings})
+
+
+    def finalizeFeatureMatrix(self, targetData) :
+        '''Calculate the encoded feature matrix based on the networks current
+           state. This is exposed as a separate method for cases where multiple
+           encodings may be desired.
+
+           targetData : numpy.ndarray of inputs used for target data. This is
+                        the way to provide the unsupervised learning algorithm
+                        with a means to perform classification.
+        '''
+        from dataset.shared import toShared
+        import numpy as np
+
+        # ensure targetData is at least one batchSize, otherwise enlarge
+        batchSize = self.getNetworkInputSize()[1]
+        numTargets = targetData.shape[0]
+        if numTargets < batchSize :
+            # add rows of zeros to fill out the rest of the batch
+            targetData = np.resize(np.append(
+                targetData, np.zeros([batchSize-numTargets] + 
+                                     list(targetData.shape[1:])),
+                [batchSize] + list(targetData.shape[1:])))
+
+        # produce the encoded feature matrix --
+        # this matrix will be used for all closeness calculations
+        #
+        # classify the inputs one batch at a time
+        enc = []
+        for ii in range(int(numTargets / batchSize)) :
+            enc.extend(self.classify(
+                targetData[ii*batchSize:(ii+1)*batchSize]))
+
+        # run one last batch and collect the remainder --
+        # this is also used if there is less than one batch worth of targets
+        remainder = numTargets % batchSize
+        if remainder > 0 :
+            enc.extend(self.classify(targetData[-batchSize:])[remainder:])
+        self._targetEncodings = toShared(enc, borrow=True)
 
     def closeness(self, inputs) :
         '''This is a form of classification for SAE networks. The network has
@@ -128,6 +152,8 @@ class ClassifierSAENetwork (SAENetwork) :
             inp = toShared(inputs, borrow=True) \
                   if 'SharedVariable' not in str(type(inputs)) else inputs
             self.finalizeNetwork(inp[:])
+        if not hasattr(self, '_targetEncodings') :
+            self.finalizeFeatureMatrix(self._targetData)
 
         # test out similar this input is compared with the targets
         cosineMatrix = self._closeness(inputs)
