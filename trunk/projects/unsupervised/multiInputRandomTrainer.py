@@ -8,19 +8,19 @@ from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.unlabeled import ingestImagery
 from dataset.chip import randomChip
 from nn.trainUtils import trainUnsupervised
-from nn.profiler import setupLogging
+from nn.profiler import setupLogging, Profiler
 
 def buildTrainerSAENetwork(train,
                            kernelConv, kernelSizeConv, downsampleConv, 
                            learnConv, momentumConv, dropoutConv,
                            neuronFull, learnFull, momentumFull, dropoutFull, 
-                           log=None) :
+                           prof=None) :
     from operator import mul
     from numpy.random import RandomState
     rng = RandomState(int(time()))
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = TrainerSAENetwork(train, log=log)
+    network = TrainerSAENetwork(train, prof=prof)
 
     if log is not None :
         log.info('Initialize the Network')
@@ -70,6 +70,9 @@ if __name__ == '__main__' :
                         help='Specify log output file.')
     parser.add_argument('--level', dest='level', default='INFO', type=str, 
                         help='Log Level.')
+    parser.add_argument('--prof', dest='profile', type=str, 
+                        default='Application-Profiler.xml',
+                        help='Specify profile output file.')
     parser.add_argument('--kernel', dest='kernel', type=list,
                         default=[500, 1000, 1000],
                         help='Number of Convolutional Kernels in each Layer.')
@@ -112,8 +115,9 @@ if __name__ == '__main__' :
     options = parser.parse_args()
 
     # setup the logger
-    log = setupLogging('cnnPreTrainer: ' + options.data, 
-                       options.level, options.logfile)
+    logName = 'SAE-MultiChipper:  ' + options.data
+    log = setupLogging(logName, options.level, options.logfile)
+    prof = Profiler(log=log, name=logName, profFile=options.profile)
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
@@ -125,11 +129,11 @@ if __name__ == '__main__' :
 
     if options.synapse is not None :
         # load a previously saved network
-        network = TrainerSAENetwork(train, log=log)
+        network = TrainerSAENetwork(train, prof=prof)
         network.load(options.synapse)
     else :
         network = buildTrainerSAENetwork(
-            train, log=log,
+            train, prof=prof,
             kernelConv=options.kernel, 
             kernelSizeConv=options.kernelSize, 
             downsampleConv=options.downsample, 
@@ -148,6 +152,3 @@ if __name__ == '__main__' :
                       dropout=options.dropout, learnC=options.learnC,
                       learnF=options.learnF, contrF=options.contrF, 
                       kernel=options.kernel, neuron=options.neuron, log=log)
-
-    # cleanup the network -- this ensures the profile is written
-    del network
