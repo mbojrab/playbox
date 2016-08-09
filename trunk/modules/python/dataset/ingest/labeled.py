@@ -67,8 +67,7 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
         te, tr = [], []
         for ii in range(len(files)) :
             try :
-                imgLabel = readImage(os.path.join(
-                                root, files[ii]), log), indx
+                imgLabel = readImage(os.path.join(root, files[ii]), log), indx
                 te.append(imgLabel) if ii % holdout == 0 else \
                     tr.append(imgLabel)
             except IOError :
