@@ -12,9 +12,9 @@ class SAENetwork (ClassifierNetwork) :
        This object provides basic encoding through the classify, and
        classifyAndSoftmax functionality provided by the base class.
 
-       filepath    : Path to an already trained network on disk 
-                     'None' creates randomized weighting
-       prof        : Profiler to use
+       filepath : Path to an already trained network on disk 
+                  'None' creates randomized weighting
+       prof     : Profiler to use
     '''
     def __init__ (self, filepath=None, prof=None) :
         ClassifierNetwork.__init__(self, filepath, prof)
@@ -43,13 +43,10 @@ class ClassifierSAENetwork (SAENetwork) :
                      NOTE: object is assumed to be numpy.ndarray.
        filepath    : Path to an already trained network on disk 
                      'None' creates randomized weighting
-       softmaxTemp : Temperature for the softmax method. A larger value softens
-                     the output from softmax. A value of 1.0 return a standard
-                     softmax result.
        prof        : Profiler to use
     '''
-    def __init__ (self, filepath=None, softmaxTemp=0., prof=None) :
-        SAENetwork.__init__(self, filepath, softmaxTemp, prof)
+    def __init__ (self, filepath=None, prof=None) :
+        SAENetwork.__init__(self, filepath, prof)
 
     def __getstate__(self) :
         '''Save network pickle'''
@@ -98,7 +95,6 @@ class ClassifierSAENetwork (SAENetwork) :
         self._closeness = t.function([self.getNetworkInput()[0]],
                                      cosineSimilarity.T,
                                      givens={targets: self._targetEncodings})
-
 
     def finalizeFeatureMatrix(self, targetData) :
         '''Calculate the encoded feature matrix based on the networks current
@@ -153,7 +149,8 @@ class ClassifierSAENetwork (SAENetwork) :
                   if 'SharedVariable' not in str(type(inputs)) else inputs
             self.finalizeNetwork(inp[:])
         if not hasattr(self, '_targetEncodings') :
-            self.finalizeFeatureMatrix(self._targetData)
+            raise ValueError('User must finalize the feature matrix before ' +
+                             'attempting to test for closeness.')
 
         # test out similar this input is compared with the targets
         cosineMatrix = self._closeness(inputs)
@@ -195,7 +192,7 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
     def __init__ (self, train, filepath=None, prof=None) :
         ClassifierSAENetwork.__init__ (self, filepath, prof)
         self._indexVar = t.lscalar('index')
-        self._trainData = train[0] if isinstance(train, tuple) else train
+        self._trainData = train[0] if isinstance(train, list) else train
         self._numTrainBatches = self._trainData.shape.eval()[0]
         self._trainGreedy = []
 
