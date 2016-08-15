@@ -37,23 +37,23 @@ class ClassifierSAENetwork (SAENetwork) :
        example input(s), which the network then uses to determine similities
        between the feature data and the provided input.
 
-       targetData  : Batch of inputs to compare all inputs against. The network
-                     identify its response to these inputs, then attempt to
-                     determine between this target set and all future inputs.
-                     NOTE: object is assumed to be numpy.ndarray.
-       filepath    : Path to an already trained network on disk 
-                     'None' creates randomized weighting
-       prof        : Profiler to use
+       target   : numpy.ndarray of inputs used for target data. This is the way
+                  to provide the unsupervised learning algorithm with a means
+                  to perform classification.
+       filepath : Path to an already trained network on disk 
+                  'None' creates randomized weighting
+       prof     : Profiler to use
     '''
-    def __init__ (self, filepath=None, prof=None) :
+    def __init__ (self, targetData, filepath=None, prof=None) :
         SAENetwork.__init__(self, filepath, prof)
+        self._targetData = targetData
 
     def __getstate__(self) :
         '''Save network pickle'''
         dict = SAENetwork.__getstate__(self)
         # remove the training and test datasets before pickling. This both
         # saves disk space, and makes trained networks allow transfer learning
-        if '_targetData' in dict : del dict['_targetData']
+        dict['_targetData'] = None
         if '_targetEncodings' in dict : del dict['_targetEncodings']
         # remove the functions -- they will be rebuilt JIT
         if '_closeness' in dict : del dict['_closeness']
@@ -64,13 +64,22 @@ class ClassifierSAENetwork (SAENetwork) :
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
         if hasattr(self, '_closeness') : delattr(self, '_closeness')
+        # preserve the user specified softmaxTemp
+        if hasattr(self, '_targetData') : 
+            tmp = self._targetData
         SAENetwork.__setstate__(self, dict)
+        if hasattr(self, '_targetData') : 
+            self._targetData = tmp
 
     def finalizeNetwork(self, networkInput) :
         '''Setup the network based on the current network configuration.
            This creates several network-wide functions so they will be
            pre-compiled and optimized when we need them.
         '''
+        from theano import dot, function
+        from dataset.shared import toShared
+        import numpy as np
+
         if len(self._layers) == 0 :
             raise IndexError('Network must have at least one layer' +
                              'to call getNetworkInput().')
@@ -83,40 +92,16 @@ class ClassifierSAENetwork (SAENetwork) :
         SAENetwork.finalizeNetwork(self, networkInput)
         self._profiler = tmp
 
-        # TODO: Check if this should be the raw logit from the output layer or
-        #       the softmax return of the output layer.
-        # TODO: This needs to be updated to handle matrix vs matrix cosine
-        #       similarities between all pairs of vectors
-        # setup the closeness execution graph based on target information
-        targets = t.fmatrix('targets')
-        cosineSimilarity = t.sum(targets * self._outClassSoft) / \
-                           t.sqrt(t.sum(targets ** 2) * \
-                                  t.sum(self._outClassSoft ** 2))
-        self._closeness = t.function([self.getNetworkInput()[0]],
-                                     cosineSimilarity.T,
-                                     givens={targets: self._targetEncodings})
-
-    def finalizeFeatureMatrix(self, targetData) :
-        '''Calculate the encoded feature matrix based on the networks current
-           state. This is exposed as a separate method for cases where multiple
-           encodings may be desired.
-
-           targetData : numpy.ndarray of inputs used for target data. This is
-                        the way to provide the unsupervised learning algorithm
-                        with a means to perform classification.
-        '''
-        from dataset.shared import toShared
-        import numpy as np
-
         # ensure targetData is at least one batchSize, otherwise enlarge
-        batchSize = self.getNetworkInputSize()[1]
-        numTargets = targetData.shape[0]
+        batchSize = self.getNetworkInputSize()[0]
+        numTargets = self._targetData.shape[0]
         if numTargets < batchSize :
             # add rows of zeros to fill out the rest of the batch
-            targetData = np.resize(np.append(
-                targetData, np.zeros([batchSize-numTargets] + 
-                                     list(targetData.shape[1:])),
-                [batchSize] + list(targetData.shape[1:])))
+            self._targetData = np.resize(np.append(
+                np.zeros([batchSize-numTargets] +
+                         list(self._targetData.shape[1:]), 
+                         np.float32), self._targetData),
+                [batchSize] + list(self._targetData.shape[1:]))
 
         # produce the encoded feature matrix --
         # this matrix will be used for all closeness calculations
@@ -124,15 +109,30 @@ class ClassifierSAENetwork (SAENetwork) :
         # classify the inputs one batch at a time
         enc = []
         for ii in range(int(numTargets / batchSize)) :
-            enc.extend(self.classify(
-                targetData[ii*batchSize:(ii+1)*batchSize]))
+            enc.extend(self.classifyAndSoftmax(
+                self._targetData[ii*batchSize:(ii+1)*batchSize])[1])
 
         # run one last batch and collect the remainder --
         # this is also used if there is less than one batch worth of targets
         remainder = numTargets % batchSize
         if remainder > 0 :
-            enc.extend(self.classify(targetData[-batchSize:])[remainder:])
-        self._targetEncodings = toShared(enc, borrow=True)
+            enc.extend(self.classifyAndSoftmax(
+                self._targetData[-batchSize:])[1][-remainder:])
+        # NOTE: this is the transpose to orient for matrix multiplication
+        self._targetEncodings = toShared(enc, borrow=True).T
+
+        # TODO: Check if this should be the raw logit from the output layer or
+        #       the softmax return of the output layer.
+        # TODO: This needs to be updated to handle matrix vs matrix cosine
+        #       similarities between all pairs of vectors
+        # setup the closeness execution graph based on target information
+        targets = t.fmatrix('targets')
+        outClass = t.nnet.softmax(self.getNetworkOutput()[0])
+        cosineSimilarity = dot(outClass, targets) / \
+            (t.sqrt(t.sum(outClass**2)) * (t.sqrt(t.sum(targets**2))))
+        self._closeness = function([self.getNetworkInput()[0]],
+                                   cosineSimilarity.T,
+                                   givens={targets: self._targetEncodings})
 
     def closeness(self, inputs) :
         '''This is a form of classification for SAE networks. The network has
@@ -144,13 +144,13 @@ class ClassifierSAENetwork (SAENetwork) :
         '''
         from dataset.shared import toShared
         self._startProfile('Determining Closeness of Inputs', 'debug')
-        if not hasattr(self, '_classify') :
+        if not hasattr(self, '_closeness') :
             inp = toShared(inputs, borrow=True) \
                   if 'SharedVariable' not in str(type(inputs)) else inputs
             self.finalizeNetwork(inp[:])
         if not hasattr(self, '_targetEncodings') :
             raise ValueError('User must finalize the feature matrix before ' +
-                             'attempting to test for closeness.')
+                             'attempting to finalize the network.')
 
         # test out similar this input is compared with the targets
         cosineMatrix = self._closeness(inputs)
@@ -185,12 +185,17 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
        NOTE: The resulting trained AEs can be used to initialize a 
              nn.TrainerNetwork.
 
-       train : theano.shared dataset used for network training in format --
-               (numBatches, batchSize, numChannels, rows, cols)
-       prof  : Profiler to use
+       train    : theano.shared dataset used for network training in format --
+                  (numBatches, batchSize, numChannels, rows, cols)
+       target   : numpy.ndarray of inputs used for target data. This is the way
+                  to provide the unsupervised learning algorithm with a means
+                  to perform classification.
+       filepath : Path to an already trained network on disk 
+                  'None' creates randomized weighting
+       prof     : Profiler to use
     '''
-    def __init__ (self, train, filepath=None, prof=None) :
-        ClassifierSAENetwork.__init__ (self, filepath, prof)
+    def __init__ (self, train, target, filepath=None, prof=None) :
+        ClassifierSAENetwork.__init__ (self, target, filepath, prof)
         self._indexVar = t.lscalar('index')
         self._trainData = train[0] if isinstance(train, list) else train
         self._numTrainBatches = self._trainData.shape.eval()[0]
@@ -239,13 +244,13 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
 
         # TODO: here we assume the first layer uses sigmoid activation
         self._startProfile('Setting up Network-wide Decoder', 'debug')
-        cost = calcLoss(self._trainData[0], decodedInput, t.nnet.sigmoid)
+        cost = calcLoss(self._trainData[0], decodedInput, t.nnet.relu)
         costs = [cost, jacobianCost, sparseConstr]
 
-        # build the network-wide training update. 
+        # build the network-wide training update.
         updates = []
         for decoder in reversed(self._layers) :
-            
+
             # build the gradients
             layerWeights = decoder.getWeights()
             gradients = t.grad(t.sum(costs), layerWeights, 
@@ -255,10 +260,12 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
             for w, g in zip(layerWeights, gradients) :
                 updates.append((w, w - decoder.getLearningRate() * g))
 
+        #from theano.compile.nanguardmode import NanGuardMode
         self._trainNetwork = theano.function(
             [self._indexVar], costs, updates=updates, 
             givens={self.getNetworkInput()[1] : 
                     self._trainData[self._indexVar]})
+            #mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True))
         self._endProfile()
 
     def __getstate__(self) :
@@ -299,7 +306,7 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
         # disable the profiler temporarily so we don't get a second entry
         tmp = self._profiler
         self._profiler = None
-        ClassifierNetwork.finalizeNetwork(self, networkInputs)
+        ClassifierSAENetwork.finalizeNetwork(self, networkInputs)
         self._profiler = tmp
 
         self.__buildDecoder()
@@ -355,12 +362,13 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
             reconstructedInput = self._layers[layerIndex].reconstruction(
                                     self._trainData.get_value(borrow=True)[0])
             from dataset.debugger import saveTiledImage
-            saveTiledImage(image=reconstructedInput,
-                           path=self._layers[layerIndex].layerID + '_reconstruction_' + 
-                                str(globalEpoch+localEpoch) + '.png',
-                           imageShape=tuple(self._layers[layerIndex].getInputSize()[-2:]),
-                           spacing=1,
-                           interleave=True)
+            saveTiledImage(
+                image=reconstructedInput,
+                path=self._layers[layerIndex].layerID + '_reconstruction_' + 
+                     str(globalEpoch+localEpoch) + '.png',
+                imageShape=tuple(self._layers[layerIndex].getInputSize()[-2:]),
+                spacing=1,
+                interleave=True)
             '''
 
             locCost = np.mean(locCost, axis=0)

@@ -53,9 +53,9 @@ class Layer () :
         '''Initialize the weights according to the activation type selected.
 
            Distributions :
-           sigmoid : (-sqrt(6/(fanIn+fanOut)). sqrt(6/(fanIn+fanOut)))
-           tanh    : (-sqrt(6/(fanIn+fanOut))*4. sqrt(6/(fanIn+fanOut))*4)
-           relu    : rand() * sqrt(2/fanIn)
+           sigmoid : (-sqrt(6/(fanIn+fanOut))*4, sqrt(6/(fanIn+fanOut))*4)
+           tanh    : (-sqrt(6/(fanIn+fanOut)), sqrt(6/(fanIn+fanOut)))
+           relu    : (-rand()*sqrt(2/fanIn), rand()*sqrt(2/fanIn))
 
            size         : Shape of the weight buffer
            fanIn        : Number of neurons in the previous layer

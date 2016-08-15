@@ -10,17 +10,19 @@ from nn.trainUtils import trainUnsupervised
 from nn.profiler import setupLogging, Profiler
 from dataset.minibatch import makeContiguous
 
-def buildTrainerSAENetwork(train, kernelConv, kernelSizeConv, downsampleConv, 
+def buildTrainerSAENetwork(train, target,
+                           kernelConv, kernelSizeConv, downsampleConv, 
                            learnConv, momentumConv, dropoutConv,
                            neuronFull, learnFull, momentumFull, dropoutFull, 
                            prof=None) :
     '''Build the network in an automated way.'''
+    import theano.tensor as t
     from operator import mul
     from numpy.random import RandomState
     rng = RandomState(int(time()))
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = TrainerSAENetwork(train, prof=prof)
+    network = TrainerSAENetwork(train, target, prof=prof)
 
     if log is not None :
         log.info('Initialize the Network')
@@ -39,7 +41,7 @@ def buildTrainerSAENetwork(train, kernelConv, kernelSizeConv, downsampleConv,
             layerID='conv' + str(layerCount), 
             inputSize=layerInputSize, kernelSize=(k,layerInputSize[1],ks,ks),
             downsampleFactor=[do,do], dropout=dr, learningRate=l,
-            randomNumGen=rng))
+            activation=t.nnet.sigmoid, randomNumGen=rng))
 
         # prepare for the next layer
         layerCount, layerInputSize = prepare(network, layerCount)
@@ -51,7 +53,7 @@ def buildTrainerSAENetwork(train, kernelConv, kernelSizeConv, downsampleConv,
         network.addLayer(ContiguousAutoEncoder(
             layerID='fully' + str(layerCount), 
             inputSize=layerInputSize, numNeurons=n, learningRate=l,
-            dropout=dr, randomNumGen=rng))            
+            activation=t.nnet.sigmoid, dropout=dr, randomNumGen=rng))            
 
         # prepare for the next layer
         layerCount, layerInputSize = prepare(network, layerCount)
@@ -69,10 +71,12 @@ def testCloseness(net, imagery) :
     '''Test the imagery for how close it is to the target data. This also sorts
        the results according to closeness, so we can create a tiled tip-sheet.
     '''
-    closenessImagery = makeContiguous([(x, net.closeness(x)) for x in imagery])
-    print(closenessImagery)
+    for x in imagery :
+        print(net.closeness(x))
+    #closenessImagery = makeContiguous([(x, net.closeness(x)) for x in imagery])
+    #print(closenessImagery)
     # TODO: Rank the results in order of closeness
-    return closenessImagery
+    #return closenessImagery
 
 if __name__ == '__main__' :
     '''Build and train an SAE, then test a '''
@@ -139,13 +143,17 @@ if __name__ == '__main__' :
     train, test, labels = ingestImagery(filepath=options.data, shared=True,
                                         batchSize=options.batchSize, log=log)
 
+    # load example imagery --
+    # these are confirmed objects we are attempting to identify 
+    target = readTargetData(options.targetDir)
+
     if options.synapse is not None :
         # load a previously saved network
-        network = TrainerSAENetwork(train, prof=prof)
+        network = TrainerSAENetwork(train, target, prof=prof)
         network.load(options.synapse)
 
     else :
-        network = buildTrainerSAENetwork(train, prof=prof,
+        network = buildTrainerSAENetwork(train, target, prof=prof,
                                          kernelConv=options.kernel, 
                                          kernelSizeConv=options.kernelSize, 
                                          downsampleConv=options.downsample, 
@@ -157,19 +165,15 @@ if __name__ == '__main__' :
                                          momentumFull=options.momentumF,
                                          dropoutFull=options.dropoutF)
 
-        # train the SAE
-        trainUnsupervised(network, __file__, options.data, 
-                          numEpochs=options.numEpochs, synapse=options.synapse,
-                          base=options.base, dropout=(len(options.dropoutC)>0),
-                          learnC=options.learnC, learnF=options.learnF,
-                          contrF=None, kernel=options.kernel,
-                          neuron=options.neuron, log=log)
-
-    # load example imagery --
-    # these are confirmed objects we are attempting to identify 
-    network.finalizeFeatureMatrix(readTargetData(options.targetDir))
+    # train the SAE
+    trainUnsupervised(network, __file__, options.data, 
+                      numEpochs=options.numEpochs, synapse=options.synapse,
+                      base=options.base, dropout=(len(options.dropoutC)>0),
+                      learnC=options.learnC, learnF=options.learnF,
+                      contrF=None, kernel=options.kernel,
+                      neuron=options.neuron, log=log)
 
     # test the training data for similarity to the target
-    results = testCloseness(network, test.get_value(borrow=True))
+    results = testCloseness(network, test[0].get_value(borrow=True))
 
     # TODO: create the ordered tip-sheet
