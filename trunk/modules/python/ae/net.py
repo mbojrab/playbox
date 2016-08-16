@@ -177,7 +177,7 @@ class ClassifierSAENetwork (SAENetwork) :
         return cosineMatrix, encodings
 
 
-class TrainerSAENetwork (ClassifierSAENetwork) :
+class TrainerSAENetwork (SAENetwork) :
     '''The TrainerSAENetwork object expands on the classification and allows
        allows training of the stacked autoencoder both in a greedy-layerwise
        and network-wide manner. 
@@ -187,15 +187,12 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
 
        train    : theano.shared dataset used for network training in format --
                   (numBatches, batchSize, numChannels, rows, cols)
-       target   : numpy.ndarray of inputs used for target data. This is the way
-                  to provide the unsupervised learning algorithm with a means
-                  to perform classification.
        filepath : Path to an already trained network on disk 
                   'None' creates randomized weighting
        prof     : Profiler to use
     '''
-    def __init__ (self, train, target, filepath=None, prof=None) :
-        ClassifierSAENetwork.__init__ (self, target, filepath, prof)
+    def __init__ (self, train, filepath=None, prof=None) :
+        SAENetwork.__init__ (self, filepath, prof)
         self._indexVar = t.lscalar('index')
         self._trainData = train[0] if isinstance(train, list) else train
         self._numTrainBatches = self._trainData.shape.eval()[0]
@@ -370,7 +367,6 @@ class TrainerSAENetwork (ClassifierSAENetwork) :
                 spacing=1,
                 interleave=True)
             '''
-
             locCost = np.mean(locCost, axis=0)
             self._startProfile(layerEpochStr + ' Cost: ' + \
                                str(locCost[0]) + ' - Jacob: ' + \
