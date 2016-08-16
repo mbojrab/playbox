@@ -267,7 +267,7 @@ class TrainerSAENetwork (SAENetwork) :
 
     def __getstate__(self) :
         '''Save network pickle'''
-        dict = ClassifierSAENetwork.__getstate__(self)
+        dict = SAENetwork.__getstate__(self)
         # remove the functions -- they will be rebuilt JIT
         if '_indexVar' in dict : del dict['_indexVar']
         if '_trainData' in dict : del dict['_trainData']
@@ -284,7 +284,7 @@ class TrainerSAENetwork (SAENetwork) :
         if hasattr(self, '_trainGreedy') : delattr(self, '_trainGreedy')
         if hasattr(self, '_trainNetwork') : delattr(self, '_trainNetwork')
         self._trainGreedy = []
-        ClassifierSAENetwork.__setstate__(self, dict)
+        SAENetwork.__setstate__(self, dict)
 
     def finalizeNetwork(self, networkInputs) :
         '''Setup the network based on the current network configuration.
@@ -303,7 +303,7 @@ class TrainerSAENetwork (SAENetwork) :
         # disable the profiler temporarily so we don't get a second entry
         tmp = self._profiler
         self._profiler = None
-        ClassifierSAENetwork.finalizeNetwork(self, networkInputs)
+        SAENetwork.finalizeNetwork(self, networkInputs)
         self._profiler = tmp
 
         self.__buildDecoder()
