@@ -44,23 +44,26 @@ def calcLoss(p, q, activation) :
     return crossEntropyLoss(p, q, axis) if activation == t.nnet.sigmoid else \
            meanSquaredLoss(p, q)
 
-def calcSparsityConstraint(output, outShape) :
+def calcSparsityConstraint(output, outShape, scaleFactor=1.) :
     '''Calculate the Kullback-Leibler sparsity based on the number of neurons.
+
+       This constraint favors sparse encodings, thereby enforcing individual
+       neurons are accountable for understanding a more robust representation.
     '''
     from six.moves import reduce
     from operator import mul
 
     if len(outShape) > 2 :
-        numElems = reduce(mul, outShape[1:])
-        axis = len(outShape) - 2
+        avgActivation = t.max(output, axis=1)
+        sparseCon  = 1. / reduce(mul, outShape[1:])
     else :
-        numElems = outShape[1]
-        axis = 1
+        avgActivation = t.mean(output, axis=1)
+        sparseCon  = 1. / outShape[1]
 
-    sparseCon  = 1. / numElems
-    return t.mean(t.sum(sparseCon * t.log(sparseCon / output) +
-                        (1. - sparseCon) * t.log((1. - sparseCon) / 
-                                                 (1. - output)), axis=axis))
+    return scaleFactor * t.sum(sparseCon * t.log(sparseCon / avgActivation) +
+                               (1. - sparseCon) * \
+                               t.log((1. - sparseCon) / (1. - avgActivation)))
+
 
 def leastAbsoluteDeviation(a, batchSize=None, scaleFactor=1.) :
     '''L1-norm provides 'Least Absolute Deviation' --

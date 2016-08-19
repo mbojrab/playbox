@@ -137,12 +137,13 @@ class ClassifierNetwork (Network) :
         self._startProfile('Finalizing Network', 'info')
 
         # finalize the layers to create the computational graphs
-        layerInput = (networkInput, networkInput) \
+        networkInput = (networkInput, networkInput) \
                      if not isinstance(networkInput, tuple) else networkInput
+        layerInput = networkInput
         for layer in self._layers :
             self._startProfile('Finalizing Layer [' + layer.layerID + ']', 
                                'debug')
-            layer.finalize(layerInput)
+            layer.finalize(networkInput[1], layerInput)
             layerInput = layer.output
             self._endProfile()
 
@@ -411,7 +412,6 @@ class TrainerNetwork (LabeledClassifierNetwork) :
                     expectedOutputs: self._trainLabels[index]})
         self._endProfile()
 
-    #def train(self, index) :
     def train(self, index) :
         '''Train the network against the pre-loaded inputs. This accepts 
            a batch index into the pre-compiled input and expectedOutput sets.
@@ -441,8 +441,8 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         '''
         for localEpoch in range(numEpochs) :
             # DEBUG: For Debugging purposes only 
-            #for layer in self._layers :
-            #    layer.writeWeights(globalEpoch + localEpoch)
+            for layer in self._layers :
+                layer.writeWeights(globalEpoch + localEpoch)
             self._startProfile('Running Epoch [' +
                                str(globalEpoch + localEpoch) + ']', 'info')
             [self.train(ii) for ii in range(self._numTrainBatches)]

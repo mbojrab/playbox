@@ -114,7 +114,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         return self._setActivation(
             deconvolve + self._thresholdsBack.dimshuffle('x', 0, 'x', 'x'))
 
-    def finalize(self, input) :
+    def finalize(self, netInput, input) :
         '''Setup the computation graph for this layer.
            input : the input variable tuple for this layer
                    format (inClass, inTrain)
@@ -131,10 +131,13 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # the network is at encoding the message.
         unpooling = self._unpool_2d(self.output[1], self._downsampleFactor)
         decodedInput = self._decode(unpooling)
-        self.reconstruction = function([self.input[1]], decodedInput)
+
+        # DEBUG: For Debugging purposes only
+        self.reconstruction = function([netInput], decodedInput)
 
         sparseConstr = calcSparsityConstraint(self.output[1], 
-                                              self.getOutputSize())
+                                              self.getOutputSize(),
+                                              self._contractionRate)
 
         # compute the jacobian cost of the output --
         # This works as a sparsity constraint in case the hidden vector is
@@ -151,7 +154,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         #       and does not help convergence or regularization. It was removed
         cost = calcLoss(self.input[1], decodedInput, self._activation) / \
                         self.getOutputSize()[0]
-        self._costs = [cost, jacobianCost, sparseConstr]
+        self._costs = [cost, jacobianCost]#, sparseConstr]
 
         gradients = t.grad(t.sum(self._costs), self.getWeights())
         self._updates = [(weights, weights - self._learningRate * gradient)
@@ -161,8 +164,9 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # TODO: this needs to be stackable and take the input to the first
         #       layer, not just the input of this layer. This will ensure
         #       the other layers are activated to get the input to this layer
-        self._trainLayer = function([self.input[1]], self._costs,
-                                    updates=self._updates)
+        # DEBUG: For Debugging purposes only
+        self.trainLayer = function([netInput], self._costs,
+                                   updates=self._updates)
 
     def buildDecoder(self, input) :
         '''Calculate the decoding component. This should be used after the
@@ -186,9 +190,6 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         from dataset.debugger import saveNormalizedImage
         saveNormalizedImage(np.resize(self.reconstruction(image), (28, 28)),
                             'chip_' + str(ii) + '_reconst.png')
-    # DEBUG: For Debugging purposes only 
-    def train(self, image) :
-        return self._trainLayer(image)
 
 
 if __name__ == '__main__' :

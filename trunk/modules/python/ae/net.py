@@ -29,7 +29,7 @@ class SAENetwork (ClassifierNetwork) :
     def getLayer(self, layerIndex) :
         return self._layers[layerIndex]
     def writeWeights(self, layerIndex, epoch) :
-        self._layers[layerIndex].writeWeights(epoch)
+        self._layers[layerIndex].writeWeights(epoch, imageShape=(28,28))
 
 class ClassifierSAENetwork (SAENetwork) :
     '''The ClassifierSAENetwork adds the ability to classify a provided input
@@ -204,12 +204,13 @@ class TrainerSAENetwork (SAENetwork) :
            in a layerwise manner.
            NOTE: this uses theano.shared variables for optimized GPU execution
         '''
-        layerInput = (self._trainData[0], self._trainData[0])
+        netInput = (self._trainData[0], self._trainData[0])
+        layerInput = netInput
         for encoder in self._layers :
             # forward pass through layers
             self._startProfile('Finalizing Encoder [' + encoder.layerID + ']', 
                                'debug')
-            encoder.finalize(layerInput)
+            encoder.finalize(netInput[1], layerInput)
             out, up = encoder.getUpdates()
             self._trainGreedy.append(
                 theano.function([self._indexVar], out, updates=up,
@@ -241,7 +242,7 @@ class TrainerSAENetwork (SAENetwork) :
 
         # TODO: here we assume the first layer uses sigmoid activation
         self._startProfile('Setting up Network-wide Decoder', 'debug')
-        cost = calcLoss(self._trainData[0], decodedInput, t.nnet.relu)
+        cost = calcLoss(self._trainData[0], decodedInput, t.nnet.sigmoid)
         costs = [cost, jacobianCost, sparseConstr]
 
         # build the network-wide training update.
@@ -355,27 +356,44 @@ class TrainerSAENetwork (SAENetwork) :
             locCost = []
             for ii in range(self._numTrainBatches) :
                 locCost.append(self.train(layerIndex, ii))
-            '''
-            reconstructedInput = self._layers[layerIndex].reconstruction(
-                                    self._trainData.get_value(borrow=True)[0])
-            from dataset.debugger import saveTiledImage
-            saveTiledImage(
-                image=reconstructedInput,
-                path=self._layers[layerIndex].layerID + '_reconstruction_' + 
-                     str(globalEpoch+localEpoch) + '.png',
-                imageShape=tuple(self._layers[layerIndex].getInputSize()[-2:]),
-                spacing=1,
-                interleave=True)
-            '''
+
+            # log the cost
             locCost = np.mean(locCost, axis=0)
-            self._startProfile(layerEpochStr + ' Cost: ' + \
-                               str(locCost[0]) + ' - Jacob: ' + \
-                               str(locCost[1]) + ' - Sparsity: ' + \
-                               str(locCost[2]), 'info')
+            costMessage = layerEpochStr + ' Cost: ' + \
+                          str(locCost[0]) + ' - Jacob: ' + \
+                          str(locCost[1])
+            if len(locCost) == 3 :
+                costMessage += ' - Sparsity: ' + str(locCost[2])
+            self._startProfile(costMessage, 'info')
             globCost.append(locCost)
-
-            self._endProfile()
             self._endProfile()
 
-            #self.writeWeights(layerIndex, globalEpoch + localEpoch)
+            self._endProfile()
+
+            if not (layerIndex < 0 or layerIndex >= self.getNumLayers()) :
+                reconstructedInput = self._layers[layerIndex].reconstruction(
+                                        self._trainData.get_value(borrow=True)[0])
+
+                if len(self._layers[layerIndex].getInputSize()) > 2 or \
+                   layerIndex == 0 :
+                    imageShape = tuple(self._layers[layerIndex].getInputSize()[-2:])
+                    reconstructedInput = np.resize(reconstructedInput, self._layers[layerIndex].getInputSize())
+                else :
+                    imageShape = tuple(tuple(self._layers[layerIndex-1].getOutputSize()[-2:]))
+                    reconstructedInput = np.resize(reconstructedInput, self._layers[layerIndex-1].getOutputSize())
+
+                # DEBUG: For debugging pursposes only!
+                imageShape = (28,28)
+                reconstructedInput = np.resize(reconstructedInput, (50,1,28,28))
+
+                from dataset.debugger import saveTiledImage
+                saveTiledImage(
+                    image=reconstructedInput,
+                    path=self._layers[layerIndex].layerID + '_reconstruction_' + 
+                         str(globalEpoch+localEpoch) + '.png',
+                    imageShape=imageShape,
+                    spacing=1,
+                    interleave=True)
+                self.writeWeights(layerIndex, globalEpoch + localEpoch)
+
         return globalEpoch + numEpochs, globCost
