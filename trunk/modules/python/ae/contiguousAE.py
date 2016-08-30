@@ -108,12 +108,12 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         # and runs the output back through the network in reverse. The net
         # effect is to reconstruct the input, and ultimately to see how well
         # the network is at encoding the message.
-        decodedInput = self._decode(self.output[1])
+        decodedInput = self._decode(self.output[0])
 
         # DEBUG: For Debugging purposes only
-        self.reconstruction = function([netInput], decodedInput)
+        self.reconstruction = function([netInput[0]], decodedInput)
 
-        sparseConstr = calcSparsityConstraint(self.output[1],
+        sparseConstr = calcSparsityConstraint(self.output[0],
                                               self.getOutputSize(),
                                               self._contractionRate)
 
@@ -121,14 +121,14 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         # This works as a sparsity constraint in case the hidden vector is
         # larger than the input vector.
         jacobianCost = leastSquares(
-            computeJacobian(self.output[1], self._weights, self._inputSize[0],
+            computeJacobian(self.output[0], self._weights, self._inputSize[0],
                             self._inputSize[1], self._numNeurons), 
             self._inputSize[0], self._contractionRate)
 
         # create the negative log likelihood function --
         # this is our cost function with respect to the original input
-        cost = calcLoss(self.input[1].flatten(2), decodedInput,
-                        self._activation) / self.getOutputSize()[0]
+        cost = calcLoss(self.input[0].flatten(2), decodedInput,
+                        self._activation) / self.getInputSize()[0]
         self._costs = [cost, jacobianCost, sparseConstr]
 
         gradients = t.grad(t.sum(self._costs), self.getWeights())
@@ -140,7 +140,7 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         #       layer, not just the input of this layer. This will ensure
         #       the other layers are activated to get the input to this layer
         # DEBUG: For Debugging purposes only
-        self.trainLayer = function([netInput], self._costs, 
+        self.trainLayer = function([netInput[0]], self._costs, 
                                    updates=self._updates)
 
     def buildDecoder(self, input) :

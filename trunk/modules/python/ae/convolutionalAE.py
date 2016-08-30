@@ -133,9 +133,9 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         decodedInput = self._decode(unpooling)
 
         # DEBUG: For Debugging purposes only
-        self.reconstruction = function([netInput], decodedInput)
+        self.reconstruction = function([netInput[0]], decodedInput)
 
-        sparseConstr = calcSparsityConstraint(self.output[1], 
+        sparseConstr = calcSparsityConstraint(self.output[0], 
                                               self.getOutputSize(),
                                               self._contractionRate)
 
@@ -152,9 +152,9 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # this is our cost function with respect to the original input
         # NOTE: The jacobian was computed however takes much longer to process
         #       and does not help convergence or regularization. It was removed
-        cost = calcLoss(self.input[1], decodedInput, self._activation) / \
-                        self.getOutputSize()[0]
-        self._costs = [cost, jacobianCost]#, sparseConstr]
+        cost = calcLoss(self.input[0], decodedInput, self._activation) / \
+                        self.getInputSize()[0]
+        self._costs = [cost, jacobianCost, sparseConstr]
 
         gradients = t.grad(t.sum(self._costs), self.getWeights())
         self._updates = [(weights, weights - self._learningRate * gradient)
@@ -165,7 +165,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         #       layer, not just the input of this layer. This will ensure
         #       the other layers are activated to get the input to this layer
         # DEBUG: For Debugging purposes only
-        self.trainLayer = function([netInput], self._costs,
+        self.trainLayer = function([netInput[0]], self._costs,
                                    updates=self._updates)
 
     def buildDecoder(self, input) :

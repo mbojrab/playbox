@@ -29,7 +29,7 @@ class SAENetwork (ClassifierNetwork) :
     def getLayer(self, layerIndex) :
         return self._layers[layerIndex]
     def writeWeights(self, layerIndex, epoch) :
-        self._layers[layerIndex].writeWeights(epoch, imageShape=(28,28))
+        self._layers[layerIndex].writeWeights(epoch)
 
 class ClassifierSAENetwork (SAENetwork) :
     '''The ClassifierSAENetwork adds the ability to classify a provided input
@@ -210,11 +210,11 @@ class TrainerSAENetwork (SAENetwork) :
             # forward pass through layers
             self._startProfile('Finalizing Encoder [' + encoder.layerID + ']', 
                                'debug')
-            encoder.finalize(netInput[1], layerInput)
+            encoder.finalize(netInput, layerInput)
             out, up = encoder.getUpdates()
             self._trainGreedy.append(
                 theano.function([self._indexVar], out, updates=up,
-                                givens={self.getNetworkInput()[1] : 
+                                givens={self.getNetworkInput()[0] : 
                                         self._trainData[self._indexVar]}))
             layerInput = encoder.output
             self._endProfile()
@@ -222,27 +222,38 @@ class TrainerSAENetwork (SAENetwork) :
     def __buildDecoder(self) :
         '''Build the decoding section and the network-wide training method.'''
         from nn.costUtils import calcLoss, calcSparsityConstraint
+        from operator import mul
 
         # setup the decoders -- 
         # this is the second half of the network and is equivalent to the
         # encoder network reversed.
-        layerInput = self._layers[-1].output[1]
-        sparseConstr = calcSparsityConstraint(layerInput, 
-                                              self.getNetworkOutputSize())
+        layerInput = self._layers[-1].output[0]
+        sparseConstr = calcSparsityConstraint(
+            layerInput, self.getNetworkOutputSize(),
+            1. / reduce(mul, self.getNetworkOutputSize()[1:]))
+        jacobianCost = self._layers[-1].getUpdates()[0][1]
 
-        jacobianCost = 0
         for decoder in reversed(self._layers) :
             # backward pass through layers
             self._startProfile('Finalizing Decoder [' + decoder.layerID + ']', 
                                'debug')
-            jacobianCost += decoder.getUpdates()[0][1]
             layerInput = decoder.buildDecoder(layerInput)
             self._endProfile()
         decodedInput = layerInput
 
+        self.reconstruction = theano.function([self.getNetworkInput()[0]],
+                                              decodedInput)
+
         # TODO: here we assume the first layer uses sigmoid activation
         self._startProfile('Setting up Network-wide Decoder', 'debug')
-        cost = calcLoss(self._trainData[0], decodedInput, t.nnet.sigmoid)
+
+        netInput = self._trainData[0].flatten(2) \
+                   if len(self._trainData[0].shape.eval()) != \
+                      len(self.getNetworkInputSize()) else \
+                   self._trainData[0]
+        cost = calcLoss(netInput, decodedInput,
+                        self._layers[0].getActivation()) / \
+                        self.getNetworkInputSize()[0]
         costs = [cost, jacobianCost, sparseConstr]
 
         # build the network-wide training update.
@@ -251,8 +262,7 @@ class TrainerSAENetwork (SAENetwork) :
 
             # build the gradients
             layerWeights = decoder.getWeights()
-            gradients = t.grad(t.sum(costs), layerWeights, 
-                               disconnected_inputs='warn')
+            gradients = t.grad(t.sum(costs), layerWeights)
 
             # add the weight update
             for w, g in zip(layerWeights, gradients) :
@@ -261,7 +271,7 @@ class TrainerSAENetwork (SAENetwork) :
         #from theano.compile.nanguardmode import NanGuardMode
         self._trainNetwork = theano.function(
             [self._indexVar], costs, updates=updates, 
-            givens={self.getNetworkInput()[1] : 
+            givens={self.getNetworkInput()[0] : 
                     self._trainData[self._indexVar]})
             #mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True))
         self._endProfile()
@@ -359,9 +369,9 @@ class TrainerSAENetwork (SAENetwork) :
 
             # log the cost
             locCost = np.mean(locCost, axis=0)
-            costMessage = layerEpochStr + ' Cost: ' + \
-                          str(locCost[0]) + ' - Jacob: ' + \
-                          str(locCost[1])
+            costMessage = layerEpochStr + ' Cost: ' + str(locCost[0])
+            if len(locCost) >= 2 :
+                costMessage += ' - Jacob: ' + str(locCost[1])
             if len(locCost) == 3 :
                 costMessage += ' - Sparsity: ' + str(locCost[2])
             self._startProfile(costMessage, 'info')
@@ -370,30 +380,41 @@ class TrainerSAENetwork (SAENetwork) :
 
             self._endProfile()
 
-            if not (layerIndex < 0 or layerIndex >= self.getNumLayers()) :
+            # DEBUG: For debugging pursposes only!
+            from dataset.debugger import saveTiledImage
+            if layerIndex >= 0 and layerIndex < self.getNumLayers() :
                 reconstructedInput = self._layers[layerIndex].reconstruction(
                                         self._trainData.get_value(borrow=True)[0])
-
-                if len(self._layers[layerIndex].getInputSize()) > 2 or \
-                   layerIndex == 0 :
+                reconstructedInput = np.resize(reconstructedInput, 
+                                               self._layers[layerIndex].getInputSize())
+                tileShape = None
+                if layerIndex == 0 :
+                    imageShape = (28,28)
+                    reconstructedInput = np.resize(reconstructedInput,
+                                                   (50,1,28,28))
+                elif len(self._layers[layerIndex].getInputSize()) > 2 :
                     imageShape = tuple(self._layers[layerIndex].getInputSize()[-2:])
-                    reconstructedInput = np.resize(reconstructedInput, self._layers[layerIndex].getInputSize())
                 else :
-                    imageShape = tuple(tuple(self._layers[layerIndex-1].getOutputSize()[-2:]))
-                    reconstructedInput = np.resize(reconstructedInput, self._layers[layerIndex-1].getOutputSize())
+                    imageShape=(1, self._layers[layerIndex].getInputSize()[1])
+                    tileShape=(self._layers[layerIndex].getInputSize()[0], 1)
 
-                # DEBUG: For debugging pursposes only!
-                imageShape = (28,28)
-                reconstructedInput = np.resize(reconstructedInput, (50,1,28,28))
-
-                from dataset.debugger import saveTiledImage
-                saveTiledImage(
-                    image=reconstructedInput,
-                    path=self._layers[layerIndex].layerID + '_reconstruction_' + 
-                         str(globalEpoch+localEpoch) + '.png',
-                    imageShape=imageShape,
-                    spacing=1,
-                    interleave=True)
                 self.writeWeights(layerIndex, globalEpoch + localEpoch)
+                saveTiledImage(image=reconstructedInput,
+                               path=self._layers[layerIndex].layerID +
+                                    '_reconstruction_' + 
+                                    str(globalEpoch+localEpoch) + '.png',
+                               imageShape=imageShape, tileShape=tileShape,
+                               spacing=1, interleave=True)
+            else :
+                reconstructedInput = self.reconstruction(
+                    self._trainData.get_value(borrow=True)[0])
+                imageShape = (28,28)
+                reconstructedInput = np.resize(reconstructedInput, 
+                                               (50,1,28,28))
+                saveTiledImage(image=reconstructedInput,
+                               path='network_reconstruction_' + 
+                                     str(globalEpoch+localEpoch) + '.png',
+                               imageShape=imageShape, spacing=1,
+                               interleave=True)
 
         return globalEpoch + numEpochs, globCost

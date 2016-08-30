@@ -80,11 +80,20 @@ if __name__ == '__main__' :
     else :
         log.info('Initializing Network...')
 
+        import theano.tensor as t
         network.addLayer(ContiguousAutoEncoder(
-            layerID='f3',
+            layerID='f1',
             inputSize=(trainShape[1], reduce(mul, trainShape[2:])),
             numNeurons=options.neuron, learningRate=options.learnF,
-            randomNumGen=rng))
+            dropout=1.,#.8 if options.dropout else 1.,
+            activation=t.nnet.sigmoid, randomNumGen=rng))
+        network.addLayer(ContiguousAutoEncoder(
+            layerID='f2',
+            inputSize=(network.getNetworkOutputSize()[0], 
+                       reduce(mul, network.getNetworkOutputSize()[1:])),
+            numNeurons=options.neuron, learningRate=options.learnF,
+            dropout=1.,
+            activation=t.nnet.sigmoid, randomNumGen=rng))
 
         '''
         # add convolutional layers

@@ -143,7 +143,7 @@ class ClassifierNetwork (Network) :
         for layer in self._layers :
             self._startProfile('Finalizing Layer [' + layer.layerID + ']', 
                                'debug')
-            layer.finalize(networkInput[1], layerInput)
+            layer.finalize(networkInput, layerInput)
             layerInput = layer.output
             self._endProfile()
 
