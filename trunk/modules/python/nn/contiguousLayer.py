@@ -78,6 +78,9 @@ class ContiguousLayer(Layer) :
         from dataset.debugger import saveTiledImage
         matSize = self._weights.get_value(borrow=True).shape
 
+        if len(self.input[0].shape.eval()) > 2 :
+            imageShape = self.input[0].shape.eval()[-2:]
+
         # transpose the weight matrix to alighn the kernels contiguously
         saveTiledImage(
             image=self._weights.get_value(borrow=True).T,
