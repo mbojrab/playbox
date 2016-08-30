@@ -247,10 +247,10 @@ class TrainerSAENetwork (SAENetwork) :
         # TODO: here we assume the first layer uses sigmoid activation
         self._startProfile('Setting up Network-wide Decoder', 'debug')
 
-        netInput = self._trainData[0].flatten(2) \
-                   if len(self._trainData[0].shape.eval()) != \
+        netInput = self.getNetworkInput()[0].flatten(2) \
+                   if len(self.getNetworkInput()[0].shape.eval()) != \
                       len(self.getNetworkInputSize()) else \
-                   self._trainData[0]
+                   self.getNetworkInput()[0]
         cost = calcLoss(netInput, decodedInput,
                         self._layers[0].getActivation()) / \
                         self.getNetworkInputSize()[0]

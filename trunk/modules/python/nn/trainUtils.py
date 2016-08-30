@@ -42,7 +42,7 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5,
                                   neuron=neuron,
                                   layer=0)
     network.save(lastSave)
-    for layerIndex in range(network.getNumLayers()) :
+    for layerIndex in range(network.getNumLayers() + 1) :
         globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 
                                                numEpochs)
         lastSave = buildPickleInterim(base=base,
