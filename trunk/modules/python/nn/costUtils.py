@@ -28,12 +28,13 @@ def crossEntropyLoss (p, q, axis=None, crop=True):
     else :
         return t.mean(t.nnet.crossentropy_categorical_1hot(q, p))
 
-def meanSquaredLoss (p, q) :
-    ''' for these purposes this is equivalent to Negative Log Likelihood
-        p    : the target value
-        q    : the current estimate
+def meanSquaredLoss (p, q, axis=None) :
+    '''for these purposes this is equivalent to Negative Log Likelihood
+       p    : the target value
+       q    : the current estimate
+       axis : the axis in which to sum across -- used for multi-dimensional
     '''
-    return t.mean((q - p) ** 2)
+    return t.mean(t.mean((q - p) ** 2, axis=axis))
 
 def calcLoss(p, q, activation) :
     '''Specify a loss function using the last layer's activation.'''
@@ -42,7 +43,7 @@ def calcLoss(p, q, activation) :
     else :  
         axis = 1
     return crossEntropyLoss(p, q, axis) if activation == t.nnet.sigmoid else \
-           meanSquaredLoss(p, q)
+           meanSquaredLoss(p, q, axis)
 
 def calcSparsityConstraint(output, outShape, scaleFactor=1.) :
     '''Calculate the Kullback-Leibler sparsity based on the number of neurons.
