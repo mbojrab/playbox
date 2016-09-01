@@ -14,13 +14,13 @@ if __name__ == '__main__' :
     parser.add_argument('--level', dest='level', default='INFO', type=str, 
                         help='Log Level.')
     parser.add_argument('--learnC', dest='learnC', type=list, nargs=3, 
-                        default=[.01,.1,.03],
+                        default=[.1,1,.25],
                         help='Rate of learning on Convolutional Layers.')
     parser.add_argument('--learnF', dest='learnF', type=list, nargs=3, 
-                        default=[.01,.1,.03], 
+                        default=[.1,1,.25], 
                         help='Rate of learning on Fully-Connected Layers.')
     parser.add_argument('--momentum', dest='momentum', type=list, nargs=3, 
-                        default=[.1,.9,.25],
+                        default=[.1,1,.4],
                         help='Momentum rate all layers.')
     parser.add_argument('--dropout', dest='dropout', type=list,
                         nargs=2, default=[False, True],
@@ -35,13 +35,13 @@ if __name__ == '__main__' :
                         default=[200,500,150],
                         help='Number of Neurons in Hidden Layer.')
     parser.add_argument('--limit', dest='limit', type=list, nargs=3, 
-                        default=[1,3,2],
+                        default=[2],
                         help='Number of runs between validation checks.')
     parser.add_argument('--stop', dest='stop', type=list, nargs=3, 
-                        default=[5,20,10],
+                        default=[20],
                         help='Number of inferior validation checks to end.')
     parser.add_argument('--batch', dest='batchSize', type=list, nargs=3, 
-                        default=[5,100,50],
+                        default=[10,60,20],
                         help='Batch size for training and test sets.')
     parser.add_argument('--syn', dest='synapse', type=str, default=None,
                         help='Load from a previously saved network.')
