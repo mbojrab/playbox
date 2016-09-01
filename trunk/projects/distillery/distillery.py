@@ -113,13 +113,15 @@ if __name__ == '__main__' :
     else :
         networkFile = options.synapse
 
+    regScale = 1. / (2 * options.kernel * 5 * 5 + 
+                     options.neuron + len(labels))
+
     # load the shallow network
-    distNet = DistilleryTrainer(
-                  train, test, labels, regType='L2',
-                  regScaleFactor=1. / (options.kernel + options.kernel + 
-                                       options.neuron + len(labels)),
-                  softmaxTemp=options.softness, transFactor=options.factor,
-                  filepath=networkFile, prof=prof)
+    distNet = DistilleryTrainer(train, test, labels, regType='L2',
+                                regScaleFactor=regScale,
+                                softmaxTemp=options.softness,
+                                transFactor=options.factor,
+                                filepath=networkFile, prof=prof)
     # user has not specified a dark pickle infused with additional knowledge
     # from a deep network. In this case, we had the deep network directly to
     # the object in order to get the soft targets JIT
