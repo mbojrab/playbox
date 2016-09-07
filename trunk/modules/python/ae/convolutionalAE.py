@@ -66,6 +66,11 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                                         dtype=config.floatX)
         self._thresholdsBack = shared(value=initialVisThresh, borrow=True)
 
+    def _setActivation(self, out) :
+        from theano.tensor import round
+        return round(out) if self._activation is None else \
+               round(self._activation(out))
+
     def __getstate__(self) :
         '''Save network pickle'''
         from dataset.shared import fromShared
@@ -111,8 +116,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         weightsBack = self._getWeightsBack()
         deconvolve = conv2d(input, weightsBack, self.getFeatureSize(), 
                             weightsBack.shape.eval(), border_mode='full')
-        return self._setActivation(
-            deconvolve + self._thresholdsBack.dimshuffle('x', 0, 'x', 'x'))
+        out = deconvolve + self._thresholdsBack.dimshuffle('x', 0, 'x', 'x')
+        return out if self._activation is None else self._activation(out)
 
     def finalize(self, netInput, input) :
         '''Setup the computation graph for this layer.
@@ -136,8 +141,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         self.reconstruction = function([netInput[0]], decodedInput)
 
         sparseConstr = calcSparsityConstraint(self.output[0], 
-                                              self.getOutputSize(),
-                                              self._contractionRate)
+                                              self.getOutputSize())
 
         # compute the jacobian cost of the output --
         # This works as a sparsity constraint in case the hidden vector is
@@ -153,7 +157,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # NOTE: The jacobian was computed however takes much longer to process
         #       and does not help convergence or regularization. It was removed
         cost = calcLoss(self.input[0], decodedInput, self._activation) / \
-                        self.getInputSize()[0]
+               self.getInputSize()[0]
         self._costs = [cost, jacobianCost, sparseConstr]
 
         gradients = t.grad(t.sum(self._costs), self.getWeights())

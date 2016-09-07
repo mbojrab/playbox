@@ -65,6 +65,11 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
                                         dtype=config.floatX)
         self._thresholdsBack = shared(value=initialVisThresh, borrow=True)
 
+    def _setActivation(self, out) :
+        from theano.tensor import round
+        return round(out) if self._activation is None else \
+               round(self._activation(out))
+
     def __getstate__(self) :
         '''Save network pickle'''
         from dataset.shared import fromShared
@@ -91,8 +96,8 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         self._thresholdsBack = shared(value=initialThresholdsBack, borrow=True)
 
     def _decode(self, output) :
-        return self._setActivation(dot(output, self._weights.T) +
-                                   self._thresholdsBack)
+        out = dot(output, self._weights.T) + self._thresholdsBack
+        return out if self._activation is None else self._activation(out)
 
     def finalize(self, netInput, input) :
         '''Setup the computation graph for this layer.
@@ -112,10 +117,8 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
 
         # DEBUG: For Debugging purposes only
         self.reconstruction = function([netInput[0]], decodedInput)
-
         sparseConstr = calcSparsityConstraint(self.output[0],
-                                              self.getOutputSize(),
-                                              self._contractionRate)
+                                              self.getOutputSize())
 
         # compute the jacobian cost of the output --
         # This works as a sparsity constraint in case the hidden vector is

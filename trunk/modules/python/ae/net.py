@@ -25,6 +25,54 @@ class SAENetwork (ClassifierNetwork) :
             raise TypeError('addLayer is expecting a AutoEncoder object.')
         ClassifierNetwork.addLayer(self, encoder)
 
+    def __getstate__(self) :
+        '''Save network pickle'''
+        dict = ClassifierNetwork.__getstate__(self)
+        # remove the functions -- they will be rebuilt JIT
+        if '_encode' in dict : del dict['_encode']
+        return dict
+
+    def __setstate__(self, dict) :
+        '''Load network pickle'''
+        # remove any current functions from the object so we force the
+        # theano functions to be rebuilt with the new buffers
+        if hasattr(self, '_encode') : delattr(self, '_encode')
+        ClassifierNetwork.__setstate__(self, dict)
+
+    def finalizeNetwork(self, networkInput) :
+        '''Setup the network based on the current network configuration.
+           This creates several network-wide functions so they will be
+           pre-compiled and optimized when we need them.
+        '''
+        self._startProfile('Finalizing Network', 'info')
+
+        # disable the profiler temporarily so we don't get a second entry
+        tmp = self._profiler
+        self._profiler = None
+        ClassifierNetwork.finalizeNetwork(self, networkInput)
+        self._profiler = tmp
+
+        self._encode = theano.function([self.getNetworkInput()[0]],
+                                       self.getNetworkOutput()[0])
+
+    def encode(self, inputs) :
+        '''Encode the given inputs. The input is assumed to be 
+           numpy.ndarray with dimensions specified by the first layer of the 
+           network. The output is the index of the softmax classification.
+        '''
+        self._startProfile('Encoding the Inputs', 'debug')
+        if not hasattr(self, '_encode') :
+            from dataset.shared import toShared
+            inp = toShared(inputs, borrow=True) \
+                  if 'SharedVariable' not in str(type(inputs)) else inputs
+            self.finalizeNetwork(inp[:])
+
+        # activating the last layer triggers all previous 
+        # layers due to dependencies we've enforced
+        enc = self._encode(inputs)
+        self._endProfile()
+        return enc
+
     # TODO: these should both be removed!
     def getLayer(self, layerIndex) :
         return self._layers[layerIndex]
@@ -109,14 +157,14 @@ class ClassifierSAENetwork (SAENetwork) :
         # classify the inputs one batch at a time
         enc = []
         for ii in range(int(numTargets / batchSize)) :
-            enc.extend(self.classifyAndSoftmax(
+            enc.extend(self.encode(
                 self._targetData[ii*batchSize:(ii+1)*batchSize])[1])
 
         # run one last batch and collect the remainder --
         # this is also used if there is less than one batch worth of targets
         remainder = numTargets % batchSize
         if remainder > 0 :
-            enc.extend(self.classifyAndSoftmax(
+            enc.extend(self.encode(
                 self._targetData[-batchSize:])[1][-remainder:])
         # NOTE: this is the transpose to orient for matrix multiplication
         self._targetEncodings = toShared(enc, borrow=True).T
@@ -127,7 +175,7 @@ class ClassifierSAENetwork (SAENetwork) :
         #       similarities between all pairs of vectors
         # setup the closeness execution graph based on target information
         targets = t.fmatrix('targets')
-        outClass = t.nnet.softmax(self.getNetworkOutput()[0])
+        outClass = self.getNetworkOutput()[0]
         cosineSimilarity = dot(outClass, targets) / \
             (t.sqrt(t.sum(outClass**2)) * (t.sqrt(t.sum(targets**2))))
         self._closeness = function([self.getNetworkInput()[0]],
@@ -204,33 +252,27 @@ class TrainerSAENetwork (SAENetwork) :
            in a layerwise manner.
            NOTE: this uses theano.shared variables for optimized GPU execution
         '''
-        netInput = (self._trainData[0], self._trainData[0])
-        layerInput = netInput
         for encoder in self._layers :
             # forward pass through layers
             self._startProfile('Finalizing Encoder [' + encoder.layerID + ']', 
                                'debug')
-            encoder.finalize(netInput, layerInput)
             out, up = encoder.getUpdates()
             self._trainGreedy.append(
                 theano.function([self._indexVar], out, updates=up,
                                 givens={self.getNetworkInput()[0] : 
                                         self._trainData[self._indexVar]}))
-            layerInput = encoder.output
             self._endProfile()
 
     def __buildDecoder(self) :
         '''Build the decoding section and the network-wide training method.'''
         from nn.costUtils import calcLoss, calcSparsityConstraint
-        from operator import mul
 
         # setup the decoders -- 
         # this is the second half of the network and is equivalent to the
         # encoder network reversed.
-        layerInput = self._layers[-1].output[0]
+        layerInput = self.getNetworkOutput()[0]
         sparseConstr = calcSparsityConstraint(
-            layerInput, self.getNetworkOutputSize(),
-            1. / reduce(mul, self.getNetworkOutputSize()[1:]))
+            layerInput, self.getNetworkOutputSize())
         jacobianCost = self._layers[-1].getUpdates()[0][1]
 
         for decoder in reversed(self._layers) :
@@ -309,14 +351,13 @@ class TrainerSAENetwork (SAENetwork) :
 
         self._startProfile('Finalizing Network', 'info')
 
-        self.__buildEncoder()
-
         # disable the profiler temporarily so we don't get a second entry
         tmp = self._profiler
         self._profiler = None
         SAENetwork.finalizeNetwork(self, networkInputs)
         self._profiler = tmp
 
+        self.__buildEncoder()
         self.__buildDecoder()
         self._endProfile()
 
