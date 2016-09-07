@@ -34,7 +34,7 @@ def meanSquaredLoss (p, q, axis=None) :
        q    : the current estimate
        axis : the axis in which to sum across -- used for multi-dimensional
     '''
-    return t.mean(t.mean((q - p) ** 2, axis=axis))
+    return t.mean(t.sum((q - p) ** 2, axis=axis))
 
 def calcLoss(p, q, activation) :
     '''Specify a loss function using the last layer's activation.'''
@@ -45,26 +45,25 @@ def calcLoss(p, q, activation) :
     return crossEntropyLoss(p, q, axis) if activation == t.nnet.sigmoid else \
            meanSquaredLoss(p, q, axis)
 
-def calcSparsityConstraint(output, outShape, scaleFactor=1.) :
+def calcSparsityConstraint(output, outShape, crop=True) :
     '''Calculate the Kullback-Leibler sparsity based on the number of neurons.
 
        This constraint favors sparse encodings, thereby enforcing individual
        neurons are accountable for understanding a more robust representation.
     '''
-    from six.moves import reduce
-    from operator import mul
-
+    if crop : 
+        output = cropExtremes(output)
     if len(outShape) > 2 :
+        import numpy as np
         avgActivation = t.max(output, axis=1)
-        sparseCon  = 1. / reduce(mul, outShape[1:])
+        sparseCon = 1. / np.prod(outShape[1:])
     else :
         avgActivation = t.mean(output, axis=1)
-        sparseCon  = 1. / outShape[1]
+        sparseCon = 1. / outShape[1]
 
-    return scaleFactor * t.sum(sparseCon * t.log(sparseCon / avgActivation) +
-                               (1. - sparseCon) * \
-                               t.log((1. - sparseCon) / (1. - avgActivation)))
-
+    return t.mean(sparseCon * t.log(sparseCon / avgActivation) +
+                  (1. - sparseCon) * \
+                  t.log((1. - sparseCon) / (1. - avgActivation)))
 
 def leastAbsoluteDeviation(a, batchSize=None, scaleFactor=1.) :
     '''L1-norm provides 'Least Absolute Deviation' --
