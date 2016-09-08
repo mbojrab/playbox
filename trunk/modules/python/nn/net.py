@@ -304,43 +304,9 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         if hasattr(self, '_trainNetwork') : delattr(self, '_trainNetwork')
         ClassifierNetwork.__setstate__(self, dict)
 
-    def finalizeNetwork(self, networkInput) :
-        '''Setup the network based on the current network configuration.
-           This creates several network-wide functions so they will be
-           pre-compiled and optimized when we need them.
-        '''
-        from nn.costUtils import crossEntropyLoss
+    def _compileRegularization(self) :
+        '''Calculate the requested regularization to add to loss.'''
         from nn.costUtils import leastAbsoluteDeviation, leastSquares
-
-        self._startProfile('Finalizing Network', 'info')
-
-        # disable the profiler temporarily so we don't get a second entry
-        tmp = self._profiler
-        self._profiler = None
-        ClassifierNetwork.finalizeNetwork(self, networkInput)
-        self._profiler = tmp
-
-        # create a function to quickly check the accuracy against the test set
-        index = t.lscalar('index')
-        expectedLabels = t.ivector('expectedLabels')
-        numCorrect = t.sum(t.eq(self._outClassMax, expectedLabels))
-        # NOTE: the 'input' variable name was created elsewhere and provided as
-        #       input to the first layer. We now use that object to connect
-        #       our shared buffers.
-        self._checkAccuracy = theano.function(
-            [index], numCorrect, 
-            givens={self.getNetworkInput()[0] : self._testData[index],
-                    expectedLabels: self._testLabels[index]})
-
-        # create the cross entropy function --
-        # This is the cost function for the network, and it assumes [0,1]
-        # classification labeling. If the expectedOutput is not [0,1], Doc
-        # Brown will hit you with a time machine.
-        expectedOutputs = t.fmatrix('expectedOutputs') \
-                          if self._trainLabels.ndim == 3 else \
-                          t.ivector('expectedOutputs')
-        xEntropy = crossEntropyLoss(expectedOutputs, self._outTrainSoft, 1)
-
 
         # calculate a regularization term -- if desired
         reg = 0.0
