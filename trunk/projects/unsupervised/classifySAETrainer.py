@@ -34,17 +34,18 @@ def buildTrainerSAENetwork(train, target,
 
     layerCount = 1
     layerInputSize = train[0].shape.eval()[1:]
-    for k,ks,do,l,m,dr in zip(kernelConv, kernelSizeConv, downsampleConv, 
-                              learnConv, momentumConv, dropoutConv) :
-        # add a convolutional layer as defined
-        network.addLayer(ConvolutionalAutoEncoder(
-            layerID='conv' + str(layerCount), 
-            inputSize=layerInputSize, kernelSize=(k,layerInputSize[1],ks,ks),
-            downsampleFactor=[do,do], dropout=dr, learningRate=l,
-            activation=t.nnet.sigmoid, randomNumGen=rng))
+    if kernelConv is not None :
+        for k,ks,do,l,m,dr in zip(kernelConv, kernelSizeConv, downsampleConv, 
+                                  learnConv, momentumConv, dropoutConv) :
+            # add a convolutional layer as defined
+            network.addLayer(ConvolutionalAutoEncoder(
+                layerID='conv' + str(layerCount), 
+                inputSize=layerInputSize, kernelSize=(k,layerInputSize[1],ks,ks),
+                downsampleFactor=[do,do], dropout=dr, learningRate=l,
+                activation=t.nnet.sigmoid, randomNumGen=rng))
 
-        # prepare for the next layer
-        layerCount, layerInputSize = prepare(network, layerCount)
+            # prepare for the next layer
+            layerCount, layerInputSize = prepare(network, layerCount)
 
     # update to transition for fully connected layers
     layerInputSize = (layerInputSize[0], reduce(mul, layerInputSize[1:]))
@@ -53,7 +54,7 @@ def buildTrainerSAENetwork(train, target,
         network.addLayer(ContiguousAutoEncoder(
             layerID='fully' + str(layerCount), 
             inputSize=layerInputSize, numNeurons=n, learningRate=l,
-            activation=t.nnet.sigmoid, dropout=dr, randomNumGen=rng))            
+            activation=t.nnet.sigmoid, dropout=dr, randomNumGen=rng))
 
         # prepare for the next layer
         layerCount, layerInputSize = prepare(network, layerCount)
@@ -175,5 +176,6 @@ if __name__ == '__main__' :
 
     # test the training data for similarity to the target
     results = testCloseness(network, test[0].get_value(borrow=True))
+    print(results)
 
     # TODO: create the ordered tip-sheet

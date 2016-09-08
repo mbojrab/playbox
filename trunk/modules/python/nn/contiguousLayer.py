@@ -55,12 +55,10 @@ class ContiguousLayer(Layer) :
         '''
         self.input = input
 
-        # adjust the input for the correct number of dimensions
-        if self.input[0].ndim > 2 : 
-            self.input = self.input[0].flatten(2), self.input[1].flatten(2)
-
         # create the logits
         def findLogit(input, weights, thresholds) :
+            # adjust the input for the correct number of dimensions
+            input = input.flatten(2) if self.input[0].ndim > 2 else input
             return dot(input, weights) + thresholds
         outClass = findLogit(self.input[0], self._weights, self._thresholds)
         outTrain = findLogit(self.input[1], self._weights, self._thresholds)
@@ -79,6 +77,9 @@ class ContiguousLayer(Layer) :
     def writeWeights(self, ii, imageShape=None) :
         from dataset.debugger import saveTiledImage
         matSize = self._weights.get_value(borrow=True).shape
+
+        if len(self.input[0].shape.eval()) > 2 :
+            imageShape = self.input[0].shape.eval()[-2:]
 
         # transpose the weight matrix to alighn the kernels contiguously
         saveTiledImage(

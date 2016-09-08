@@ -66,6 +66,11 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                                         dtype=config.floatX)
         self._thresholdsBack = shared(value=initialVisThresh, borrow=True)
 
+    def _setActivation(self, out) :
+        from theano.tensor import round
+        return round(out) if self._activation is None else \
+               round(self._activation(out))
+
     def __getstate__(self) :
         '''Save network pickle'''
         from dataset.shared import fromShared
@@ -111,10 +116,10 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         weightsBack = self._getWeightsBack()
         deconvolve = conv2d(input, weightsBack, self.getFeatureSize(), 
                             weightsBack.shape.eval(), border_mode='full')
-        return self._setActivation(
-            deconvolve + self._thresholdsBack.dimshuffle('x', 0, 'x', 'x'))
+        out = deconvolve + self._thresholdsBack.dimshuffle('x', 0, 'x', 'x')
+        return out if self._activation is None else self._activation(out)
 
-    def finalize(self, input) :
+    def finalize(self, netInput, input) :
         '''Setup the computation graph for this layer.
            input : the input variable tuple for this layer
                    format (inClass, inTrain)
@@ -131,9 +136,11 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # the network is at encoding the message.
         unpooling = self._unpool_2d(self.output[1], self._downsampleFactor)
         decodedInput = self._decode(unpooling)
-        self.reconstruction = function([self.input[1]], decodedInput)
 
-        sparseConstr = calcSparsityConstraint(self.output[1], 
+        # DEBUG: For Debugging purposes only
+        self.reconstruction = function([netInput[0]], decodedInput)
+
+        sparseConstr = calcSparsityConstraint(self.output[0], 
                                               self.getOutputSize())
 
         # compute the jacobian cost of the output --
@@ -149,8 +156,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # this is our cost function with respect to the original input
         # NOTE: The jacobian was computed however takes much longer to process
         #       and does not help convergence or regularization. It was removed
-        cost = calcLoss(self.input[1], decodedInput, self._activation) / \
-                        self.getOutputSize()[0]
+        cost = calcLoss(self.input[0], decodedInput, self._activation) / \
+               self.getInputSize()[0]
         self._costs = [cost, jacobianCost, sparseConstr]
 
         gradients = t.grad(t.sum(self._costs), self.getWeights())
@@ -161,8 +168,9 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # TODO: this needs to be stackable and take the input to the first
         #       layer, not just the input of this layer. This will ensure
         #       the other layers are activated to get the input to this layer
-        self._trainLayer = function([self.input[1]], self._costs,
-                                    updates=self._updates)
+        # DEBUG: For Debugging purposes only
+        self.trainLayer = function([netInput[0]], self._costs,
+                                   updates=self._updates)
 
     def buildDecoder(self, input) :
         '''Calculate the decoding component. This should be used after the
@@ -186,9 +194,6 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         from dataset.debugger import saveNormalizedImage
         saveNormalizedImage(np.resize(self.reconstruction(image), (28, 28)),
                             'chip_' + str(ii) + '_reconst.png')
-    # DEBUG: For Debugging purposes only 
-    def train(self, image) :
-        return self._trainLayer(image)
 
 
 if __name__ == '__main__' :

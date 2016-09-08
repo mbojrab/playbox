@@ -137,6 +137,9 @@ class Layer () :
         '''This allows the network backprop all layers efficiently.'''
         return [self._weights, self._thresholds]
 
+    def getActivation(self) :
+        return self._activation
+
     def getMomentumRate(self) :
         return self._momentumRate
 
