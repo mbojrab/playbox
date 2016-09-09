@@ -119,13 +119,15 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         out = deconvolve + self._thresholdsBack.dimshuffle('x', 0, 'x', 'x')
         return out if self._activation is None else self._activation(out)
 
-    def finalize(self, netInput, input) :
+    def finalize(self, networkInput, layerInput) :
         '''Setup the computation graph for this layer.
-           input : the input variable tuple for this layer
-                   format (inClass, inTrain)
+           networkInput : the input variable tuple for the network
+                          format (inClass, inTrain)
+           layerInput   : the input variable tuple for this layer
+                          format (inClass, inTrain)
         '''
         from nn.costUtils import calcLoss, leastSquares, calcSparsityConstraint
-        ConvolutionalLayer.finalize(self, input)
+        ConvolutionalLayer.finalize(self, networkInput, layerInput)
 
         weightsBack = self._getWeightsBack()
 
@@ -138,7 +140,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         decodedInput = self._decode(unpooling)
 
         # DEBUG: For Debugging purposes only
-        self.reconstruction = function([netInput[0]], decodedInput)
+        self.reconstruction = function([networkInput[0]], decodedInput)
 
         sparseConstr = calcSparsityConstraint(self.output[0], 
                                               self.getOutputSize())
@@ -169,7 +171,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         #       layer, not just the input of this layer. This will ensure
         #       the other layers are activated to get the input to this layer
         # DEBUG: For Debugging purposes only
-        self.trainLayer = function([netInput[0]], self._costs,
+        self.trainLayer = function([networkInput[0]], self._costs,
                                    updates=self._updates)
 
     def buildDecoder(self, input) :

@@ -99,14 +99,16 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         out = dot(output, self._weights.T) + self._thresholdsBack
         return out if self._activation is None else self._activation(out)
 
-    def finalize(self, netInput, input) :
+    def finalize(self, networkInput, layerInput) :
         '''Setup the computation graph for this layer.
-           input : the input variable tuple for this layer
-                   format (inClass, inTrain)
+           networkInput : the input variable tuple for the network
+                          format (inClass, inTrain)
+           layerInput   : the input variable tuple for this layer
+                          format (inClass, inTrain)
         '''
         from nn.costUtils import calcLoss, computeJacobian, leastSquares, \
                                  calcSparsityConstraint
-        ContiguousLayer.finalize(self, input)
+        ContiguousLayer.finalize(self, networkInput, layerInput)
 
         # setup the decoder --
         # this take the output of the feedforward process as input and
@@ -116,7 +118,7 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         decodedInput = self._decode(self.output[0])
 
         # DEBUG: For Debugging purposes only
-        self.reconstruction = function([netInput[0]], decodedInput)
+        self.reconstruction = function([networkInput[0]], decodedInput)
         sparseConstr = calcSparsityConstraint(self.output[0],
                                               self.getOutputSize())
 
@@ -143,7 +145,7 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         #       layer, not just the input of this layer. This will ensure
         #       the other layers are activated to get the input to this layer
         # DEBUG: For Debugging purposes only
-        self.trainLayer = function([netInput[0]], self._costs, 
+        self.trainLayer = function([networkInput[0]], self._costs, 
                                    updates=self._updates)
 
     def buildDecoder(self, input) :

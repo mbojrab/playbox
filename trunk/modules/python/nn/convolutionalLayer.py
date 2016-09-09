@@ -66,12 +66,15 @@ class ConvolutionalLayer(Layer) :
             delattr(self, '_prePoolingInput')
         Layer.__setstate__(self, dict)
 
-    def finalize(self, input) :
+    def finalize(self, networkInput, layerInput) :
         '''Setup the computation graph for this layer.
-           input : the input variable tuple for this layer
-                   format (inClass, inTrain)
+           networkInput : the input variable tuple for the network
+                          format (inClass, inTrain)
+           layerInput   : the input variable tuple for this layer
+                          format (inClass, inTrain)
         '''
-        self.input = input
+        self.input = layerInput
+
         def findLogits(input, weights, inputSize, kernelSize, 
                        downsampleFactor, thresholds) :
             from theano.tensor.nnet.conv import conv2d
