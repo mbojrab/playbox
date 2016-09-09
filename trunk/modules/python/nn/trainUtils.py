@@ -20,7 +20,7 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5,
        starts by train each layer in sequence for the specified number of
        epochs, then returns the network. This can be used to initialize a
        Neural Network into a decent initial state.
-       
+
        network : StackedAENetwork to used for training
        return  : Path to the trained network. This will be used as a 
                  pre-trainer for the Neural Network

@@ -65,6 +65,11 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
                                         dtype=config.floatX)
         self._thresholdsBack = shared(value=initialVisThresh, borrow=True)
 
+    def _setActivation(self, out) :
+        from theano.tensor import round
+        return round(out) if self._activation is None else \
+               round(self._activation(out))
+
     def __getstate__(self) :
         '''Save network pickle'''
         from dataset.shared import fromShared
@@ -91,41 +96,44 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         self._thresholdsBack = shared(value=initialThresholdsBack, borrow=True)
 
     def _decode(self, output) :
-        return self._setActivation(dot(output, self._weights.T) +
-                                   self._thresholdsBack)
+        out = dot(output, self._weights.T) + self._thresholdsBack
+        return out if self._activation is None else self._activation(out)
 
-    def finalize(self, input) :
+    def finalize(self, networkInput, layerInput) :
         '''Setup the computation graph for this layer.
-           input : the input variable tuple for this layer
-                   format (inClass, inTrain)
+           networkInput : the input variable tuple for the network
+                          format (inClass, inTrain)
+           layerInput   : the input variable tuple for this layer
+                          format (inClass, inTrain)
         '''
         from nn.costUtils import calcLoss, computeJacobian, leastSquares, \
                                  calcSparsityConstraint
-        ContiguousLayer.finalize(self, input)
+        ContiguousLayer.finalize(self, networkInput, layerInput)
 
         # setup the decoder --
         # this take the output of the feedforward process as input and
         # and runs the output back through the network in reverse. The net
         # effect is to reconstruct the input, and ultimately to see how well
         # the network is at encoding the message.
-        decodedInput = self._decode(self.output[1])
-        self.reconstruction = function([self.input[1]], decodedInput)
+        decodedInput = self._decode(self.output[0])
 
-        sparseConstr = calcSparsityConstraint(self.output[1],
+        # DEBUG: For Debugging purposes only
+        self.reconstruction = function([networkInput[0]], decodedInput)
+        sparseConstr = calcSparsityConstraint(self.output[0],
                                               self.getOutputSize())
 
         # compute the jacobian cost of the output --
         # This works as a sparsity constraint in case the hidden vector is
         # larger than the input vector.
         jacobianCost = leastSquares(
-            computeJacobian(self.output[1], self._weights, self._inputSize[0],
+            computeJacobian(self.output[0], self._weights, self._inputSize[0],
                             self._inputSize[1], self._numNeurons), 
             self._inputSize[0], self._contractionRate)
 
         # create the negative log likelihood function --
         # this is our cost function with respect to the original input
-        cost = calcLoss(self.input[1], decodedInput, self._activation) / \
-                        self.getOutputSize()[0]
+        cost = calcLoss(self.input[0].flatten(2), decodedInput,
+                        self._activation) / self.getInputSize()[0]
         self._costs = [cost, jacobianCost, sparseConstr]
 
         gradients = t.grad(t.sum(self._costs), self.getWeights())
@@ -136,8 +144,9 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         # TODO: this needs to be stackable and take the input to the first
         #       layer, not just the input of this layer. This will ensure
         #       the other layers are activated to get the input to this layer
-        self._trainLayer = function([self.input[1]], self._costs, 
-                                    updates=self._updates)
+        # DEBUG: For Debugging purposes only
+        self.trainLayer = function([networkInput[0]], self._costs, 
+                                   updates=self._updates)
 
     def buildDecoder(self, input) :
         '''Calculate the decoding component. This should be used after the
@@ -160,9 +169,6 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         saveNormalizedImage(np.resize(self.reconstruction(image), (28, 28)),
                             'chip_' + str(ii) + '_reconst.png')
 
-    # DEBUG: For Debugging purposes only
-    def train(self, image) :
-        return self._trainLayer(image)
 
 if __name__ == '__main__' :
     import argparse, logging, time

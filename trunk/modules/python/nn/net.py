@@ -1,7 +1,6 @@
 from nn.layer import Layer
 import theano.tensor as t
 import theano
-import numpy as np
 from dataset.pickle import writePickleZip, readPickleZip
 
 class Network () :
@@ -137,12 +136,13 @@ class ClassifierNetwork (Network) :
         self._startProfile('Finalizing Network', 'info')
 
         # finalize the layers to create the computational graphs
-        layerInput = (networkInput, networkInput) \
+        networkInput = (networkInput, networkInput) \
                      if not isinstance(networkInput, tuple) else networkInput
+        layerInput = networkInput
         for layer in self._layers :
             self._startProfile('Finalizing Layer [' + layer.layerID + ']', 
                                'debug')
-            layer.finalize(layerInput)
+            layer.finalize(networkInput, layerInput)
             layerInput = layer.output
             self._endProfile()
 
@@ -165,9 +165,9 @@ class ClassifierNetwork (Network) :
            numpy.ndarray with dimensions specified by the first layer of the 
            network. The output is the index of the softmax classification.
         '''
+        from dataset.shared import toShared
         self._startProfile('Classifying the Inputs', 'debug')
         if not hasattr(self, '_classify') :
-            from dataset.shared import toShared
             inp = toShared(inputs, borrow=True) \
                   if 'SharedVariable' not in str(type(inputs)) else inputs
             self.finalizeNetwork(inp[:])
@@ -185,9 +185,9 @@ class ClassifierNetwork (Network) :
 
            return : (classification index, softmax vector)
         '''
+        from dataset.shared import toShared
         self._startProfile('Classifying the Inputs', 'debug')
         if not hasattr(self, '_classifyAndSoftmax') :
-            from dataset.shared import toShared
             inp = toShared(inputs, borrow=True) \
                   if 'SharedVariable' not in str(type(inputs)) else inputs
             self.finalizeNetwork(inp[:])
@@ -265,6 +265,7 @@ class TrainerNetwork (LabeledClassifierNetwork) :
     '''
     def __init__ (self, train, test, labels, regType='L2', regScaleFactor=0.,
                   filepath=None, prof=None) :
+        from nn.reg import Regularization
         LabeledClassifierNetwork.__init__(self, labels, filepath=filepath,
                                           prof=prof)
         self._trainData, self._trainLabels = train
@@ -274,8 +275,7 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         self._numTestBatches = self._testLabels.shape.eval()[0]
         self._numTestSize = self._numTestBatches * \
                             self._testLabels.shape.eval()[1]
-        self._regularization = regType
-        self._regScaleFactor = regScaleFactor
+        self._regularization = Regularization(regType, regScaleFactor)
 
     def __getstate__(self) :
         '''Save network pickle'''
@@ -289,7 +289,6 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         if '_numTrainBatches' in dict : del dict['_numTrainBatches']
         if '_numTestBatches' in dict : del dict['_numTestBatches']
         if '_numTestSize' in dict : del dict['_numTestSize']
-        if '_regularization' in dict : del dict['_regularization']
         # remove the functions -- they will be rebuilt JIT
         if '_checkAccuracy' in dict : del dict['_checkAccuracy']
         if '_trainNetwork' in dict : del dict['_trainNetwork']
@@ -303,64 +302,13 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         if hasattr(self, '_trainNetwork') : delattr(self, '_trainNetwork')
         ClassifierNetwork.__setstate__(self, dict)
 
-    def _compileRegularization(self) :
-        '''Calculate the requested regularization to add to loss.'''
-        from nn.costUtils import leastAbsoluteDeviation, leastSquares
-
-        # calculate a regularization term -- if desired
-        reg = 0.0
-        # L1-norm provides 'Least Absolute Deviation' --
-        # built for sparse outputs and is resistent to outliers
-        if self._regularization == 'L1' :
-            reg = leastAbsoluteDeviation(
-                [layer.getWeights()[0] for layer in self._layers],
-                batchSize=None, scaleFactor=self._regScaleFactor)
-        # L2-norm provides 'Least Squares' --
-        # built for dense outputs and is computationally stable at small errors
-        elif self._regularization == 'L2' :
-            reg = leastSquares(
-                [layer.getWeights()[0] for layer in self._layers],
-                batchSize=None, scaleFactor=self._regScaleFactor)
-        return reg
-
-    def _compileUpdates(self, loss) :
-        '''Create the weight updates required during training.'''
-        updates = []
-        for layer in reversed(self._layers) :
-
-            # pull the rate variables
-            layerLearningRate = layer.getLearningRate()
-            layerMomentumRate = layer.getMomentumRate()
-
-            # build the gradients
-            layerWeights = layer.getWeights()
-            gradients = t.grad(loss, layerWeights, disconnected_inputs='warn')
-
-            # add the weight update
-            for w, g in zip(layerWeights, gradients) :
-
-                if layerMomentumRate > 0. :
-                    # setup a second buffer for storing momentum
-                    previousWeightUpdate = theano.shared(
-                        np.zeros(w.get_value().shape, theano.config.floatX),
-                        borrow=True)
-
-                    # add two updates --
-                    # perform weight update and save the previous update
-                    updates.append((w, w + previousWeightUpdate))
-                    updates.append((previousWeightUpdate,
-                                    previousWeightUpdate * layerMomentumRate -
-                                    layerLearningRate * g))
-                else :
-                    updates.append((w, w - layerLearningRate * g))
-        return updates
-
     def finalizeNetwork(self, networkInput) :
         '''Setup the network based on the current network configuration.
            This creates several network-wide functions so they will be
            pre-compiled and optimized when we need them.
         '''
-        from nn.costUtils import crossEntropyLoss
+        from nn.costUtils import crossEntropyLoss, compileUpdates
+
         if len(self._layers) == 0 :
             raise IndexError('Network must have at least one layer' +
                              'to call getNetworkInput().')
@@ -398,8 +346,9 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         # create the function for back propagation of all layers --
         # weight/bias are added in reverse order because they will
         # be used back propagation, which runs output to input
-        updates = self._compileUpdates(
-            xEntropy + self._compileRegularization())
+        updates = compileUpdates(self._layers, 
+                                 xEntropy + 
+                                 self._regularization.calculate(self._layers))
 
         # NOTE: the 'input' variable name was create elsewhere and provided as
         #       input to the first layer. We now use that object to connect
@@ -411,7 +360,6 @@ class TrainerNetwork (LabeledClassifierNetwork) :
                     expectedOutputs: self._trainLabels[index]})
         self._endProfile()
 
-    #def train(self, index) :
     def train(self, index) :
         '''Train the network against the pre-loaded inputs. This accepts 
            a batch index into the pre-compiled input and expectedOutput sets.
@@ -441,8 +389,8 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         '''
         for localEpoch in range(numEpochs) :
             # DEBUG: For Debugging purposes only 
-            #for layer in self._layers :
-            #    layer.writeWeights(globalEpoch + localEpoch)
+            for layer in self._layers :
+                layer.writeWeights(globalEpoch + localEpoch)
             self._startProfile('Running Epoch [' +
                                str(globalEpoch + localEpoch) + ']', 'info')
             [self.train(ii) for ii in range(self._numTrainBatches)]

@@ -39,7 +39,6 @@ class ContiguousLayer(Layer) :
             self._inputSize = (1, inputSize)
         self._numNeurons = numNeurons
 
-
         # create weights based on the optimal distribution for the activation
         if initialWeights is None or initialThresholds is None :
             self._initializeWeights(
@@ -48,19 +47,19 @@ class ContiguousLayer(Layer) :
                 fanOut=self._numNeurons,
                 randomNumGen=randomNumGen)
 
-    def finalize(self, input) :
+    def finalize(self, networkInput, layerInput) :
         '''Setup the computation graph for this layer.
-           input : the input variable tuple for this layer
-                   format (inClass, inTrain)
+           networkInput : the input variable tuple for the network
+                          format (inClass, inTrain)
+           layerInput   : the input variable tuple for this layer
+                          format (inClass, inTrain)
         '''
-        self.input = input
-
-        # adjust the input for the correct number of dimensions
-        if self.input[0].ndim > 2 : 
-            self.input = self.input[0].flatten(2), self.input[1].flatten(2)
+        self.input = layerInput
 
         # create the logits
         def findLogit(input, weights, thresholds) :
+            # adjust the input for the correct number of dimensions
+            input = input.flatten(2) if self.input[0].ndim > 2 else input
             return dot(input, weights) + thresholds
         outClass = findLogit(self.input[0], self._weights, self._thresholds)
         outTrain = findLogit(self.input[1], self._weights, self._thresholds)
@@ -80,9 +79,16 @@ class ContiguousLayer(Layer) :
         from dataset.debugger import saveTiledImage
         matSize = self._weights.get_value(borrow=True).shape
 
+        buffer = self._weights.get_value(borrow=True).T
+        if len(self.input[0].shape.eval()) > 2 :
+            import numpy as np
+            buffer = np.reshape(buffer, [self._numNeurons] +
+                                        list(self.input[0].shape.eval()[1:]))
+            imageShape = buffer.shape[-2:]
+
         # transpose the weight matrix to alighn the kernels contiguously
         saveTiledImage(
-            image=self._weights.get_value(borrow=True).T,
+            image=buffer,
             path=self.layerID + '_cae_filters_' + str(ii) + '.png',
             imageShape=(1, matSize[0]) if imageShape is None else imageShape,
             tileShape=(matSize[1], 1) if imageShape is None else None,

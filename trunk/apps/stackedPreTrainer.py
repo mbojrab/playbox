@@ -80,31 +80,45 @@ if __name__ == '__main__' :
     else :
         log.info('Initializing Network...')
 
+        import theano.tensor as t
+        network.addLayer(ContiguousAutoEncoder(
+            layerID='f1',
+            inputSize=(trainShape[1], reduce(mul, trainShape[2:])),
+            numNeurons=options.neuron, learningRate=options.learnF,
+            dropout=1.,#.8 if options.dropout else 1.,
+            activation=t.nnet.sigmoid, randomNumGen=rng))
+        network.addLayer(ContiguousAutoEncoder(
+            layerID='f2',
+            inputSize=(network.getNetworkOutputSize()[0], 
+                       reduce(mul, network.getNetworkOutputSize()[1:])),
+            numNeurons=options.neuron, learningRate=options.learnF,
+            dropout=1.,
+            activation=t.nnet.sigmoid, randomNumGen=rng))
+
+        '''
         # add convolutional layers
         network.addLayer(ConvolutionalAutoEncoder(
             layerID='c1', inputSize=trainShape[1:], 
-            kernelSize=(options.kernel,trainShape[2],5,5),
+            kernelSize=(options.kernel,trainShape[2],3,3),
             downsampleFactor=(2,2), randomNumGen=rng,
             dropout=.8 if options.dropout else 1.,
             learningRate=options.learnC))
 
-        # refactor the output to be (numImages*numKernels, 1, numRows, numCols)
-        # this way we don't combine the channels kernels we created in 
-        # the first layer and destroy our dimensionality
         network.addLayer(ConvolutionalAutoEncoder(
             layerID='c2', inputSize=network.getNetworkOutputSize(), 
             kernelSize=(options.kernel,options.kernel,5,5),
             downsampleFactor=(2,2), randomNumGen=rng,
-            dropout=.5 if options.dropout else 1., 
+            dropout=.5 if options.dropout else 1.,
             learningRate=options.learnC))
 
         # add fully connected layers
         network.addLayer(ContiguousAutoEncoder(
-            layerID='f3', 
+            layerID='f3',
             inputSize=(network.getNetworkOutputSize()[0], 
                        reduce(mul, network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, learningRate=options.learnF,
             randomNumGen=rng))
+        '''
 
         # the final output layer is removed from the normal NN --
         # the output layer is special, as it makes decisions about
@@ -119,4 +133,7 @@ if __name__ == '__main__' :
                       dropout=options.dropout, learnC=options.learnC,
                       learnF=options.learnF, contrF=options.contrF, 
                       kernel=options.kernel, neuron=options.neuron, log=log)
+
+    for ii in test[0].get_value(borrow=True) :
+        print('Dataset: ' + str(network.classifyAndSoftmax(ii)[1]))
 
