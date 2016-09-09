@@ -235,16 +235,25 @@ class TrainerSAENetwork (SAENetwork) :
 
        train    : theano.shared dataset used for network training in format --
                   (numBatches, batchSize, numChannels, rows, cols)
+       regType  : type of regularization term to use
+                  default None : perform no additional regularization
+                  L1           : Least Absolute Deviation
+                  L2           : Least Squares
+       regSF    : regularization scale factor
+                  NOTE: a good value is 1. / numTotalNeurons
        filepath : Path to an already trained network on disk 
                   'None' creates randomized weighting
        prof     : Profiler to use
     '''
-    def __init__ (self, train, filepath=None, prof=None) :
+    def __init__ (self, train, regType='L2', regScaleFactor=0.,
+                  filepath=None, prof=None) :
+        from nn.reg import Regularization
         SAENetwork.__init__ (self, filepath, prof)
         self._indexVar = t.lscalar('index')
         self._trainData = train[0] if isinstance(train, list) else train
         self._numTrainBatches = self._trainData.shape.eval()[0]
         self._trainGreedy = []
+        self._regularization = Regularization(regType, regScaleFactor)
 
     def __buildEncoder(self) :
         '''Build the greedy-layerwise function --
@@ -265,7 +274,9 @@ class TrainerSAENetwork (SAENetwork) :
 
     def __buildDecoder(self) :
         '''Build the decoding section and the network-wide training method.'''
-        from nn.costUtils import calcLoss, calcSparsityConstraint
+        from nn.costUtils import calcLoss, \
+                                 calcSparsityConstraint, \
+                                 compileUpdates
 
         # setup the decoders -- 
         # this is the second half of the network and is equivalent to the
@@ -296,19 +307,11 @@ class TrainerSAENetwork (SAENetwork) :
         cost = calcLoss(netInput, decodedInput,
                         self._layers[0].getActivation()) / \
                         self.getNetworkInputSize()[0]
-        costs = [cost, jacobianCost, sparseConstr]
+        costs = [cost, jacobianCost, sparseConstr, 
+                 self._regularization.calculate(self._layers)]
 
         # build the network-wide training update.
-        updates = []
-        for decoder in reversed(self._layers) :
-
-            # build the gradients
-            layerWeights = decoder.getWeights()
-            gradients = t.grad(t.sum(costs), layerWeights)
-
-            # add the weight update
-            for w, g in zip(layerWeights, gradients) :
-                updates.append((w, w - decoder.getLearningRate() * g))
+        updates = compileUpdates(self._layers, t.sum(costs))
 
         #from theano.compile.nanguardmode import NanGuardMode
         self._trainNetwork = theano.function(

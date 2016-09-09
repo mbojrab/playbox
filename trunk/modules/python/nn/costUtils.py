@@ -119,3 +119,44 @@ def computeJacobian(a, wrt, batchSize, inputSize, numNeurons) :
     aReshape = (batchSize, 1, numNeurons)
     wrtReshape = (1, inputSize, numNeurons)
     return t.reshape(a * (1 - a), aReshape) * t.reshape(wrt, wrtReshape)
+
+def compileUpdates(layers, loss) :
+    '''Calculate the weight updates required during training.
+
+       layers : Layers of the network to compute updates for
+       loss   : Total network loss to apply (ie Error Gradient Summation)
+    '''
+    import theano
+    import numpy as np
+    import theano.tensor as t
+
+    updates = []
+    for layer in reversed(layers) :
+
+        # pull the rate variables
+        layerLearningRate = layer.getLearningRate()
+        layerMomentumRate = layer.getMomentumRate()
+
+        # build the gradients
+        layerWeights = layer.getWeights()
+        gradients = t.grad(loss, layerWeights)#, disconnected_inputs='warn')
+
+        # add the weight update
+        for w, g in zip(layerWeights, gradients) :
+
+            if layerMomentumRate > 0. :
+                # setup a second buffer for storing momentum
+                previousWeightUpdate = theano.shared(
+                    np.zeros(w.get_value().shape, theano.config.floatX),
+                    borrow=True)
+
+                # add two updates --
+                # perform weight update and save the previous update
+                updates.append((w, w + previousWeightUpdate))
+                updates.append((previousWeightUpdate,
+                                previousWeightUpdate * layerMomentumRate -
+                                layerLearningRate * g))
+            else :
+                updates.append((w, w - layerLearningRate * g))
+
+    return updates
