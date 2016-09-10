@@ -67,11 +67,12 @@ if __name__ == '__main__' :
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
-    train, test, labels = ingestImagery(filepath=options.data, shared=True,
+    shared = True
+    train, test, labels = ingestImagery(filepath=options.data, shared=shared,
                                         batchSize=options.batchSize,
                                         holdoutPercentage=options.holdout,
                                         log=log)
-    trainSize = train[0].shape.eval()
+    trainSize = train[0].shape.eval() if shared else train[0].shape
 
     # create the network -- LeNet-5
     network = Net(train, test, labels, regType='L2', 

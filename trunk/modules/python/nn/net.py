@@ -165,9 +165,9 @@ class ClassifierNetwork (Network) :
            numpy.ndarray with dimensions specified by the first layer of the 
            network. The output is the index of the softmax classification.
         '''
-        from dataset.shared import toShared
         self._startProfile('Classifying the Inputs', 'debug')
         if not hasattr(self, '_classify') :
+            from dataset.shared import toShared
             inp = toShared(inputs, borrow=True) \
                   if 'SharedVariable' not in str(type(inputs)) else inputs
             self.finalizeNetwork(inp[:])
@@ -185,9 +185,9 @@ class ClassifierNetwork (Network) :
 
            return : (classification index, softmax vector)
         '''
-        from dataset.shared import toShared
         self._startProfile('Classifying the Inputs', 'debug')
         if not hasattr(self, '_classifyAndSoftmax') :
+            from dataset.shared import toShared
             inp = toShared(inputs, borrow=True) \
                   if 'SharedVariable' not in str(type(inputs)) else inputs
             self.finalizeNetwork(inp[:])
@@ -271,10 +271,19 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         self._trainData, self._trainLabels = train
         self._testData, self._testLabels = test
 
-        self._numTrainBatches = self._trainLabels.shape.eval()[0]
-        self._numTestBatches = self._testLabels.shape.eval()[0]
-        self._numTestSize = self._numTestBatches * \
-                            self._testLabels.shape.eval()[1]
+        if 'SharedVariable' in str(type(self._trainData)) :
+            self._numTrainBatches = self._trainLabels.shape.eval()[0]
+        else :
+            self._numTrainBatches = self._trainLabels.shape[0]
+        if 'SharedVariable' in str(type(self._testData)) :
+            self._numTestBatches = self._testLabels.shape.eval()[0]
+            self._numTestSize = self._numTestBatches * \
+                                self._testLabels.shape.eval()[1]
+        else :
+            self._numTestBatches = self._testLabels.shape[0]
+            self._numTestSize = self._numTestBatches * \
+                                self._testLabels.shape[1]
+
         self._regularization = Regularization(regType, regScaleFactor)
 
     def __getstate__(self) :
@@ -328,10 +337,20 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         # NOTE: the 'input' variable name was created elsewhere and provided as
         #       input to the first layer. We now use that object to connect
         #       our shared buffers.
-        self._checkAccuracy = theano.function(
-            [index], numCorrect, 
-            givens={self.getNetworkInput()[0] : self._testData[index],
-                    expectedLabels: self._testLabels[index]})
+        # NOTE: This uses the lamda function as a means to consolidate the
+        #       calling scheme. This saves us from later using conditionals in
+        #       the inner loops and optimizes the libary
+        if 'SharedVariable' in str(type(self._testData)) :
+            checkAcc = theano.function(
+                [index], numCorrect, 
+                givens={self.getNetworkInput()[0] : self._testData[index],
+                        expectedLabels: self._testLabels[index]})
+            self._checkAccuracy = lambda ii : checkAcc(ii)
+        else :
+            checkAcc = theano.function(
+                [self.getNetworkInput()[0], expectedLabels], numCorrect)
+            self._checkAccuracy = lambda ii : checkAcc(self._testData[ii],
+                                                       self._testLabels[ii])
 
         # create the cross entropy function --
         # This is the cost function for the network, and it assumes [0,1]
@@ -353,11 +372,21 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         # NOTE: the 'input' variable name was create elsewhere and provided as
         #       input to the first layer. We now use that object to connect
         #       our shared buffers.
-        # NOTE: This check should only be used until both buffers are in 
-        self._trainNetwork = theano.function(
-            [index], xEntropy, updates=updates,
-            givens={self.getNetworkInput()[1]: self._trainData[index],
-                    expectedOutputs: self._trainLabels[index]})
+        # NOTE: This uses the lamda function as a means to consolidate the
+        #       calling scheme. This saves us from later using conditionals in
+        #       the inner loops and optimizes the libary
+        if 'SharedVariable' in str(type(self._trainData)) :
+            trainNet = theano.function(
+                [index], xEntropy, updates=updates,
+                givens={self.getNetworkInput()[1]: self._trainData[index],
+                        expectedOutputs: self._trainLabels[index]})
+            self._trainNetwork = lambda ii : trainNet(ii)
+        else :
+            trainNet = theano.function(
+                [self.getNetworkInput()[1], expectedOutputs],
+                 xEntropy, updates=updates)
+            self._trainNetwork = lambda ii : trainNet(self._trainData[ii], 
+                                                      self._trainLabels[ii])
         self._endProfile()
 
     def train(self, index) :
@@ -369,7 +398,11 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         self._startProfile('Training Batch [' + str(index) +
                            '/' + str(self._numTrainBatches) + ']', 'debug')
         if not hasattr(self, '_trainNetwork') :
-            self.finalizeNetwork(self._trainData[0])
+            from dataset.shared import toShared
+            inp = toShared(self._trainData[0], borrow=True) \
+                  if 'SharedVariable' not in str(type(self._trainData)) \
+                  else self._trainData[0]
+            self.finalizeNetwork(inp[:])
         if not isinstance(index, int) :
             raise Exception('Variable index must be an integer value')
         if index >= self._numTrainBatches :
@@ -404,7 +437,11 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         '''
         self._startProfile('Checking Accuracy', 'debug')
         if not hasattr(self, '_checkAccuracy') :
-            self.finalizeNetwork(self._trainData[0])
+            from dataset.shared import toShared
+            inp = toShared(self._trainData[0], borrow=True) \
+                  if 'SharedVariable' not in str(type(self._trainData)) \
+                  else self._trainData[0]
+            self.finalizeNetwork(inp[:])
 
         # return the sum of all correctly classified targets
         acc = 0.0

@@ -181,4 +181,8 @@ def ingestImagery(filepath, shared=True, log=None, **kwargs) :
             log.debug('Transfer the memory into shared variables')
         return splitToShared(train), splitToShared(test), labels
     else :
-        return train, test, labels
+        import numpy as np
+        train[1] = train[1].astype(dtype=np.int32)
+        test[1]  = test[1].astype(dtype=np.int32)
+
+        return tuple(train), tuple(test), labels
