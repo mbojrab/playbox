@@ -93,10 +93,8 @@ def readHDF5 (inFile, log=None) :
     hdf5 = h5py.File(inFile, driver='core', mode='r')
 
     trainData = hdf5.get("train/data")
-    print(trainData[0][0])
     if 'train/indices' in hdf5 :
         trainIndices = hdf5.get('train/indices')
-        print(trainIndices[0])
     if 'test/data' in hdf5 :
         testData = hdf5.get('test/data')
     if 'test/indices' in hdf5 :
