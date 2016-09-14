@@ -1,10 +1,16 @@
 import os
+import numpy as np
 
-def readAndDivideData(path, holdoutPercentage, minTest, log=None) :
+def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
     '''This walks the directory structure and divides the data according to the
        user specified holdout over two "train" and "test" sets.
     '''
-    from dataset.reader import readImage
+    from dataset.shuffle import naiveShuffle
+
+    # read the directory structure --
+    # each subdirectory becomes a label and the imagery within are examples.
+    # Splitting the data per label ensures each category is represented in the
+    # holdout set.
     train, test, labels = [], [], []
     for root, dirs, files in os.walk(path) :
         if root == path :
@@ -21,7 +27,6 @@ def readAndDivideData(path, holdoutPercentage, minTest, log=None) :
         if log is not None :
             log.debug('Adding directory [' + root + '] as [' + label + ']')
 
-        # read the imagery and assign it this label --
         # a small percentage of the data is held out to verify our training
         # isn't getting overfitted. We will randomize the input later.
         numTest = max(minTest, int(holdoutPercentage * len(files)))
@@ -29,42 +34,35 @@ def readAndDivideData(path, holdoutPercentage, minTest, log=None) :
             log.debug('Holding out [' + str(numTest) + '] of [' + \
                       str(len(files)) + ']')
 
-        # this is updated to at least holdout a few images for testing
+        # this ensures a minimum number of examples are used for testing
         holdoutPercentage = (float(numTest) / float(len(files)))
 
-        holdoutPerc = holdoutPercentage
-        if holdoutPercentage > .5 :
-            holdoutPerc = 1. - holdoutPerc
+        # prepare the data
+        items = np.asarray(
+            [(os.path.join(root, file), indx) for file in files],
+            dtype=np.object)
+        naiveShuffle(items)
 
-        holdout = len(files) if holdoutPerc == 0. else \
-                      int(round(1. / holdoutPerc))
+        # randomly distribute the data using Random Assignment based on
+        # Bernoulli trials
+        # TODO: There may be a more compact way to represent this in python
+        randomAssign = np.random.binomial(1, holdoutPercentage, len(items))
+        train.extend(
+            [items[ii] for ii in range(len(items)) if randomAssign[ii] == 0])
+        test.extend(
+            [items[ii] for ii in range(len(items)) if randomAssign[ii] == 1])
 
-        # this loop ensures a good sampling is held out across our entire
-        # dataset. This is just in case there is some regularity in the data
-        # as it sits on disk.
-        te, tr = [], []
-        for ii, file in enumerate(files) :
-            try :
-                imgLabel = readImage(os.path.join(root, file), log), indx
-                te.append(imgLabel) if (ii+1) % holdout == 0 else \
-                    tr.append(imgLabel)
-            except IOError :
-                # continue on if image cannot be read
-                pass
-
-        # swap these buffers to align with what the user specified
-        if holdoutPercentage > .5 :
-            (te, tr) = (tr, te)
-
-        # populate the global buffers
-        train.extend(tr)
-        test.extend(te)
+    # randomize the data across categories -- otherwise its not stochastic
+    if log is not None :
+        log.info('Shuffling the data for randomization')
+    naiveShuffle(train)
+    naiveShuffle(test)
 
     return train, test, labels
 
-def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
-                  batchSize=1, log=None) :
-    '''Create a pickle out of a directory structure. The directory structure
+def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
+                batchSize=1, log=None) :
+    '''Create a hdf5 file out of a directory structure. The directory structure
        is assumed to be a series of directories, each contains imagery assigned
        the label of the directory name.
 
@@ -74,15 +72,15 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
        batchSize         : Size of a mini-batch
        log               : Logger to use
     '''
-    from dataset.minibatch import makeContiguous
-    from dataset.shuffle import naiveShuffle
-    from dataset.pickle import writePickleZip
+    import theano
+    from dataset.reader import readImage, getImageDims
+    from dataset.hdf5 import createHDF5Labeled
 
     rootpath = os.path.abspath(filepath)
     outputFile = os.path.join(rootpath, os.path.basename(rootpath) + 
                               '_labeled' + 
                               '_holdout_' + str(holdoutPercentage) +
-                              '_batch_' + str(batchSize) +'.pkl.gz')
+                              '_batch_' + str(batchSize) +'.hdf5')
     if os.path.exists(outputFile) :
         if log is not None :
             log.info('Pickle exists for this dataset [' + outputFile +
@@ -120,20 +118,56 @@ def pickleDataset(filepath, holdoutPercentage=.05, minTest=5,
         train, test, labels = readAndDivideData(rootpath, holdoutPercentage,
                                                 minTest, log)
 
-    # randomize the data -- otherwise its not stochastic
-    if log is not None :
-        log.info('Shuffling the data for randomization')
-    naiveShuffle(train)
-    naiveShuffle(test)
+    if len(train) == 0 :
+        raise ValueError('No training examples found [' + filepath + ']')
 
-    # create mini-batches
-    if log is not None :
-        log.info('Creating the mini-batches')
-    train = makeContiguous(train, batchSize)
-    test =  makeContiguous(test, batchSize)
+    # create a hdf5 memmap --
+    # Here we create the handles to the data buffers. This operates on the
+    # assumption the dataset may not fit entirely in memory. The handles allow
+    # data to overflow and ultimately be stored entirely on disk. 
+    imageShape = list(getImageDims(train[0][0], log))
+    trainShape = [len(train) // batchSize, batchSize] + imageShape
+    testShape = [len(test) // batchSize, batchSize] + imageShape
 
-    # pickle the dataset
-    writePickleZip(outputFile, (train, test, labels), log)
+    if log is not None :
+        log.info('Creating the memmapped HDF5')
+
+    [handleH5, trainDataH5, trainIndicesH5, 
+     testDataH5, testIndicesH5, labelsH5] = \
+        createHDF5Labeled (outputFile, 
+                           trainShape, theano.config.floatX, np.int32,
+                           testShape, theano.config.floatX, np.int32,
+                           len(labels), log)
+
+    if log is not None :
+        log.info('Writing data to archive')
+
+    # populate the indice buffers
+    trainIndicesH5[:] = np.resize(np.asarray(train).flatten()[1::2],
+                                  trainIndicesH5.shape).astype(np.int32)[:]
+    testIndicesH5[:] = np.resize(np.asarray(test).flatten()[1::2],
+                                 testIndicesH5.shape).astype(np.int32)[:]
+
+    # stream the imagery into the buffers --
+    # NOTE : h5py.Dataset doesn't implement __setslice__, so we must implement
+    #        the copy via __setitem__. This differs from my normal index
+    #        formatting, but it gets the job done.
+    for ii in range(np.prod(trainShape[:1])) :
+        trainDataH5[ii // batchSize, ii % batchSize, :] = \
+              readImage(train[ii][0], log)
+    for ii in range(np.prod(testShape[:1])) :
+        testDataH5[ii // batchSize, ii % batchSize, :] = \
+              readImage(test[ii][0], log)
+
+    # stream in the label in string form
+    labelsH5[:] = labels[:]
+
+    if log is not None :
+        log.info('Flushing to disk')
+
+    # write it to disk    
+    handleH5.flush()
+    handleH5.close()
 
     # return the output filename
     return outputFile
@@ -145,7 +179,9 @@ def ingestImagery(filepath, shared=True, log=None, **kwargs) :
        required to have the same dimensions.
 
        filepath : This can be a cPickle, a path to the directory structure.
-       shared   : Load data into shared variables for training
+       shared   : Load data into shared variables for training --
+                  NOTE: this is only a user suggestion. However the size of the
+                        data will ultimately determine how its loaded.
        log      : Logger for tracking the progress
        kwargs   : Any parameters needed to override defaults in pickleDataset
        return   :
@@ -161,18 +197,63 @@ def ingestImagery(filepath, shared=True, log=None, **kwargs) :
                  indexing. For now numpy indexing is sufficient.
     '''
     import os
+    import psutil
+    import theano.tensor as t
     from dataset.shared import splitToShared
-    from dataset.pickle import readPickleZip
+    from dataset.hdf5 import readHDF5
 
     if not os.path.exists(filepath) :
         raise ValueError('The path specified does not exist.')
 
     # read the directory structure and pickle it up
     if os.path.isdir(filepath) :
-        filepath = pickleDataset(filepath, log=log, **kwargs)
+        filepath = hdf5Dataset(filepath, log=log, **kwargs)
 
     # Load the dataset to memory
-    train, test, labels = readPickleZip(filepath, log)
+    train, test, labels = readHDF5(filepath, log)
+
+    # calculate the memory needed by this dataset
+    if t.config.floatX == 'float32' :
+        dataMemoryConsumption = (np.prod(train[0].shape) + 
+                                 np.prod(train[1].shape) + 
+                                 np.prod(test[0].shape) + 
+                                 np.prod(test[1].shape)) * 4
+    else :
+        dataMemoryConsumption = np.prod(train[0].shape) * 8 + \
+                                np.prod(train[1].shape) * 4 + \
+                                np.prod(test[0].shape)  * 8 + \
+                                np.prod(test[1].shape)  * 4
+    memoryConsumGB = str(dataMemoryConsumption / 1024. / 1024. / 1024.)
+
+    # check if the machine is capable of loading dataset into CPU memory
+    oneGigMem = 2 ** 30
+    availableCPUMem = psutil.virtual_memory()[1] - oneGigMem
+    if availableCPUMem > dataMemoryConsumption :
+        if log is not None :
+            log.info('Dataset loaded into CPU memory. [' + 
+                      memoryConsumGB + '] GBs consumed.')
+    else :
+        if log is not None :
+            log.info('Dataset is too large for CPU memory. Dataset will ' +
+                      'be memory mapped and backed by disk IO. [' + 
+                      memoryConsumGB + '] GBs consumed.')
+
+    # if the user wants to use the GPU check if the dataset can be loaded 
+    # entirely into shared memory
+    if 'gpu' in t.config.device and shared :
+        import theano.sandbox.cuda.basic_ops as sbcuda
+
+        # the user has requested this goes into GPU memory if possible
+        availableGPUMem = sbcuda.cuda_ndarray.cuda_ndarray.mem_info()[0]
+        if availableGPUMem > dataMemoryConsumption :
+            if log is not None :
+                log.info('Loading dataset into GPU memory. [' + 
+                memoryConsumGB + '] GBs consumed.')
+        else :
+            if log is not None :
+                log.info('Dataset is too large for GPU memory. ' + 
+                'Dataset is [' + memoryConsumGB + '] GBs.')
+            shared = False
 
     # load each into shared variables -- 
     # this avoids having to copy the data to the GPU between each call
@@ -181,8 +262,4 @@ def ingestImagery(filepath, shared=True, log=None, **kwargs) :
             log.debug('Transfer the memory into shared variables')
         return splitToShared(train), splitToShared(test), labels
     else :
-        import numpy as np
-        train[1] = train[1].astype(dtype=np.int32)
-        test[1]  = test[1].astype(dtype=np.int32)
-
-        return tuple(train), tuple(test), labels
+        return train, test, labels

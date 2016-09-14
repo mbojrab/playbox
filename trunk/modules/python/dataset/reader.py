@@ -140,3 +140,9 @@ def readImage(image, log=None) :
         return readSIO(image, log)
     else :
         return readPILImage(image, log)
+
+def getImageDims(image, log=None) :
+    '''Load the image and return its dimensions.
+        format -- (numChannels, rows, cols)
+    '''
+    return readImage(image, log).shape
