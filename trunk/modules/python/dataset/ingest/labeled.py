@@ -152,12 +152,12 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     # NOTE : h5py.Dataset doesn't implement __setslice__, so we must implement
     #        the copy via __setitem__. This differs from my normal index
     #        formatting, but it gets the job done.
-    for ii in range(np.prod(trainShape[:1])) :
+    for ii in range(np.prod(trainShape[:2])) :
         trainDataH5[ii // batchSize, ii % batchSize, :] = \
-              readImage(train[ii][0], log)
-    for ii in range(np.prod(testShape[:1])) :
+              readImage(train[ii][0], log)[:]
+    for ii in range(np.prod(testShape[:2])) :
         testDataH5[ii // batchSize, ii % batchSize, :] = \
-              readImage(test[ii][0], log)
+              readImage(test[ii][0], log)[:]
 
     # stream in the label in string form
     labelsH5[:] = labels[:]
