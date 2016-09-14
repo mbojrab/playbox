@@ -109,12 +109,12 @@ if __name__ == '__main__' :
         networkFile = createNetwork(inputSize=inputSize[1:],
                                     numKernels=options.kernel,
                                     numNeurons=options.neuron,
-                                    numLabels=len(labels))
+                                    numLabels=labels.shape[0])
     else :
         networkFile = options.synapse
 
     regScale = 1. / (2 * options.kernel * 5 * 5 + 
-                     options.neuron + len(labels))
+                     options.neuron + labels.shape[0])
 
     # load the shallow network
     distNet = DistilleryTrainer(train, test, labels, regType='L2',

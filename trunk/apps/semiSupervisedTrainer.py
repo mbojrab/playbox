@@ -146,7 +146,7 @@ if __name__ == '__main__' :
     # add the classification layer
     network.addLayer(ContiguousLayer(
         layerID='f4', input=network.getNetworkOutput(),
-        inputSize=network.getNetworkOutputSize(), numNeurons=len(labels),
+        inputSize=network.getNetworkOutputSize(), numNeurons=labels.shape[0],
         learningRate=options.learnF, randomNumGen=rng))
 
     # train the NN for supervised classification

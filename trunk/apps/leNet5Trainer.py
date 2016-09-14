@@ -67,7 +67,7 @@ if __name__ == '__main__' :
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
-    shared = True
+    shared = False
     train, test, labels = ingestImagery(filepath=options.data, shared=shared,
                                         batchSize=options.batchSize,
                                         holdoutPercentage=options.holdout,
@@ -77,7 +77,7 @@ if __name__ == '__main__' :
     # create the network -- LeNet-5
     network = Net(train, test, labels, regType='L2', 
                   regScaleFactor=1. / (2 * options.kernel * 5 * 5 + 
-                                       options.neuron + len(labels)),
+                                       options.neuron + labels.shape[0]),
                   prof=prof)
 
     if options.synapse is not None :
@@ -117,7 +117,7 @@ if __name__ == '__main__' :
             activation=t.nnet.relu, randomNumGen=rng))
         network.addLayer(ContiguousLayer(
             layerID='f4', inputSize=network.getNetworkOutputSize(), 
-            numNeurons=len(labels),
+            numNeurons=labels.shape[0],
             learningRate=options.learnF, momentumRate=options.momentum,
             activation=t.nnet.relu, randomNumGen=rng))
 
