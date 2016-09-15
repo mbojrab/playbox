@@ -1,5 +1,24 @@
 import h5py
 
+def createHDF5Unlabeled (outputFile, trainDataShape, trainDataDtype, log=None):
+    '''Utility to create the HDF5 file and return the handles. This allows
+       users to fill out the buffers in a memory conscious manner.
+
+       outputFile        : Name of the file to write. The extension should be
+                           either .h5 or .hdf5
+       trainDataShape    : Training data dimensions 
+       trainDataDtype    : Training data dtype
+       log               : Logger to use
+    '''
+    if not outputFile.endswith('.h5') and not outputFile.endswith('.hdf5') :
+        raise Exception('The file must end in the .h5 or .hdf5 extension.')
+    hdf5 = h5py.File(outputFile, libver='latest', mode='w')
+
+    trainData = hdf5.create_dataset('train/data',
+                                    shape=trainDataShape, dtype=trainDataDtype)
+    return [hdf5, trainData]
+
+
 def createHDF5Labeled (outputFile,
                        trainDataShape, trainDataDtype, trainIndicesDtype,
                        testDataShape, testDataDtype, testIndicesDtype, 
@@ -18,27 +37,24 @@ def createHDF5Labeled (outputFile,
        labelsShape       : Labels shape associated with indices
        log               : Logger to use
     '''
-    if not outputFile.endswith('.h5') and not outputFile.endswith('.hdf5') :
-        raise Exception('The file must end in the .h5 or .hdf5 extension.')
-    hdf5 = h5py.File(outputFile, driver='core', mode='w')
+    hdf5, trainData = createHDF5Unlabeled(outputFile, trainDataShape,
+                                          trainDataDtype, log)
 
-    trainData = hdf5.create_dataset('train/data', chunks=True,
-                                    shape=trainDataShape, dtype=trainDataDtype)
-    trainIndices = hdf5.create_dataset('train/indices', chunks=True,
+    trainIndices = hdf5.create_dataset('train/indices',
                                        shape=tuple(trainDataShape[:2]),
                                        dtype=trainIndicesDtype)
 
-    testData = hdf5.create_dataset('test/data', chunks=True,
-                                   shape=testDataShape, dtype=testDataDtype)
-    testIndices = hdf5.create_dataset('test/indices', chunks=True,
+    testData = hdf5.create_dataset('test/data', shape=testDataShape,
+                                   dtype=testDataDtype)
+    testIndices = hdf5.create_dataset('test/indices',
                                       shape=tuple(testDataShape[:2]),
                                       dtype=testIndicesDtype)
 
     labelsShape = labelsShape if isinstance(labelsShape, tuple) else\
                   (labelsShape, )
     labelsDtype = h5py.special_dtype(vlen=str)
-    labels = hdf5.create_dataset('labels', chunks=True,
-                                 shape=labelsShape, dtype=labelsDtype)
+    labels = hdf5.create_dataset('labels', shape=labelsShape, 
+                                 dtype=labelsDtype)
 
     return [hdf5, trainData, trainIndices, testData, testIndices, labels]
 
@@ -59,18 +75,15 @@ def writeHDF5 (outputFile, trainData, trainIndices=None,
 
     # write the data to disk -- if it was supplied
     with h5py.File(outputFile, driver='core', mode='w') as hdf5 :
-        hdf5.create_dataset('train/data', data=trainData,
-                            chunks=trainData.shape[1:])
+        hdf5.create_dataset('train/data', data=trainData)
         if trainIndices is not None :
-            hdf5.create_dataset('train/indices', data=trainIndices,
-                                chunks=True)
+            hdf5.create_dataset('train/indices', data=trainIndices)
         if testData is not None :
-            hdf5.create_dataset('test/data', data=testData, 
-                                chunks=testData.shape[1:])
+            hdf5.create_dataset('test/data', data=testData)
         if testIndices is not None :
-            hdf5.create_dataset('test/indices', data=testIndices, chunks=True)
+            hdf5.create_dataset('test/indices', data=testIndices)
         if labels is not None :
-            hdf5.create_dataset('labels', data=labels, chunks=True)
+            hdf5.create_dataset('labels', data=labels)
 
         # ensure it gets to disk
         hdf5.flush()
