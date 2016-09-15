@@ -73,6 +73,9 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
        log               : Logger to use
     '''
     import theano
+    import threading
+    import multiprocessing
+    from six.moves import queue
     from dataset.reader import readImage, getImageDims
     from dataset.hdf5 import createHDF5Labeled
 
@@ -99,7 +102,7 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     trainDir = os.path.join(rootpath, 'train')
     testDir = os.path.join(rootpath, 'test')
     if os.path.isdir(trainDir) and os.path.isdir(testDir) :
-        
+
         # run each directory to grab the imagery
         trainSet = readAndDivideData(trainDir, 0., 0, log)
         testSet = readAndDivideData(testDir, 1., 0, log)
@@ -143,21 +146,52 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
         log.info('Writing data to archive')
 
     # populate the indice buffers
-    trainIndicesH5[:] = np.resize(np.asarray(train).flatten()[1::2],
-                                  trainIndicesH5.shape).astype(np.int32)[:]
-    testIndicesH5[:] = np.resize(np.asarray(test).flatten()[1::2],
-                                 testIndicesH5.shape).astype(np.int32)[:]
+    workQueueIndices = queue.Queue()
+    workQueueIndices.put((trainIndicesH5, trainIndicesH5, train))
+    workQueueIndices.put((testIndicesH5, testIndicesH5, test))
 
-    # stream the imagery into the buffers --
+    # stream the indices into the buffers --
+    # we are threading this for efficiency
+    def copyIndices() :
+        while True :
+            print("INDICES")
+            dataH5, indicesH5, data = workQueueIndices.get()
+            dataH5[:] = np.resize(np.asarray(data).flatten()[1::2],
+                                  indicesH5.shape).astype(np.int32)[:]
+            workQueueIndices.task_done()
+    for ii in range(2) :
+        thread = threading.Thread(target=copyIndices)
+        thread.daemon = True
+        thread.start()
+    workQueueIndices.join()
+
+    # add jobs to the queue --
     # NOTE : h5py.Dataset doesn't implement __setslice__, so we must implement
     #        the copy via __setitem__. This differs from my normal index
     #        formatting, but it gets the job done.
+    workQueueData = queue.Queue()
     for ii in range(np.prod(trainShape[:2])) :
-        trainDataH5[ii // batchSize, ii % batchSize, :] = \
-              readImage(train[ii][0], log)[:]
+        workQueueData.put((trainDataH5, 
+                           np.s_[ii // batchSize, ii % batchSize, :],
+                           train[ii][0], log))
     for ii in range(np.prod(testShape[:2])) :
-        testDataH5[ii // batchSize, ii % batchSize, :] = \
-              readImage(test[ii][0], log)[:]
+        workQueueData.put((testDataH5, 
+                           np.s_[ii // batchSize, ii % batchSize, :],
+                           test[ii][0], log))
+
+    # stream the imagery into the buffers --
+    # we are threading this for efficiency
+    def readImagery() :
+        while True :
+            print("IMAGERY")
+            dataH5, sliceIndex, imageFile, log = workQueueData.get()
+            dataH5[sliceIndex] = readImage(imageFile, log)[:]
+            workQueueData.task_done()
+    for ii in range(multiprocessing.cpu_count()) :
+        thread = threading.Thread(target=readImagery)
+        thread.daemon = True
+        thread.start()
+    workQueueData.join()
 
     # stream in the label in string form
     labelsH5[:] = labels[:]
