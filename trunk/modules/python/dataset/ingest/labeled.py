@@ -154,7 +154,6 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     # we are threading this for efficiency
     def copyIndices() :
         while True :
-            print("INDICES")
             dataH5, indicesH5, data = workQueueIndices.get()
             dataH5[:] = np.resize(np.asarray(data).flatten()[1::2],
                                   indicesH5.shape).astype(np.int32)[:]
@@ -170,22 +169,25 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     #        the copy via __setitem__. This differs from my normal index
     #        formatting, but it gets the job done.
     workQueueData = queue.Queue()
-    for ii in range(np.prod(trainShape[:2])) :
-        workQueueData.put((trainDataH5, 
-                           np.s_[ii // batchSize, ii % batchSize, :],
-                           train[ii][0], log))
-    for ii in range(np.prod(testShape[:2])) :
-        workQueueData.put((testDataH5, 
-                           np.s_[ii // batchSize, ii % batchSize, :],
-                           test[ii][0], log))
+    for ii in range(trainShape[0]) :
+        workQueueData.put((trainDataH5, np.s_[ii, :], trainShape[1:],
+                           train[ii*batchSize:(ii+1)*batchSize], log))
+    for ii in range(testShape[0]) :
+        workQueueData.put((testDataH5, np.s_[ii, :], testShape[1:], 
+                           test[ii*batchSize:(ii+1)*batchSize], log))
 
     # stream the imagery into the buffers --
     # we are threading this for efficiency
     def readImagery() :
         while True :
-            print("IMAGERY")
-            dataH5, sliceIndex, imageFile, log = workQueueData.get()
-            dataH5[sliceIndex] = readImage(imageFile, log)[:]
+            dataH5, sliceIndex, batchSize, imageFiles, log = workQueueData.get()
+
+            # allocate a load the batch locally so our write are coherent
+            tmp = np.ndarray((batchSize), theano.config.floatX)
+            for ii, imageFile in enumerate(imageFiles) :
+                tmp[ii][:] = readImage(imageFile[0], log)[:]
+            dataH5[sliceIndex] = tmp[:]
+
             workQueueData.task_done()
     for ii in range(multiprocessing.cpu_count()) :
         thread = threading.Thread(target=readImagery)
