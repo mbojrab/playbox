@@ -67,7 +67,7 @@ if __name__ == '__main__' :
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
-    shared = False
+    shared = True
     train, test, labels = ingestImagery(filepath=options.data, shared=shared,
                                         batchSize=options.batchSize,
                                         holdoutPercentage=options.holdout,
