@@ -74,7 +74,7 @@ def writeHDF5 (outputFile, trainData, trainIndices=None,
         log.info('Writing to [' + outputFile + ']')
 
     # write the data to disk -- if it was supplied
-    with h5py.File(outputFile, driver='core', mode='w') as hdf5 :
+    with h5py.File(outputFile, mode='w') as hdf5 :
         hdf5.create_dataset('train/data', data=trainData)
         if trainIndices is not None :
             hdf5.create_dataset('train/indices', data=trainIndices)
@@ -103,7 +103,7 @@ def readHDF5 (inFile, log=None) :
     if log is not None :
         log.info('Opening the file in memory mapped mode')
 
-    hdf5 = h5py.File(inFile, driver='core', mode='r')
+    hdf5 = h5py.File(inFile, mode='r')
 
     trainData = hdf5.get("train/data")
     if 'train/indices' in hdf5 :
