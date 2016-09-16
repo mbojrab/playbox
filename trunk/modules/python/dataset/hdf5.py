@@ -71,7 +71,7 @@ def writeHDF5 (outputFile, trainData, trainIndices=None,
        log          : Logger to use
     '''
     if log is not None :
-        log.info('Writing to [' + outputFile + ']')
+        log.debug('Writing to [' + outputFile + ']')
 
     # write the data to disk -- if it was supplied
     with h5py.File(outputFile, mode='w') as hdf5 :
@@ -83,7 +83,8 @@ def writeHDF5 (outputFile, trainData, trainIndices=None,
         if testIndices is not None :
             hdf5.create_dataset('test/indices', data=testIndices)
         if labels is not None :
-            hdf5.create_dataset('labels', data=labels)
+            hdf5.create_dataset('labels', data=[l.encode("ascii", "ignore") \
+                                               for l in labels])
 
         # ensure it gets to disk
         hdf5.flush()
@@ -101,7 +102,7 @@ def readHDF5 (inFile, log=None) :
         raise Exception('The file must end in the .h5 or .hdf5 extension.')
 
     if log is not None :
-        log.info('Opening the file in memory mapped mode')
+        log.debug('Opening the file in memory-mapped mode')
 
     hdf5 = h5py.File(inFile, mode='r')
 

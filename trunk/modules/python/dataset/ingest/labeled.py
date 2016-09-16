@@ -132,9 +132,6 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     trainShape = [len(train) // batchSize, batchSize] + imageShape
     testShape = [len(test) // batchSize, batchSize] + imageShape
 
-    if log is not None :
-        log.info('Creating the memmapped HDF5')
-
     [handleH5, trainDataH5, trainIndicesH5, 
      testDataH5, testIndicesH5, labelsH5] = \
         createHDF5Labeled (outputFile, 
@@ -143,7 +140,7 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
                            len(labels), log)
 
     if log is not None :
-        log.info('Writing data to archive')
+        log.info('Writing data to HDF5')
 
     # populate the indice buffers
     workQueueIndices = queue.Queue()
@@ -249,46 +246,50 @@ def ingestImagery(filepath, shared=True, log=None, **kwargs) :
     train, test, labels = readHDF5(filepath, log)
 
     # calculate the memory needed by this dataset
-    if t.config.floatX == 'float32' :
-        dataMemoryConsumption = (np.prod(train[0].shape) + 
-                                 np.prod(train[1].shape) + 
-                                 np.prod(test[0].shape) + 
-                                 np.prod(test[1].shape)) * 4
-    else :
-        dataMemoryConsumption = np.prod(train[0].shape) * 8 + \
-                                np.prod(train[1].shape) * 4 + \
-                                np.prod(test[0].shape)  * 8 + \
-                                np.prod(test[1].shape)  * 4
-    memoryConsumGB = str(dataMemoryConsumption / 1024. / 1024. / 1024.)
+    dt = [4., 4., 4., 4.] if t.config.floatX == 'float32' else [8., 4., 8., 4.]
+    dataMemoryConsumption = \
+        np.prod(np.asarray(train[0].shape, dtype=np.float32)) * dt[0] + \
+        np.prod(np.asarray(train[1].shape, dtype=np.float32)) * dt[1] + \
+        np.prod(np.asarray(test[0].shape,  dtype=np.float32)) * dt[2] + \
+        np.prod(np.asarray(test[1].shape,  dtype=np.float32)) * dt[3]
+
+    convertToGB = 1. / (1024. * 1024. * 1024.)
+    memoryConsumGB = str(dataMemoryConsumption * convertToGB)
+    if log is not None :
+        log.info('Dataset will consume [' + memoryConsumGB + '] GBs')
 
     # check if the machine is capable of loading dataset into CPU memory
     oneGigMem = 2 ** 30
     availableCPUMem = psutil.virtual_memory()[1] - oneGigMem
     if availableCPUMem > dataMemoryConsumption :
         if log is not None :
-            log.info('Dataset loaded into CPU memory. [' + 
-                      memoryConsumGB + '] GBs consumed.')
+            log.debug('Dataset will fit in CPU memory. [' + 
+                      str(availableCPUMem * convertToGB) + '] GBs available.')
     else :
         if log is not None :
-            log.info('Dataset is too large for CPU memory. Dataset will ' +
-                      'be memory mapped and backed by disk IO. [' + 
-                      memoryConsumGB + '] GBs consumed.')
+            log.warn('Dataset is too large for CPU memory. Dataset will ' +
+                     'be memory mapped and backed by disk IO.')
 
     # if the user wants to use the GPU check if the dataset can be loaded 
     # entirely into shared memory
     if 'gpu' in t.config.device and shared :
         import theano.sandbox.cuda.basic_ops as sbcuda
 
-        # the user has requested this goes into GPU memory if possible
+        # the user has requested this goes into GPU memory if possible --
+        # NOTE: this check is by no means guaranteed. There must be enough
+        #       contigous memory on the device for a successful allocation.
+        #       Below we handle the case where this check passes, but
+        #       the allocation ultimately fails.
         availableGPUMem = sbcuda.cuda_ndarray.cuda_ndarray.mem_info()[0]
         if availableGPUMem > dataMemoryConsumption :
             if log is not None :
-                log.info('Loading dataset into GPU memory. [' + 
-                memoryConsumGB + '] GBs consumed.')
+                log.debug('Dataset will fit in GPU memory. [' + 
+                          str(availableGPUMem * convertToGB) + 
+                          '] GBs available.')
         else :
             if log is not None :
-                log.info('Dataset is too large for GPU memory. ' + 
-                'Dataset is [' + memoryConsumGB + '] GBs.')
+                log.warn('Dataset is too large for GPU memory. Dataset will ' + 
+                         'be transferred over PCIe just-in-time. ')
             shared = False
 
     # load each into shared variables -- 
@@ -296,6 +297,10 @@ def ingestImagery(filepath, shared=True, log=None, **kwargs) :
     if shared is True :
         if log is not None :
             log.debug('Transfer the memory into shared variables')
-        return splitToShared(train), splitToShared(test), labels
-    else :
-        return train, test, labels
+        try :
+            t = splitToShared(train)
+            p = splitToShared(test)
+            return t, p, labels
+        except :
+            pass
+    return train, test, labels
