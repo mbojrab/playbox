@@ -211,9 +211,12 @@ class LabeledClassifierNetwork (ClassifierNetwork) :
         ClassifierNetwork.__init__(self, filepath, prof)
         self._networkLabels = []
 
-        # if we loaded a synapse use the labels from the file
+        # if we loaded a synapse use the labels from the pickle
         if filepath is None :
-            self._networkLabels = labels
+            # convert the labels to a simple list. This allows various data
+            # types to be supported here. A list is the easiest to save.
+            self._networkLabels = labels if isinstance(labels, list) else \
+                                  list(labels)
 
     def getNetworkLabels(self) :
         '''Return the Labels for the network. All other interactions with
