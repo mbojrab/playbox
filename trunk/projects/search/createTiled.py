@@ -10,7 +10,8 @@ def processDirectory(dir, opts, log, threads) :
     # grep for sio's
     sios = glob.glob(os.path.join(dir, "*.sio"))
 
-    print("Found [" + str(len(sios)) + "] sio files")
+    print("Found [" + str(len(sios)) + "] sio files in [" +
+          os.path.basename(dir) + "]")
 
     imageTiles = []
     for ii, sio in enumerate(sios) :

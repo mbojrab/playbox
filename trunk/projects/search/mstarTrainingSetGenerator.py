@@ -72,6 +72,9 @@ def parseMSTAR(options) :
 
             # check if this label has been seen before
             label = observation.find(options.filter).text
+            if options.filter == 'SerialNumber' :
+                sysName = observation.find('SystemName').text
+                label += sysName + '_' + label
             labelDir = os.path.join(options.outputDir, label)
             if label not in labels.keys() :
                 labels[label] = 0
