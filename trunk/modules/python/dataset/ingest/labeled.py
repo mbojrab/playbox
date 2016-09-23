@@ -1,5 +1,105 @@
 import os
 import numpy as np
+import theano.tensor as t
+
+
+def checkAvailableMemory(dataMemoryConsumption, shared, log) :
+    '''There are three possible cases of memory consumption:
+       1. GPU has enough memory, thus load the dataset directly to the device.
+          This will achieve the best performance as transfers to the GPU over
+          PCIe will starve its processing.
+       2. GPU is insufficient on memory, but it can fit in CPU memory. We
+          load the entire dataset in CPU memory and transfer over PCIe
+          just-in-time for processing.
+       3. CPU and GPU memory is insufficient. In this case we rely on disk IO
+          to support training on this large dataset. Performance will be
+          extremely dampened while running in this mode, however training will
+          be possible.
+
+       NOTE: Cases 2 & 3 are hidden from the user by using HDF5. No additional
+             care will need to be take between these two processing types.
+    '''
+    import psutil
+
+    convertToGB = 1. / (1024. * 1024. * 1024.)
+    memoryConsumGB = str(dataMemoryConsumption * convertToGB)
+    if log is not None :
+        log.info('Dataset will consume [' + memoryConsumGB + '] GBs')
+
+    # check if the machine is capable of loading dataset into CPU memory
+    oneGigMem = 2 ** 30
+    availableCPUMem = psutil.virtual_memory()[1] - oneGigMem
+    if availableCPUMem > dataMemoryConsumption :
+        if log is not None :
+            log.debug('Dataset will fit in CPU memory. [' + 
+                      str(availableCPUMem * convertToGB) + '] GBs available.')
+    else :
+        if log is not None :
+            log.warn('Dataset is too large for CPU memory. Dataset will ' +
+                     'be memory mapped and backed by disk IO.')
+
+    # if the user wants to use the GPU check if the dataset can be loaded 
+    # entirely into shared memory
+    if 'gpu' in t.config.device and shared :
+        import theano.sandbox.cuda.basic_ops as sbcuda
+
+        # the user has requested this goes into GPU memory if possible --
+        # NOTE: this check is by no means guaranteed. There must be enough
+        #       contigous memory on the device for a successful allocation.
+        #       Below we handle the case where this check passes, but
+        #       the allocation ultimately fails.
+        availableGPUMem = sbcuda.cuda_ndarray.cuda_ndarray.mem_info()[0]
+        if availableGPUMem > dataMemoryConsumption :
+            if log is not None :
+                log.debug('Dataset will fit in GPU memory. [' + 
+                          str(availableGPUMem * convertToGB) + 
+                          '] GBs available.')
+        else :
+            if log is not None :
+                log.warn('Dataset is too large for GPU memory. Dataset will ' + 
+                         'be transferred over PCIe just-in-time. ')
+            shared = False
+
+    return shared
+
+def readDataset(trainDataH5, train, trainShape, batchSize, threads, log) :
+    import theano
+    from six.moves import queue
+    import threading
+    from dataset.reader import readImage
+
+    # add jobs to the queue --
+    # NOTE : h5py.Dataset doesn't implement __setslice__, so we must implement
+    #        the copy via __setitem__. This differs from my normal index
+    #        formatting, but it gets the job done.
+    workQueueData = queue.Queue()
+    for ii in range(trainShape[0]) :
+        workQueueData.put((trainDataH5, np.s_[ii, :], trainShape[1:],
+                           train[ii*batchSize:(ii+1)*batchSize], log))
+
+    # stream the imagery into the buffers --
+    # we are threading this for efficiency
+    def readImagery() :
+        while True :
+            dataH5, sliceIndex, batchSize, imageFiles, log = \
+                workQueueData.get()
+
+            # allocate a load the batch locally so our write are coherent
+            tmp = np.ndarray((batchSize), theano.config.floatX)
+            for ii, imageFile in enumerate(imageFiles) :
+                tmp[ii][:] = readImage(imageFile[0], log)[:]
+            dataH5[sliceIndex] = tmp[:]
+
+            workQueueData.task_done()
+
+    # create the workers
+    for ii in range(threads) :
+        thread = threading.Thread(target=readImagery)
+        thread.daemon = True
+        thread.start()
+
+    # join the threads and complete
+    workQueueData.join()
 
 def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
     '''This walks the directory structure and divides the data according to the
@@ -76,7 +176,7 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     import threading
     import multiprocessing
     from six.moves import queue
-    from dataset.reader import readImage, getImageDims
+    from dataset.reader import getImageDims
     from dataset.hdf5 import createHDF5Labeled
 
     rootpath = os.path.abspath(filepath)
@@ -86,7 +186,7 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
                               '_batch_' + str(batchSize) +'.hdf5')
     if os.path.exists(outputFile) :
         if log is not None :
-            log.info('Pickle exists for this dataset [' + outputFile +
+            log.info('HDF5 exists for this dataset [' + outputFile +
                      ']. Using this instead.')
         return outputFile
 
@@ -161,36 +261,10 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
         thread.start()
     workQueueIndices.join()
 
-    # add jobs to the queue --
-    # NOTE : h5py.Dataset doesn't implement __setslice__, so we must implement
-    #        the copy via __setitem__. This differs from my normal index
-    #        formatting, but it gets the job done.
-    workQueueData = queue.Queue()
-    for ii in range(trainShape[0]) :
-        workQueueData.put((trainDataH5, np.s_[ii, :], trainShape[1:],
-                           train[ii*batchSize:(ii+1)*batchSize], log))
-    for ii in range(testShape[0]) :
-        workQueueData.put((testDataH5, np.s_[ii, :], testShape[1:], 
-                           test[ii*batchSize:(ii+1)*batchSize], log))
-
-    # stream the imagery into the buffers --
-    # we are threading this for efficiency
-    def readImagery() :
-        while True :
-            dataH5, sliceIndex, batchSize, imageFiles, log = workQueueData.get()
-
-            # allocate a load the batch locally so our write are coherent
-            tmp = np.ndarray((batchSize), theano.config.floatX)
-            for ii, imageFile in enumerate(imageFiles) :
-                tmp[ii][:] = readImage(imageFile[0], log)[:]
-            dataH5[sliceIndex] = tmp[:]
-
-            workQueueData.task_done()
-    for ii in range(multiprocessing.cpu_count()) :
-        thread = threading.Thread(target=readImagery)
-        thread.daemon = True
-        thread.start()
-    workQueueData.join()
+    # read the image data
+    threads = multiprocessing.cpu_count()
+    readDataset(trainDataH5, train, trainShape, batchSize, threads, log)
+    readDataset(testDataH5, test, testShape, batchSize, threads, log)
 
     # stream in the label in string form
     labelsH5[:] = labels[:]
@@ -230,8 +304,6 @@ def ingestImagery(filepath, shared=True, log=None, **kwargs) :
                  indexing. For now numpy indexing is sufficient.
     '''
     import os
-    import psutil
-    import theano.tensor as t
     from dataset.shared import splitToShared
     from dataset.hdf5 import readHDF5
 
@@ -253,44 +325,8 @@ def ingestImagery(filepath, shared=True, log=None, **kwargs) :
         np.prod(np.asarray(test[0].shape,  dtype=np.float32)) * dt[2] + \
         np.prod(np.asarray(test[1].shape,  dtype=np.float32)) * dt[3]
 
-    convertToGB = 1. / (1024. * 1024. * 1024.)
-    memoryConsumGB = str(dataMemoryConsumption * convertToGB)
-    if log is not None :
-        log.info('Dataset will consume [' + memoryConsumGB + '] GBs')
-
-    # check if the machine is capable of loading dataset into CPU memory
-    oneGigMem = 2 ** 30
-    availableCPUMem = psutil.virtual_memory()[1] - oneGigMem
-    if availableCPUMem > dataMemoryConsumption :
-        if log is not None :
-            log.debug('Dataset will fit in CPU memory. [' + 
-                      str(availableCPUMem * convertToGB) + '] GBs available.')
-    else :
-        if log is not None :
-            log.warn('Dataset is too large for CPU memory. Dataset will ' +
-                     'be memory mapped and backed by disk IO.')
-
-    # if the user wants to use the GPU check if the dataset can be loaded 
-    # entirely into shared memory
-    if 'gpu' in t.config.device and shared :
-        import theano.sandbox.cuda.basic_ops as sbcuda
-
-        # the user has requested this goes into GPU memory if possible --
-        # NOTE: this check is by no means guaranteed. There must be enough
-        #       contigous memory on the device for a successful allocation.
-        #       Below we handle the case where this check passes, but
-        #       the allocation ultimately fails.
-        availableGPUMem = sbcuda.cuda_ndarray.cuda_ndarray.mem_info()[0]
-        if availableGPUMem > dataMemoryConsumption :
-            if log is not None :
-                log.debug('Dataset will fit in GPU memory. [' + 
-                          str(availableGPUMem * convertToGB) + 
-                          '] GBs available.')
-        else :
-            if log is not None :
-                log.warn('Dataset is too large for GPU memory. Dataset will ' + 
-                         'be transferred over PCIe just-in-time. ')
-            shared = False
+    # check physical memory constraints
+    shared = checkAvailableMemory(dataMemoryConsumption, shared, log)
 
     # load each into shared variables -- 
     # this avoids having to copy the data to the GPU between each call
@@ -298,9 +334,9 @@ def ingestImagery(filepath, shared=True, log=None, **kwargs) :
         if log is not None :
             log.debug('Transfer the memory into shared variables')
         try :
-            t = splitToShared(train)
-            p = splitToShared(test)
-            return t, p, labels
+            tr = splitToShared(train)
+            te = splitToShared(test)
+            return tr, te, labels
         except :
             pass
     return train, test, labels
