@@ -1,35 +1,39 @@
 import os
 import numpy as np
 from sarSearch import detectImage
+from dataset.reader import readImage
 
-def processDirectory(dir, opts, log, threads) :
+def processDirectory(dir, opts, ext, log, threads) :
     import glob
     from dataset.reader import openSIO
     from dataset.debugger import saveTiledImage
 
     # grep for sio's
-    sios = glob.glob(os.path.join(dir, "*.sio"))
+    imgs = glob.glob(os.path.join(dir, "*." + ext))
 
-    print("Found [" + str(len(sios)) + "] sio files in [" +
+    print("Found [" + str(len(imgs)) + "] files in [" +
           os.path.basename(dir) + "]")
 
     imageTiles = []
-    for ii, sio in enumerate(sios) :
-        
+    for ii, im in enumerate(imgs) :
+
         # read the sicd and convert to bytes
-        if sio.lower().endswith('.sio') :
-            wbData = openSIO(sio)
+        if im.lower().endswith('.sio') :
+            wbData = openSIO(im)
 
-        if ii == 0 :
-            imageShape = wbData.shape
+            if ii == 0 :
+                imageShape = wbData.shape
 
-        detected = detectImage(wbData, opts, threads)
-        imageTiles.append(np.reshape(detected, 
-            (1, imageShape[0], imageShape[1])))
+            detected = detectImage(wbData, opts, threads)
+            imageTiles.append(np.reshape(detected, 
+                (1, imageShape[0], imageShape[1])))
+        else :
+            imageTiles.append(readImage(im))
+            imageShape = (28,28)
 
     # reshape
     imageTiles = np.reshape(np.concatenate(imageTiles), 
-                            (len(sios), 1, imageShape[0], imageShape[1]))
+                            (len(imgs), 1, imageShape[0], imageShape[1]))
     dirSplit = os.path.split(dir)
     saveTiledImage(image=imageTiles,
                    path=os.path.join(dirSplit[0], dirSplit[1] + '.png'),
@@ -44,6 +48,8 @@ if __name__ == '__main__' :
     parser = argparse.ArgumentParser()
     parser.add_argument('--conf', dest='confDir', type=str, default=None,
                         help='Specify the conf/ directory.')
+    parser.add_argument('--ext', dest='ext', type=str, default='sio',
+                        help='Specify the image extension.')
     parser.add_argument('dir', help='Input directory to create tiled image.')
     options = parser.parse_args()
 
@@ -55,4 +61,5 @@ if __name__ == '__main__' :
             dir = os.path.join(options.dir, dir)
             if os.path.isdir(dir) :
                 print("Processing Directory [" + dir + "]")
-                e.submit(processDirectory, dir, opts, log, threads)
+                e.submit(processDirectory, dir, opts,
+                         options.ext, log, threads)
