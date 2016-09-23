@@ -1,6 +1,7 @@
 import h5py
 
-def createHDF5Unlabeled (outputFile, trainDataShape, trainDataDtype, log=None):
+def createHDF5Unlabeled (outputFile, trainDataShape, trainDataDtype,
+                         trainMaxShape=None, log=None) :
     '''Utility to create the HDF5 file and return the handles. This allows
        users to fill out the buffers in a memory conscious manner.
 
@@ -8,14 +9,16 @@ def createHDF5Unlabeled (outputFile, trainDataShape, trainDataDtype, log=None):
                            either .h5 or .hdf5
        trainDataShape    : Training data dimensions 
        trainDataDtype    : Training data dtype
+       trainMaxShape     : Optionally specify a maxshape for the training set
        log               : Logger to use
     '''
     if not outputFile.endswith('.h5') and not outputFile.endswith('.hdf5') :
         raise Exception('The file must end in the .h5 or .hdf5 extension.')
     hdf5 = h5py.File(outputFile, libver='latest', mode='w')
 
-    trainData = hdf5.create_dataset('train/data',
-                                    shape=trainDataShape, dtype=trainDataDtype)
+    trainData = hdf5.create_dataset('train/data', shape=trainDataShape,
+                                    dtype=trainDataDtype,
+                                    maxShape=trainMaxShape)
     return [hdf5, trainData]
 
 
