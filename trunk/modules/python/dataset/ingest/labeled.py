@@ -290,7 +290,7 @@ def ingestImagery(filepath, shared=True, log=None, **kwargs) :
                   NOTE: this is only a user suggestion. However the size of the
                         data will ultimately determine how its loaded.
        log      : Logger for tracking the progress
-       kwargs   : Any parameters needed to override defaults in pickleDataset
+       kwargs   : Any parameters needed to override defaults in hdf5Dataset
        return   :
            Format -- 
            (trainData, trainLabel), (testData, testLabel), labels
