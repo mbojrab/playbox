@@ -209,7 +209,6 @@ class LabeledClassifierNetwork (ClassifierNetwork) :
     '''
     def __init__ (self, labels, filepath=None, prof=None) :
         ClassifierNetwork.__init__(self, filepath, prof)
-        self._networkLabels = []
 
         # if we loaded a synapse use the labels from the pickle
         if filepath is None :
