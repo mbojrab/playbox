@@ -79,9 +79,9 @@ def testCloseness(net, imagery) :
     '''
     from dataset.debugger import saveTiledImage
     import numpy as np
-    for ii, batch in enumerate(imagery[-5:]) :
+    for ii, batch in enumerate(imagery) :
         sims = net.closeness(batch)
-        sims = [(ii, sim) for ii, sim in enumerate(sims)]
+        sims = [(jj, sim) for jj, sim in enumerate(sims)]
         sims = sorted(sims, key=lambda x: x[1], reverse=True)
 
         sortedBatch = np.ndarray(batch.shape, dtype=np.float32)
