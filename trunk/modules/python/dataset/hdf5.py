@@ -18,7 +18,7 @@ def createHDF5Unlabeled (outputFile, trainDataShape, trainDataDtype,
 
     trainData = hdf5.create_dataset('train/data', shape=trainDataShape,
                                     dtype=trainDataDtype,
-                                    maxShape=trainMaxShape)
+                                    maxshape=trainMaxShape)
     return [hdf5, trainData]
 
 
@@ -41,7 +41,7 @@ def createHDF5Labeled (outputFile,
        log               : Logger to use
     '''
     hdf5, trainData = createHDF5Unlabeled(outputFile, trainDataShape,
-                                          trainDataDtype, log)
+                                          trainDataDtype, log=log)
 
     trainIndices = hdf5.create_dataset('train/indices',
                                        shape=tuple(trainDataShape[:2]),
@@ -110,12 +110,16 @@ def readHDF5 (inFile, log=None) :
     hdf5 = h5py.File(inFile, mode='r')
 
     trainData = hdf5.get("train/data")
+    trainIndices = None
     if 'train/indices' in hdf5 :
         trainIndices = hdf5.get('train/indices')
+    testData = None
     if 'test/data' in hdf5 :
         testData = hdf5.get('test/data')
+    testIndices = None
     if 'test/indices' in hdf5 :
         testIndices = hdf5.get('test/indices')
+    labels = None
     if 'labels' in hdf5 :
         labels = hdf5.get('labels')
 
