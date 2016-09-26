@@ -158,14 +158,25 @@ class ClassifierSAENetwork (SAENetwork) :
         enc = []
         for ii in range(int(numTargets / batchSize)) :
             enc.extend(self.encode(
-                self._targetData[ii*batchSize:(ii+1)*batchSize])[1])
+                self._targetData[ii*batchSize:(ii+1)*batchSize]))
 
         # run one last batch and collect the remainder --
         # this is also used if there is less than one batch worth of targets
         remainder = numTargets % batchSize
         if remainder > 0 :
             enc.extend(self.encode(
-                self._targetData[-batchSize:])[1][-remainder:])
+                self._targetData[-batchSize:])[-remainder:])
+
+        # reduce the encodings to only check against unique vectors --
+        # this is an optimization as many examples could be encoded to
+        # the same example vector.
+        def uniqueRows(a):
+            a = np.ascontiguousarray(a)
+            unique_a = np.unique(a.view([('', a.dtype)]*a.shape[1]))
+            return unique_a.view(a.dtype).reshape((
+                unique_a.shape[0], a.shape[1]))
+        enc = uniqueRows(enc)
+
         # NOTE: this is the transpose to orient for matrix multiplication
         self._targetEncodings = toShared(enc, borrow=True).T
 
@@ -179,7 +190,7 @@ class ClassifierSAENetwork (SAENetwork) :
         cosineSimilarity = dot(outClass, targets) / \
             (t.sqrt(t.sum(outClass**2)) * (t.sqrt(t.sum(targets**2))))
         self._closeness = function([self.getNetworkInput()[0]],
-                                   cosineSimilarity.T,
+                                   t.max(cosineSimilarity, axis=1),
                                    givens={targets: self._targetEncodings})
 
     def closeness(self, inputs) :
