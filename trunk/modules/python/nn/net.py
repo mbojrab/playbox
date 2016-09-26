@@ -207,7 +207,7 @@ class LabeledClassifierNetwork (ClassifierNetwork) :
                      'None' creates randomized weighting
        prof        : Profiler to use
     '''
-    def __init__ (self, labels, filepath=None, prof=None) :
+    def __init__ (self, labels=None, filepath=None, prof=None) :
         ClassifierNetwork.__init__(self, filepath, prof)
 
         # if we loaded a synapse use the labels from the pickle
