@@ -416,8 +416,10 @@ class TrainerSAENetwork (SAENetwork) :
             costMessage = layerEpochStr + ' Cost: ' + str(locCost[0])
             if len(locCost) >= 2 :
                 costMessage += ' - Jacob: ' + str(locCost[1])
-            if len(locCost) == 3 :
+            if len(locCost) >= 3 :
                 costMessage += ' - Sparsity: ' + str(locCost[2])
+            if len(locCost) == 4 :
+                costMessage += ' - Regularization: ' + str(locCost[3])
             self._startProfile(costMessage, 'info')
             globCost.append(locCost)
             self._endProfile()
