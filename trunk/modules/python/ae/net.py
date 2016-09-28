@@ -190,7 +190,7 @@ class ClassifierSAENetwork (SAENetwork) :
         cosineSimilarity = dot(outClass, targets) / \
             (t.sqrt(t.sum(outClass**2)) * (t.sqrt(t.sum(targets**2))))
         self._closeness = function([self.getNetworkInput()[0]],
-                                   t.max(cosineSimilarity, axis=1),
+                                   t.mean(cosineSimilarity, axis=1),
                                    givens={targets: self._targetEncodings})
 
     def closeness(self, inputs) :
