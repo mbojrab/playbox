@@ -34,6 +34,21 @@ colors = [[234,96,53],
           [28, 60, 99],
           [0, 95, 203],
           [218, 76, 57],
+          [85, 61, 0],
+          [255, 229, 170],
+          [28, 74, 0],
+          [128, 186, 93],
+          [177, 223, 149],
+          [38, 115, 86],
+          [72, 144, 117],
+          [115, 172, 150],
+          [19, 52, 83],
+          [42, 78, 110],
+          [74, 107, 138],
+          [114, 141, 165],
+          [60, 49, 118],
+          [93, 83, 147],
+          [134, 125, 176],
           [255,36,36]]
 
 sicdDir = './demoImagery/'
@@ -44,7 +59,7 @@ def initializeGlobals(options) :
     import theano
     import numpy as np
     from sarSearch import preProcessing
-    from nn.net import ClassifierNetwork as Net
+    from nn.net import LabeledClassifierNetwork as Net
 
     global network, batchSet, opts, threads, labelColors, cssStyle
 
@@ -199,6 +214,7 @@ def getSlider(sicd) :
 
 @app.route('/cnn/')
 def getOveriew() :
+    getFullOverviews()
     return render_template(
         'index.html', 
         datetime=str(random.random()),
