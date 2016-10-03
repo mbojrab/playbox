@@ -14,11 +14,19 @@ def createHDF5Unlabeled (outputFile, trainDataShape, trainDataDtype,
     '''
     if not outputFile.endswith('.h5') and not outputFile.endswith('.hdf5') :
         raise Exception('The file must end in the .h5 or .hdf5 extension.')
+
+    # create a file in a standard way
     hdf5 = h5py.File(outputFile, libver='latest', mode='w')
 
+    # the file will always have training data in train/data
     trainData = hdf5.create_dataset('train/data', shape=trainDataShape,
                                     dtype=trainDataDtype,
                                     maxshape=trainMaxShape)
+
+    # TODO: Should we additionally have a test/data set to allow early
+    #       stoppage? This will test the ability to reconstruct data 
+    #       never before encountered. It's likely a better way to perform
+    #       training instead of naive number of epochs.
     return [hdf5, trainData]
 
 
@@ -43,16 +51,19 @@ def createHDF5Labeled (outputFile,
     hdf5, trainData = createHDF5Unlabeled(outputFile, trainDataShape,
                                           trainDataDtype, log=log)
 
+    # supervised learning will have indices associated with the training data
     trainIndices = hdf5.create_dataset('train/indices',
                                        shape=tuple(trainDataShape[:2]),
                                        dtype=trainIndicesDtype)
 
+    # supervised learning will have indices associated with the training data
     testData = hdf5.create_dataset('test/data', shape=testDataShape,
                                    dtype=testDataDtype)
     testIndices = hdf5.create_dataset('test/indices',
                                       shape=tuple(testDataShape[:2]),
                                       dtype=testIndicesDtype)
 
+    # supervised learning will associate the index with a string name 
     labelsShape = labelsShape if isinstance(labelsShape, tuple) else\
                   (labelsShape, )
     labelsDtype = h5py.special_dtype(vlen=str)
@@ -79,6 +90,9 @@ def writeHDF5 (outputFile, trainData, trainIndices=None,
     # write the data to disk -- if it was supplied
     with h5py.File(outputFile, mode='w') as hdf5 :
         hdf5.create_dataset('train/data', data=trainData)
+
+        # TODO: This should also be updated if we find unsupervised training
+        #       is better with early stoppage via a test set.
         if trainIndices is not None :
             hdf5.create_dataset('train/indices', data=trainIndices)
         if testData is not None :
@@ -107,8 +121,10 @@ def readHDF5 (inFile, log=None) :
     if log is not None :
         log.debug('Opening the file in memory-mapped mode')
 
+    # open the file
     hdf5 = h5py.File(inFile, mode='r')
 
+    # read the available information
     trainData = hdf5.get("train/data")
     trainIndices = None
     if 'train/indices' in hdf5 :
@@ -123,4 +139,5 @@ def readHDF5 (inFile, log=None) :
     if 'labels' in hdf5 :
         labels = hdf5.get('labels')
 
+    # the returned information should be checked for None
     return (trainData, trainIndices), (testData, testIndices), labels
