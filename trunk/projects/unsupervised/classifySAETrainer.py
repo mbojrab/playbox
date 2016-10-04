@@ -12,7 +12,7 @@ from dataset.minibatch import makeContiguous
 
 tmpNet = './local.pkl.gz'
 
-def buildTrainerSAENetwork(train, target,
+def buildTrainerSAENetwork(train, regType, regValue, target,
                            kernelConv, kernelSizeConv, downsampleConv, 
                            learnConv, momentumConv, dropoutConv,
                            neuronFull, learnFull, momentumFull, dropoutFull, 
@@ -24,7 +24,7 @@ def buildTrainerSAENetwork(train, target,
     rng = RandomState(int(time()))
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = TrainerSAENetwork(train, prof=prof)
+    network = TrainerSAENetwork(train, regType, regValue, prof=prof)
 
     if log is not None :
         log.info('Initialize the Network')
@@ -166,7 +166,10 @@ if __name__ == '__main__' :
     target = readTargetData(options.targetDir)
 
     if options.synapse is None :
-        trainer = buildTrainerSAENetwork(train, target, prof=prof,
+        regType = 'L2'
+        regValue = .001
+        trainer = buildTrainerSAENetwork(train, regType, regValue, 
+                                         target, prof=prof,
                                          kernelConv=options.kernel, 
                                          kernelSizeConv=options.kernelSize, 
                                          downsampleConv=options.downsample, 

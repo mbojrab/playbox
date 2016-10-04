@@ -25,6 +25,11 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
        layerID          : unique name identifier for this layer
        inputSize        : number of elements in input buffer
        numNeurons       : number of neurons in this layer
+       regType          : type of regularization term to use
+                          default None : perform no additional regularization
+                          L1           : Least Absolute Deviation
+                          L2           : Least Squares
+       regType          : 
        learningRate     : learning rate for all neurons
        contractionRate  : variance (dimensionality) reduction rate
                           None uses '1 / numNeurons'
@@ -42,11 +47,12 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
                           this must be a function with a derivative form
        randomNumGen     : generator for the initial weight values
     '''
-    def __init__ (self, layerID, inputSize, numNeurons, 
+    def __init__ (self, layerID, inputSize, numNeurons, regType=None,
                   learningRate=0.001, dropout=None, contractionRate=None,
                   initialWeights=None, initialHidThresh=None,
                   initialVisThresh=None, activation=t.nnet.sigmoid,
                   randomNumGen=None) :
+        from nn.reg import Regularization
         ContiguousLayer.__init__(self, layerID=layerID,
                                  inputSize=inputSize,
                                  numNeurons=numNeurons,
@@ -58,6 +64,10 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
                                  randomNumGen=randomNumGen)
         AutoEncoder.__init__(self, 1. / numNeurons if contractionRate is None \
                                    else contractionRate)
+        self._regularization = Regularization(regType,
+                                              self._contractionRate / 2. if \
+                                              regType == 'L2' else \
+                                              self._contractionRate)
 
         # setup initial values for the hidden thresholds
         if initialVisThresh is None :
@@ -134,7 +144,8 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         # this is our cost function with respect to the original input
         cost = calcLoss(self.input[0].flatten(2), decodedInput,
                         self._activation) / self.getInputSize()[0]
-        self._costs = [cost, jacobianCost, sparseConstr]
+        self._costs = [cost, jacobianCost, sparseConstr,
+                       self._regularization.calculate([self])]
 
         gradients = t.grad(t.sum(self._costs), self.getWeights())
         self._updates = [(weights, weights - self._learningRate * gradient)
