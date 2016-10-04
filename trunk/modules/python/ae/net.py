@@ -318,8 +318,9 @@ class TrainerSAENetwork (SAENetwork) :
         cost = calcLoss(netInput, decodedInput,
                         self._layers[0].getActivation()) / \
                         self.getNetworkInputSize()[0]
-        costs = [cost, jacobianCost, sparseConstr, 
-                 self._regularization.calculate(self._layers)]
+        costs = [cost, jacobianCost, sparseConstr]
+        costs.extend(x for x in [self._regularization.calculate(self._layers)]\
+                     if x is not None)
 
         # build the network-wide training update.
         updates = compileUpdates(self._layers, t.sum(costs))
@@ -329,7 +330,8 @@ class TrainerSAENetwork (SAENetwork) :
             [self._indexVar], costs, updates=updates, 
             givens={self.getNetworkInput()[0] : 
                     self._trainData[self._indexVar]})
-            #mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True))
+            #mode=NanGuardMode(nan_is_error=True, inf_is_error=True,\
+            #                   big_is_error=True))
         self._endProfile()
 
     def __getstate__(self) :
@@ -437,21 +439,22 @@ class TrainerSAENetwork (SAENetwork) :
 
             self._endProfile()
 
-            '''
-            # DEBUG: For debugging pursposes only!
+            '''            # DEBUG: For debugging pursposes only!
             from dataset.debugger import saveTiledImage
             if layerIndex >= 0 and layerIndex < self.getNumLayers() :
                 reconstructedInput = self._layers[layerIndex].reconstruction(
-                                        self._trainData.get_value(borrow=True)[0])
-                reconstructedInput = np.resize(reconstructedInput, 
-                                               self._layers[layerIndex].getInputSize())
+                    self._trainData.get_value(borrow=True)[0])
+                reconstructedInput = np.resize(
+                    reconstructedInput, 
+                    self._layers[layerIndex].getInputSize())
                 tileShape = None
                 if layerIndex == 0 :
                     imageShape = (28,28)
                     reconstructedInput = np.resize(reconstructedInput,
                                                    (50,1,28,28))
                 elif len(self._layers[layerIndex].getInputSize()) > 2 :
-                    imageShape = tuple(self._layers[layerIndex].getInputSize()[-2:])
+                    imageShape = tuple(self._layers[
+                                       layerIndex].getInputSize()[-2:])
                 else :
                     imageShape=(1, self._layers[layerIndex].getInputSize()[1])
                     tileShape=(self._layers[layerIndex].getInputSize()[0], 1)
@@ -475,5 +478,4 @@ class TrainerSAENetwork (SAENetwork) :
                                imageShape=imageShape, spacing=1,
                                interleave=True)
             '''
-
         return globalEpoch + numEpochs, globCost

@@ -144,8 +144,9 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         # this is our cost function with respect to the original input
         cost = calcLoss(self.input[0].flatten(2), decodedInput,
                         self._activation) / self.getInputSize()[0]
-        self._costs = [cost, jacobianCost, sparseConstr,
-                       self._regularization.calculate([self])]
+        self._costs = [cost, jacobianCost, sparseConstr]
+        self._costs.extend(x for x in [self._regularization.calculate([self])]\
+                           if x is not None)
 
         gradients = t.grad(t.sum(self._costs), self.getWeights())
         self._updates = [(weights, weights - self._learningRate * gradient)
