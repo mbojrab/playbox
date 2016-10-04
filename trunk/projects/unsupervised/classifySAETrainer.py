@@ -2,13 +2,15 @@ import argparse
 from time import time
 from six.moves import reduce
 
-from ae.net import TrainerSAENetwork
+from ae.net import TrainerSAENetwork, ClassifierSAENetwork
 from ae.contiguousAE import ContiguousAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainUnsupervised
 from nn.profiler import setupLogging, Profiler
 from dataset.minibatch import makeContiguous
+
+tmpNet = './local.pkl.gz'
 
 def buildTrainerSAENetwork(train, target,
                            kernelConv, kernelSizeConv, downsampleConv, 
@@ -22,7 +24,7 @@ def buildTrainerSAENetwork(train, target,
     rng = RandomState(int(time()))
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = TrainerSAENetwork(train, target, prof=prof)
+    network = TrainerSAENetwork(train, prof=prof)
 
     if log is not None :
         log.info('Initialize the Network')
@@ -40,8 +42,10 @@ def buildTrainerSAENetwork(train, target,
             # add a convolutional layer as defined
             network.addLayer(ConvolutionalAutoEncoder(
                 layerID='conv' + str(layerCount), 
-                inputSize=layerInputSize, kernelSize=(k,layerInputSize[1],ks,ks),
-                downsampleFactor=[do,do], dropout=dr, learningRate=l,
+                inputSize=layerInputSize,
+                kernelSize=(k,layerInputSize[1],ks,ks),
+                downsampleFactor=[do,do], dropout=dr, 
+                learningRate=l, #momentum=m,
                 activation=t.nnet.sigmoid, randomNumGen=rng))
 
             # prepare for the next layer
@@ -54,7 +58,8 @@ def buildTrainerSAENetwork(train, target,
         network.addLayer(ContiguousAutoEncoder(
             layerID='fully' + str(layerCount), 
             inputSize=layerInputSize, numNeurons=n, learningRate=l,
-            activation=t.nnet.sigmoid, dropout=dr, randomNumGen=rng))
+            activation=t.nnet.sigmoid, dropout=dr, #momentum=m, 
+            randomNumGen=rng))
 
         # prepare for the next layer
         layerCount, layerInputSize = prepare(network, layerCount)
@@ -72,8 +77,20 @@ def testCloseness(net, imagery) :
     '''Test the imagery for how close it is to the target data. This also sorts
        the results according to closeness, so we can create a tiled tip-sheet.
     '''
-    for x in imagery :
-        print(net.closeness(x))
+    from dataset.debugger import saveTiledImage
+    import numpy as np
+    for ii, batch in enumerate(imagery) :
+        sims = net.closeness(batch)
+        sims = [(jj, sim) for jj, sim in enumerate(sims)]
+        sims = sorted(sims, key=lambda x: x[1], reverse=True)
+
+        sortedBatch = np.ndarray(batch.shape, dtype=np.float32)
+        for jj, sim in enumerate(sims) :
+            sortedBatch[jj][:] = batch[sim[0]][:]
+
+        saveTiledImage(batch, str(ii) + '.tif', (28,28))
+        saveTiledImage(sortedBatch, str(ii) + '_sorted.tif', (28,28))
+
     #closenessImagery = makeContiguous([(x, net.closeness(x)) for x in imagery])
     #print(closenessImagery)
     # TODO: Rank the results in order of closeness
@@ -90,34 +107,34 @@ if __name__ == '__main__' :
     parser.add_argument('--prof', dest='profile', type=str, 
                         default='Application-Profiler.xml',
                         help='Specify profile output file.')
-    parser.add_argument('--kernel', dest='kernel', type=list,
-                        default=[100, 200],
+    parser.add_argument('--kernel', dest='kernel', 
+                        default=None,
                         help='Number of Convolutional Kernels in each Layer.')
-    parser.add_argument('--kernelSize', dest='kernelSize', type=list,
+    parser.add_argument('--kernelSize', dest='kernelSize', type=int, nargs='+',
                         default=[5, 5],
                         help='Size of Convolutional Kernels in each Layer.')
-    parser.add_argument('--downsample', dest='downsample', type=list,
+    parser.add_argument('--downsample', dest='downsample', type=int, nargs='+',
                         default=[2, 2],
                         help='Downsample factor in each Convolutional Layer.')
-    parser.add_argument('--learnC', dest='learnC', type=list,
+    parser.add_argument('--learnC', dest='learnC', type=float, nargs='+',
                         default=[.08, .08],
                         help='Rate of learning on Convolutional Layers.')
-    parser.add_argument('--momentumC', dest='momentumC', type=list,
+    parser.add_argument('--momentumC', dest='momentumC', type=float, nargs='+',
                         default=[.5, .5],
                         help='Rate of momentum on Convolutional Layers.')
-    parser.add_argument('--dropoutC', dest='dropoutC', type=list, 
+    parser.add_argument('--dropoutC', dest='dropoutC', type=float, nargs='+',
                         default=[0.8, 0.5],
                         help='Dropout amount for the Convolutional Layer.')
-    parser.add_argument('--neuron', dest='neuron', type=list, 
+    parser.add_argument('--neuron', dest='neuron', type=int, nargs='+',
                         default=[500, 300, 100],
                         help='Number of Neurons in Hidden Layer.')
-    parser.add_argument('--learnF', dest='learnF', type=list,
+    parser.add_argument('--learnF', dest='learnF', type=float, nargs='+',
                         default=[.02, .02, .02],
                         help='Rate of learning on Fully-Connected Layers.')
-    parser.add_argument('--momentumF', dest='momentumF', type=list,
+    parser.add_argument('--momentumF', dest='momentumF', type=float, nargs='+',
                         default=[.2, .2, .2],
                         help='Rate of momentum on Fully-Connected Layers.')
-    parser.add_argument('--dropoutF', dest='dropoutF', type=list, 
+    parser.add_argument('--dropoutF', dest='dropoutF', type=float, nargs='+',
                         default=[0.5, 0.5, 1],
                         help='Dropout amount for the Fully-Connected Layer.')
     parser.add_argument('--epoch', dest='numEpochs', type=int, default=15,
@@ -148,13 +165,8 @@ if __name__ == '__main__' :
     # these are confirmed objects we are attempting to identify 
     target = readTargetData(options.targetDir)
 
-    if options.synapse is not None :
-        # load a previously saved network
-        network = TrainerSAENetwork(train, target, prof=prof)
-        network.load(options.synapse)
-
-    else :
-        network = buildTrainerSAENetwork(train, target, prof=prof,
+    if options.synapse is None :
+        trainer = buildTrainerSAENetwork(train, target, prof=prof,
                                          kernelConv=options.kernel, 
                                          kernelSizeConv=options.kernelSize, 
                                          downsampleConv=options.downsample, 
@@ -166,16 +178,18 @@ if __name__ == '__main__' :
                                          momentumFull=options.momentumF,
                                          dropoutFull=options.dropoutF)
 
-    # train the SAE
-    trainUnsupervised(network, __file__, options.data, 
-                      numEpochs=options.numEpochs, synapse=options.synapse,
-                      base=options.base, dropout=(len(options.dropoutC)>0),
-                      learnC=options.learnC, learnF=options.learnF,
-                      contrF=None, kernel=options.kernel,
-                      neuron=options.neuron, log=log)
+        # train the SAE
+        trainUnsupervised(trainer, __file__, options.data, 
+                          numEpochs=options.numEpochs, synapse=options.synapse,
+                          base=options.base, dropout=(len(options.dropoutC)>0),
+                          learnC=options.learnC, learnF=options.learnF,
+                          contrF=None, kernel=options.kernel,
+                          neuron=options.neuron, log=log)
+        trainer.save(tmpNet)
+        options.synapse = tmpNet
+
+    net = ClassifierSAENetwork(target, options.synapse, prof)
 
     # test the training data for similarity to the target
-    results = testCloseness(network, test[0].get_value(borrow=True))
-    print(results)
+    testCloseness(net, test[0].get_value(borrow=True))
 
-    # TODO: create the ordered tip-sheet

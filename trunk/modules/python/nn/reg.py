@@ -17,7 +17,7 @@ class Regularization :
     
         # calculate a regularization term -- if desired
         reg = 0.0
-    
+
         # L1-norm provides 'Least Absolute Deviation' --
         # built for sparse outputs and is resistent to outliers
         if self._type == 'L1' :

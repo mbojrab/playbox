@@ -41,8 +41,13 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5,
                                   kernel=kernel,
                                   neuron=neuron,
                                   layer=0)
+
+    # TODO: Should we additionally have a test set set to allow early
+    #       stoppage? This will test the ability to reconstruct data 
+    #       never before encountered. It's likely a better way to perform
+    #       training instead of naive number of epochs.
     network.save(lastSave)
-    for layerIndex in range(network.getNumLayers() + 1) :
+    for layerIndex in range(network.getNumLayers()) :
         globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 
                                                numEpochs)
         lastSave = buildPickleInterim(base=base,
