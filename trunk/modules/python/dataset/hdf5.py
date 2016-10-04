@@ -56,14 +56,14 @@ def createHDF5Labeled (outputFile,
                                        shape=tuple(trainDataShape[:2]),
                                        dtype=trainIndicesDtype)
 
-    # supervised learning will have indices associated with the training data
+    # add testing data and indices
     testData = hdf5.create_dataset('test/data', shape=testDataShape,
                                    dtype=testDataDtype)
     testIndices = hdf5.create_dataset('test/indices',
                                       shape=tuple(testDataShape[:2]),
                                       dtype=testIndicesDtype)
 
-    # supervised learning will associate the index with a string name 
+    # each index with have an associated string label
     labelsShape = labelsShape if isinstance(labelsShape, tuple) else\
                   (labelsShape, )
     labelsDtype = h5py.special_dtype(vlen=str)
