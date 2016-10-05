@@ -37,20 +37,27 @@ def testCloseness(netList, imagery, percentile=.95, debug=False) :
     # reorder the imagery to match the ranking
     counter = 0
     numImages = int((1.-percentile) * np.prod(imagery.shape[:2]))
-    newNumBatch = math.ceil(numImages / batchSize)
-    sortedImagery = np.zeros([newNumBatch, batchSize] + 
-                             list(imagery.shape[-3:]), dtype=imagery.dtype)
+    sortedImagery = np.zeros([numImages] + list(imagery.shape[-3:]),
+                             dtype=imagery.dtype)
     for ii, jj, sim in sims[:numImages] :
-        sortedImagery[counter // batchSize][counter % batchSize][:] = \
-            imagery[ii][jj][:]
+        sortedImagery[counter][:] = imagery[ii][jj][:]
         counter += 1
 
     # dump the ranked result as a series of batches
     if debug :
-        for ii in range(len(sortedImagery)) :
+        newNumBatch = math.ceil(numImages / batchSize)
+        newFlatShape = [newNumBatch * batchSize] + list(imagery.shape[-3:])
+        newBatchShape = [newNumBatch, batchSize] + list(imagery.shape[-3:])
+        dimdiff = tuple([(0, a - b) for a, b in zip(newFlatShape,
+                                                    sortedImagery.shape)])
+        tmp = np.pad(sortedImagery, dimdiff, 
+                     mode='constant', constant_values=0)
+        tmp = np.reshape(tmp, newBatchShape)
+        for ii in range(len(imagery)) :
             saveTiledImage(imagery[ii], str(ii) + '.tif',
                            imagery.shape[-2:])
-            saveTiledImage(sortedImagery[ii], str(ii) + '_sorted.tif',
+        for ii in range(len(tmp)) :
+            saveTiledImage(tmp[ii], str(ii) + '_sorted.tif',
                            imagery.shape[-2:])
 
     return sortedImagery
@@ -102,4 +109,5 @@ if __name__ == '__main__' :
     nets = createNetworks(target, options.synapse, prof)
 
     # test the training data for similarity to the target
-    testCloseness(nets, test[0].get_value(borrow=True), options.percentile)
+    testCloseness(nets, test[0].get_value(borrow=True), 
+                  options.percentile, options.debug)
