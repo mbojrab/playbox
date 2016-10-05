@@ -15,12 +15,13 @@ def createNetworks(target, netFiles, prof) :
     from ae.net import ClassifierSAENetwork
     return [ClassifierSAENetwork(target, syn, prof) for syn in netFiles]
 
-def testCloseness(netList, imagery) :
+def testCloseness(netList, imagery, percentile=.95) :
     '''Test the imagery for how close it is to the target data. This also sorts
        the results according to closeness, so we can create a tiled tip-sheet.
     '''
     from dataset.debugger import saveTiledImage
     import numpy as np
+    import math
     sims = []
     batchSize = imagery.shape[1]
     for ii, batch in enumerate(imagery) :
@@ -34,16 +35,19 @@ def testCloseness(netList, imagery) :
     sims = sorted(sims, key=lambda x: x[-1], reverse=True)
 
     # reorder the imagery to match the ranking
-    sortedImagery = np.ndarray(imagery.shape, dtype=np.float32)
     counter = 0
-    for ii, jj, sim in sims :
+    numImages = int((1.-percentile) * np.prod(imagery.shape[:2]))
+    newNumBatch = math.ceil(numImages / batchSize)
+    sortedImagery = np.zeros([newNumBatch, batchSize] + 
+                             list(imagery.shape[-3:]), dtype=imagery.dtype)
+    for ii, jj, sim in sims[:numImages] :
         sortedImagery[counter // batchSize][counter % batchSize][:] = \
             imagery[ii][jj][:]
         counter += 1
 
     # dump the ranked result as a series of batches
-    for ii in range(len(imagery)) :
-        saveTiledImage(imagery[ii], str(ii) + '.tif', (28,28))
+    for ii in range(len(sortedImagery)) :
+        #saveTiledImage(imagery[ii], str(ii) + '.tif', (28,28))
         saveTiledImage(sortedImagery[ii], str(ii) + '_sorted.tif', (28,28))
 
 if __name__ == '__main__' :
@@ -65,6 +69,9 @@ if __name__ == '__main__' :
                         help='Base name of the network output and temp files.')
     parser.add_argument('--target', dest='targetDir', type=str, required=True,
                         help='Directory with target data to match.')
+    parser.add_argument('--percentile', dest='percentile', type=float,
+                        default=.95, help='Keep the top percentile of ' +
+                        'information corresponding to the most likely matches')
     parser.add_argument('--syn', dest='synapse', type=str, nargs='+',
                         help='Load from a previously saved network.')
     parser.add_argument('data', help='Directory of input imagery.')
@@ -87,4 +94,4 @@ if __name__ == '__main__' :
     nets = createNetworks(target, options.synapse, prof)
 
     # test the training data for similarity to the target
-    testCloseness(nets, test[0].get_value(borrow=True))
+    testCloseness(nets, test[0].get_value(borrow=True), options.percentile)
