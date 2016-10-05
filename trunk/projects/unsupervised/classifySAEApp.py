@@ -15,7 +15,7 @@ def createNetworks(target, netFiles, prof) :
     from ae.net import ClassifierSAENetwork
     return [ClassifierSAENetwork(target, syn, prof) for syn in netFiles]
 
-def testCloseness(netList, imagery, percentile=.95) :
+def testCloseness(netList, imagery, percentile=.95, debug=False) :
     '''Test the imagery for how close it is to the target data. This also sorts
        the results according to closeness, so we can create a tiled tip-sheet.
     '''
@@ -46,9 +46,14 @@ def testCloseness(netList, imagery, percentile=.95) :
         counter += 1
 
     # dump the ranked result as a series of batches
-    for ii in range(len(sortedImagery)) :
-        #saveTiledImage(imagery[ii], str(ii) + '.tif', (28,28))
-        saveTiledImage(sortedImagery[ii], str(ii) + '_sorted.tif', (28,28))
+    if debug :
+        for ii in range(len(sortedImagery)) :
+            saveTiledImage(imagery[ii], str(ii) + '.tif',
+                           imagery.shape[-2:])
+            saveTiledImage(sortedImagery[ii], str(ii) + '_sorted.tif',
+                           imagery.shape[-2:])
+
+    return sortedImagery
 
 if __name__ == '__main__' :
     '''This application tests how close the examples are to a provided target
@@ -74,6 +79,8 @@ if __name__ == '__main__' :
                         'information corresponding to the most likely matches')
     parser.add_argument('--syn', dest='synapse', type=str, nargs='+',
                         help='Load from a previously saved network.')
+    parser.add_argument('--debug', dest='debug', type=bool, required=False,
+                        help='Drop debugging information about the runs.')
     parser.add_argument('data', help='Directory of input imagery.')
     options = parser.parse_args()
 
@@ -91,6 +98,7 @@ if __name__ == '__main__' :
     # these are confirmed objects we are attempting to identify 
     target = readTargetData(options.targetDir)
 
+    # load all networks initialized to the target imagery
     nets = createNetworks(target, options.synapse, prof)
 
     # test the training data for similarity to the target
