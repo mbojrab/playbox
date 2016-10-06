@@ -1,6 +1,7 @@
 import theano.tensor as t
 import theano
 from nn.net import TrainerNetwork, ClassifierNetwork
+from dataset.shared import isShared
 
 class DistilleryClassifier(ClassifierNetwork) :
     '''The ClassifierNetwork object allows the user to build multi-layer neural
@@ -49,7 +50,7 @@ class DistilleryClassifier(ClassifierNetwork) :
         if not hasattr(self, '_softTarget') :
             from dataset.shared import toShared
             inp = toShared(inputs, borrow=True) \
-                  if 'SharedVariable' not in str(type(inputs)) else inputs
+                  if not isShared(inputs) else inputs
             self.finalizeNetwork(inp[:])
 
         # activating the last layer triggers all previous 

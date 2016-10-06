@@ -3,6 +3,7 @@ import theano
 from nn.net import ClassifierNetwork
 from ae.encoder import AutoEncoder
 import numpy as np
+from dataset.shared import isShared
 
 class SAENetwork (ClassifierNetwork) :
     '''The SAENetwork object allows autoencoders to be stacked such that the 
@@ -64,7 +65,7 @@ class SAENetwork (ClassifierNetwork) :
         if not hasattr(self, '_encode') :
             from dataset.shared import toShared
             inp = toShared(inputs, borrow=True) \
-                  if 'SharedVariable' not in str(type(inputs)) else inputs
+                  if not isShared(inputs) else inputs
             self.finalizeNetwork(inp[:])
 
         # activating the last layer triggers all previous 
@@ -208,10 +209,22 @@ class ClassifierSAENetwork (SAENetwork) :
                                    givens={targets: self._targetEncodings})
         self._endProfile()
 
-    def closeness(self, inputs) :
+    def closeness(self, inputs, cosineVector=None) :
         '''This is a form of classification for SAE networks. The network has
            been provided a target input, which we now use to determine the
            similarity of this input against that target set. 
+
+           inputs:       Example imagery to test for closeness. 
+                         (batchSize, numChannels, rows, cols)
+           cosineVector: Pre-initialized vector. Use this when the input needs
+                         to be biased, or if you are normalizing the responses
+                         from several networks.
+
+           return      : The calculation returns a value between [0., 1.] for
+                         each input. If the user specifies a cosineVector, the
+                         responses from this network are added to the previous
+                         vector. If cosineVector is None, the networks raw 
+                         responses are returned.
 
            NOTE: Response of 1.0 indicates equality. The lower number indicate
                  less overlap between features.
@@ -220,21 +233,24 @@ class ClassifierSAENetwork (SAENetwork) :
         self._startProfile('Determining Closeness of Inputs', 'debug')
         if not hasattr(self, '_closeness') :
             inp = toShared(inputs, borrow=True) \
-                  if 'SharedVariable' not in str(type(inputs)) else inputs
+                  if not isShared(inputs) else inputs
             self.finalizeNetwork(inp[:])
         if not hasattr(self, '_targetEncodings') :
             raise ValueError('User must finalize the feature matrix before ' +
                              'attempting to finalize the network.')
 
         # test out similar this input is compared with the targets
-        cosineMatrix = self._closeness(inputs)
+        if cosineVector is not None :
+            cosineVector += self._closeness(inputs)
+        else :
+            cosineVector = self._closeness(inputs)
         self._endProfile()
-        return cosineMatrix
+        return cosineVector
 
     def closenessAndEncoding (self, inputs) :
         '''This is a form of classification for SAE networks. The network has
            been provided a target input, which we now use to determine the
-           similarity of this input against that target set. 
+           similarity of this input against that target set.
 
            This method is additionally setup to return the raw encoding for the
            inputs provided.
@@ -245,7 +261,7 @@ class ClassifierSAENetwork (SAENetwork) :
 
         # TODO: this needs to be updated if the encodings should not be the
         #       result of a softmax on the logits.
-        cosineMatrix, encodings = (self.closeness(inputs), 
+        cosineMatrix, encodings = (self.closeness(inputs),
                                    self.classifyAndSoftmax(inputs)[1])
         self._endProfile()
         return cosineMatrix, encodings
