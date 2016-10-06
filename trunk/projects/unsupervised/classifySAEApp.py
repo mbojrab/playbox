@@ -1,21 +1,13 @@
 import argparse
 from dataset.ingest.labeled import ingestImagery
 from nn.profiler import setupLogging, Profiler
-from dataset.minibatch import makeContiguous
-
-def readTargetData(targetpath) :
-    '''Read a directory of data to use as a feature matrix.'''
-    import os
-    from dataset.reader import readImage
-    return makeContiguous([(readImage(os.path.join(targetpath, im))) \
-                           for im in os.listdir(targetpath)])[0]
 
 def createNetworks(target, netFiles, prof) :
     '''Read and create each network initialized with the target dataset.'''
     from ae.net import ClassifierSAENetwork
     return [ClassifierSAENetwork(target, syn, prof) for syn in netFiles]
 
-def testCloseness(netList, imagery, percentile=.95, debug=False) :
+def sortDataset(netList, imagery, percentile=.95, debug=False) :
     '''Test the imagery for how close it is to the target data. This also sorts
        the results according to closeness, so we can create a tiled tip-sheet.
     '''
@@ -27,7 +19,6 @@ def testCloseness(netList, imagery, percentile=.95, debug=False) :
     for ii, batch in enumerate(imagery) :
         # average the results found by multiple networks
         sims.append(np.mean([net.closeness(batch) for net in nets], axis=0))
-
 
     # rank their closeness from high to low
     sims = [(ii // batchSize, ii % batchSize, sim) \
@@ -101,13 +92,9 @@ if __name__ == '__main__' :
     train, test, labels = ingestImagery(filepath=options.data, shared=True,
                                         batchSize=options.batchSize, log=log)
 
-    # load example imagery --
-    # these are confirmed objects we are attempting to identify 
-    target = readTargetData(options.targetDir)
-
     # load all networks initialized to the target imagery
-    nets = createNetworks(target, options.synapse, prof)
+    nets = createNetworks(options.targetDir, options.synapse, prof)
 
     # test the training data for similarity to the target
-    testCloseness(nets, test[0].get_value(borrow=True), 
-                  options.percentile, options.debug)
+    sortDataset(nets, test[0].get_value(borrow=True), 
+                options.percentile, options.debug)

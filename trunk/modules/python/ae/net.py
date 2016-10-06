@@ -85,16 +85,22 @@ class ClassifierSAENetwork (SAENetwork) :
        example input(s), which the network then uses to determine similities
        between the feature data and the provided input.
 
-       target   : numpy.ndarray of inputs used for target data. This is the way
-                  to provide the unsupervised learning algorithm with a means
-                  to perform classification.
+       target   : Target data for network. This is the way to provide the 
+                  unsupervised learning algorithm with a means to perform
+                  classification.
+                  NOTE: This can either be an numpy.ndarray or a path to a
+                        directory of target images.
        filepath : Path to an already trained network on disk 
                   'None' creates randomized weighting
        prof     : Profiler to use
     '''
     def __init__ (self, targetData, filepath=None, prof=None) :
         SAENetwork.__init__(self, filepath, prof)
-        self._targetData = targetData
+
+        # check if the data is currently in memory, if not read it
+        self._targetData = self.__readTargetData(targetData) \
+                           if isinstance(targetData, str) else \
+                           targetData
 
     def __getstate__(self) :
         '''Save network pickle'''
@@ -118,6 +124,14 @@ class ClassifierSAENetwork (SAENetwork) :
         SAENetwork.__setstate__(self, dict)
         if hasattr(self, '_targetData') : 
             self._targetData = tmp
+
+    def __readTargetData(self, targetpath) :
+        '''Read a directory of data to use as a feature matrix.'''
+        import os
+        from dataset.minibatch import makeContiguous
+        from dataset.reader import readImage
+        return makeContiguous([(readImage(os.path.join(targetpath, im))) \
+                               for im in os.listdir(targetpath)])[0]
 
     def finalizeNetwork(self, networkInput) :
         '''Setup the network based on the current network configuration.
@@ -192,6 +206,7 @@ class ClassifierSAENetwork (SAENetwork) :
         self._closeness = function([self.getNetworkInput()[0]],
                                    t.mean(cosineSimilarity, axis=1),
                                    givens={targets: self._targetEncodings})
+        self._endProfile()
 
     def closeness(self, inputs) :
         '''This is a form of classification for SAE networks. The network has
