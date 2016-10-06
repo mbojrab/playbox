@@ -16,7 +16,7 @@ class Regularization :
         from nn.costUtils import leastAbsoluteDeviation, leastSquares
     
         # calculate a regularization term -- if desired
-        reg = 0.0
+        reg = None
 
         # L1-norm provides 'Least Absolute Deviation' --
         # built for sparse outputs and is resistent to outliers

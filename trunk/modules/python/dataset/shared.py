@@ -1,5 +1,12 @@
 import theano as t
 
+
+def isShared(x) :
+    '''Test if the data sent is in a Theano shared variable. It is treated
+       differently if this check is true.
+    '''
+    return 'SharedVariable' in str(type(x))
+
 def toShared(x, borrow=True, log=None) :
     '''Transfer numpy.ndarry to theano.shared variable.
        NOTE: Shared variables allow for optimized GPU execution

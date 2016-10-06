@@ -3,6 +3,7 @@ import theano
 from nn.net import ClassifierNetwork
 from ae.encoder import AutoEncoder
 import numpy as np
+from dataset.shared import isShared
 
 class SAENetwork (ClassifierNetwork) :
     '''The SAENetwork object allows autoencoders to be stacked such that the 
@@ -64,7 +65,7 @@ class SAENetwork (ClassifierNetwork) :
         if not hasattr(self, '_encode') :
             from dataset.shared import toShared
             inp = toShared(inputs, borrow=True) \
-                  if 'SharedVariable' not in str(type(inputs)) else inputs
+                  if not isShared(inputs) else inputs
             self.finalizeNetwork(inp[:])
 
         # activating the last layer triggers all previous 
@@ -85,16 +86,22 @@ class ClassifierSAENetwork (SAENetwork) :
        example input(s), which the network then uses to determine similities
        between the feature data and the provided input.
 
-       target   : numpy.ndarray of inputs used for target data. This is the way
-                  to provide the unsupervised learning algorithm with a means
-                  to perform classification.
+       target   : Target data for network. This is the way to provide the 
+                  unsupervised learning algorithm with a means to perform
+                  classification.
+                  NOTE: This can either be an numpy.ndarray or a path to a
+                        directory of target images.
        filepath : Path to an already trained network on disk 
                   'None' creates randomized weighting
        prof     : Profiler to use
     '''
     def __init__ (self, targetData, filepath=None, prof=None) :
         SAENetwork.__init__(self, filepath, prof)
-        self._targetData = targetData
+
+        # check if the data is currently in memory, if not read it
+        self._targetData = self.__readTargetData(targetData) \
+                           if isinstance(targetData, str) else \
+                           targetData
 
     def __getstate__(self) :
         '''Save network pickle'''
@@ -118,6 +125,14 @@ class ClassifierSAENetwork (SAENetwork) :
         SAENetwork.__setstate__(self, dict)
         if hasattr(self, '_targetData') : 
             self._targetData = tmp
+
+    def __readTargetData(self, targetpath) :
+        '''Read a directory of data to use as a feature matrix.'''
+        import os
+        from dataset.minibatch import makeContiguous
+        from dataset.reader import readImage
+        return makeContiguous([(readImage(os.path.join(targetpath, im))) \
+                               for im in os.listdir(targetpath)])[0]
 
     def finalizeNetwork(self, networkInput) :
         '''Setup the network based on the current network configuration.
@@ -192,11 +207,24 @@ class ClassifierSAENetwork (SAENetwork) :
         self._closeness = function([self.getNetworkInput()[0]],
                                    t.mean(cosineSimilarity, axis=1),
                                    givens={targets: self._targetEncodings})
+        self._endProfile()
 
-    def closeness(self, inputs) :
+    def closeness(self, inputs, cosineVector=None) :
         '''This is a form of classification for SAE networks. The network has
            been provided a target input, which we now use to determine the
            similarity of this input against that target set. 
+
+           inputs:       Example imagery to test for closeness. 
+                         (batchSize, numChannels, rows, cols)
+           cosineVector: Pre-initialized vector. Use this when the input needs
+                         to be biased, or if you are normalizing the responses
+                         from several networks.
+
+           return      : The calculation returns a value between [0., 1.] for
+                         each input. If the user specifies a cosineVector, the
+                         responses from this network are added to the previous
+                         vector. If cosineVector is None, the networks raw 
+                         responses are returned.
 
            NOTE: Response of 1.0 indicates equality. The lower number indicate
                  less overlap between features.
@@ -205,21 +233,24 @@ class ClassifierSAENetwork (SAENetwork) :
         self._startProfile('Determining Closeness of Inputs', 'debug')
         if not hasattr(self, '_closeness') :
             inp = toShared(inputs, borrow=True) \
-                  if 'SharedVariable' not in str(type(inputs)) else inputs
+                  if not isShared(inputs) else inputs
             self.finalizeNetwork(inp[:])
         if not hasattr(self, '_targetEncodings') :
             raise ValueError('User must finalize the feature matrix before ' +
                              'attempting to finalize the network.')
 
         # test out similar this input is compared with the targets
-        cosineMatrix = self._closeness(inputs)
+        if cosineVector is not None :
+            cosineVector += self._closeness(inputs)
+        else :
+            cosineVector = self._closeness(inputs)
         self._endProfile()
-        return cosineMatrix
+        return cosineVector
 
     def closenessAndEncoding (self, inputs) :
         '''This is a form of classification for SAE networks. The network has
            been provided a target input, which we now use to determine the
-           similarity of this input against that target set. 
+           similarity of this input against that target set.
 
            This method is additionally setup to return the raw encoding for the
            inputs provided.
@@ -230,7 +261,7 @@ class ClassifierSAENetwork (SAENetwork) :
 
         # TODO: this needs to be updated if the encodings should not be the
         #       result of a softmax on the logits.
-        cosineMatrix, encodings = (self.closeness(inputs), 
+        cosineMatrix, encodings = (self.closeness(inputs),
                                    self.classifyAndSoftmax(inputs)[1])
         self._endProfile()
         return cosineMatrix, encodings
@@ -318,8 +349,9 @@ class TrainerSAENetwork (SAENetwork) :
         cost = calcLoss(netInput, decodedInput,
                         self._layers[0].getActivation()) / \
                         self.getNetworkInputSize()[0]
-        costs = [cost, jacobianCost, sparseConstr, 
-                 self._regularization.calculate(self._layers)]
+        costs = [cost, jacobianCost, sparseConstr]
+        costs.extend(x for x in [self._regularization.calculate(self._layers)]\
+                     if x is not None)
 
         # build the network-wide training update.
         updates = compileUpdates(self._layers, t.sum(costs))
@@ -329,7 +361,8 @@ class TrainerSAENetwork (SAENetwork) :
             [self._indexVar], costs, updates=updates, 
             givens={self.getNetworkInput()[0] : 
                     self._trainData[self._indexVar]})
-            #mode=NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True))
+            #mode=NanGuardMode(nan_is_error=True, inf_is_error=True,\
+            #                   big_is_error=True))
         self._endProfile()
 
     def __getstate__(self) :
@@ -427,28 +460,32 @@ class TrainerSAENetwork (SAENetwork) :
             costMessage = layerEpochStr + ' Cost: ' + str(locCost[0])
             if len(locCost) >= 2 :
                 costMessage += ' - Jacob: ' + str(locCost[1])
-            if len(locCost) == 3 :
+            if len(locCost) >= 3 :
                 costMessage += ' - Sparsity: ' + str(locCost[2])
+            if len(locCost) == 4 :
+                costMessage += ' - Regularization: ' + str(locCost[3])
             self._startProfile(costMessage, 'info')
             globCost.append(locCost)
             self._endProfile()
 
             self._endProfile()
 
-            # DEBUG: For debugging pursposes only!
+            '''            # DEBUG: For debugging pursposes only!
             from dataset.debugger import saveTiledImage
             if layerIndex >= 0 and layerIndex < self.getNumLayers() :
                 reconstructedInput = self._layers[layerIndex].reconstruction(
-                                        self._trainData.get_value(borrow=True)[0])
-                reconstructedInput = np.resize(reconstructedInput, 
-                                               self._layers[layerIndex].getInputSize())
+                    self._trainData.get_value(borrow=True)[0])
+                reconstructedInput = np.resize(
+                    reconstructedInput, 
+                    self._layers[layerIndex].getInputSize())
                 tileShape = None
                 if layerIndex == 0 :
                     imageShape = (28,28)
                     reconstructedInput = np.resize(reconstructedInput,
                                                    (50,1,28,28))
                 elif len(self._layers[layerIndex].getInputSize()) > 2 :
-                    imageShape = tuple(self._layers[layerIndex].getInputSize()[-2:])
+                    imageShape = tuple(self._layers[
+                                       layerIndex].getInputSize()[-2:])
                 else :
                     imageShape=(1, self._layers[layerIndex].getInputSize()[1])
                     tileShape=(self._layers[layerIndex].getInputSize()[0], 1)
@@ -471,5 +508,5 @@ class TrainerSAENetwork (SAENetwork) :
                                      str(globalEpoch+localEpoch) + '.png',
                                imageShape=imageShape, spacing=1,
                                interleave=True)
-
+            '''
         return globalEpoch + numEpochs, globCost

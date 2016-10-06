@@ -12,7 +12,7 @@ from dataset.minibatch import makeContiguous
 
 tmpNet = './local.pkl.gz'
 
-def buildTrainerSAENetwork(train, target,
+def buildTrainerSAENetwork(train, regType, regValue, target,
                            kernelConv, kernelSizeConv, downsampleConv, 
                            learnConv, momentumConv, dropoutConv,
                            neuronFull, learnFull, momentumFull, dropoutFull, 
@@ -24,7 +24,7 @@ def buildTrainerSAENetwork(train, target,
     rng = RandomState(int(time()))
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = TrainerSAENetwork(train, prof=prof)
+    network = TrainerSAENetwork(train, regType, regValue, prof=prof)
 
     if log is not None :
         log.info('Initialize the Network')
@@ -56,7 +56,7 @@ def buildTrainerSAENetwork(train, target,
     for n,l,m,dr in zip(neuronFull, learnFull, momentumFull, dropoutFull) :
         # add a fully-connected layer as defined
         network.addLayer(ContiguousAutoEncoder(
-            layerID='fully' + str(layerCount), 
+            layerID='fully' + str(layerCount), regType='L2',
             inputSize=layerInputSize, numNeurons=n, learningRate=l,
             activation=t.nnet.sigmoid, dropout=dr, #momentum=m, 
             randomNumGen=rng))
@@ -90,11 +90,6 @@ def testCloseness(net, imagery) :
 
         saveTiledImage(batch, str(ii) + '.tif', (28,28))
         saveTiledImage(sortedBatch, str(ii) + '_sorted.tif', (28,28))
-
-    #closenessImagery = makeContiguous([(x, net.closeness(x)) for x in imagery])
-    #print(closenessImagery)
-    # TODO: Rank the results in order of closeness
-    #return closenessImagery
 
 if __name__ == '__main__' :
     '''Build and train an SAE, then test a '''
@@ -166,7 +161,10 @@ if __name__ == '__main__' :
     target = readTargetData(options.targetDir)
 
     if options.synapse is None :
-        trainer = buildTrainerSAENetwork(train, target, prof=prof,
+        regType = 'L2'
+        regValue = .001
+        trainer = buildTrainerSAENetwork(train, regType, regValue, 
+                                         target, prof=prof,
                                          kernelConv=options.kernel, 
                                          kernelSizeConv=options.kernelSize, 
                                          downsampleConv=options.downsample, 

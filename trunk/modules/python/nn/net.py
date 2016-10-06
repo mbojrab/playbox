@@ -2,6 +2,7 @@ from nn.layer import Layer
 import theano.tensor as t
 import theano
 from dataset.pickle import writePickleZip, readPickleZip
+from dataset.shared import isShared
 
 class Network () :
     def __init__ (self, prof=None) :
@@ -169,7 +170,7 @@ class ClassifierNetwork (Network) :
         if not hasattr(self, '_classify') :
             from dataset.shared import toShared
             inp = toShared(inputs, borrow=True) \
-                  if 'SharedVariable' not in str(type(inputs)) else inputs
+                  if not isShare(inputs) else inputs
             self.finalizeNetwork(inp[:])
 
         # activating the last layer triggers all previous 
@@ -189,7 +190,7 @@ class ClassifierNetwork (Network) :
         if not hasattr(self, '_classifyAndSoftmax') :
             from dataset.shared import toShared
             inp = toShared(inputs, borrow=True) \
-                  if 'SharedVariable' not in str(type(inputs)) else inputs
+                  if not isShared(inputs) else inputs
             self.finalizeNetwork(inp[:])
 
         # activating the last layer triggers all previous 
@@ -273,11 +274,11 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         self._trainData, self._trainLabels = train
         self._testData, self._testLabels = test
 
-        if 'SharedVariable' in str(type(self._trainData)) :
+        if isShared(self._trainData) :
             self._numTrainBatches = self._trainLabels.shape.eval()[0]
         else :
             self._numTrainBatches = self._trainLabels.shape[0]
-        if 'SharedVariable' in str(type(self._testData)) :
+        if isShared(self._testData) :
             self._numTestBatches = self._testLabels.shape.eval()[0]
             self._numTestSize = self._numTestBatches * \
                                 self._testLabels.shape.eval()[1]
@@ -342,7 +343,7 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         # NOTE: This uses the lamda function as a means to consolidate the
         #       calling scheme. This saves us from later using conditionals in
         #       the inner loops and optimizes the libary
-        if 'SharedVariable' in str(type(self._testData)) :
+        if isShared(self._testData) :
             checkAcc = theano.function(
                 [index], numCorrect, 
                 givens={self.getNetworkInput()[0] : self._testData[index],
@@ -377,7 +378,7 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         # NOTE: This uses the lamda function as a means to consolidate the
         #       calling scheme. This saves us from later using conditionals in
         #       the inner loops and optimizes the libary
-        if 'SharedVariable' in str(type(self._trainData)) :
+        if isShared(self._trainData) :
             trainNet = theano.function(
                 [index], xEntropy, updates=updates,
                 givens={self.getNetworkInput()[1]: self._trainData[index],
@@ -402,8 +403,7 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         if not hasattr(self, '_trainNetwork') :
             from dataset.shared import toShared
             inp = toShared(self._trainData[0], borrow=True) \
-                  if 'SharedVariable' not in str(type(self._trainData)) \
-                  else self._trainData[0]
+                  if not isShared(self._trainData) else self._trainData[0]
             self.finalizeNetwork(inp[:])
         if not isinstance(index, int) :
             raise Exception('Variable index must be an integer value')
@@ -441,8 +441,7 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         if not hasattr(self, '_checkAccuracy') :
             from dataset.shared import toShared
             inp = toShared(self._trainData[0], borrow=True) \
-                  if 'SharedVariable' not in str(type(self._trainData)) \
-                  else self._trainData[0]
+                  if not isShared(self._trainData) else self._trainData[0]
             self.finalizeNetwork(inp[:])
 
         # return the sum of all correctly classified targets
