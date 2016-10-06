@@ -17,8 +17,8 @@ def sortDataset(netList, imagery, percentile=.95, debug=False) :
     sims = []
     batchSize = imagery.shape[1]
     for ii, batch in enumerate(imagery) :
-        cos = np.zeros((batchSize,), dtype=np.float32)
         # average the results found by multiple networks
+        cos = np.zeros((batchSize,), dtype=np.float32)
         [net.closeness(batch, cos) for net in nets]
         sims.append(cos / float(len(nets)))
 
