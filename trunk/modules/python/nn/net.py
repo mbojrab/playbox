@@ -170,7 +170,7 @@ class ClassifierNetwork (Network) :
         if not hasattr(self, '_classify') :
             from dataset.shared import toShared
             inp = toShared(inputs, borrow=True) \
-                  if not isShare(inputs) else inputs
+                  if not isShared(inputs) else inputs
             self.finalizeNetwork(inp[:])
 
         # activating the last layer triggers all previous 

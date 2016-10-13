@@ -130,14 +130,14 @@ def readImage(image, log=None) :
     #       for image types. Change this in the future to a try/catch and 
     #       allow the library decide what it is (or pass in a parameter for
     #       optimized performance).
-    if 'sicd' in imageLower :
+    if imageLower.endswith('.sio') :
+        return readSIO(image, log)
+    elif 'sicd' in imageLower :
         return readSICD(image, log)
     elif 'sidd' in imageLower :
         return readSIDD(image, log)
     elif imageLower.endswith('.nitf') or imageLower.endswith('.ntf') :
         return readNITF(image, log)
-    elif imageLower.endswith('.sio') :
-        return readSIO(image, log)
     else :
         return readPILImage(image, log)
 

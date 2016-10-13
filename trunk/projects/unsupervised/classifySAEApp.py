@@ -28,13 +28,13 @@ def sortDataset(netList, imagery, percentile=.95, debug=False) :
     sims = sorted(sims, key=lambda x: x[-1], reverse=True)
 
     # reorder the imagery to match the ranking
-    counter = 0
     numImages = int((1.-percentile) * np.prod(imagery.shape[:2]))
     sortedImagery = np.zeros([numImages] + list(imagery.shape[-3:]),
                              dtype=imagery.dtype)
-    for ii, jj, sim in sims[:numImages] :
+    sortedConfidence = np.zeros([numImages], dtype=np.float32)
+    for counter, (ii, jj, sim) in enumerate(sims[:numImages]) :
         sortedImagery[counter][:] = imagery[ii][jj][:]
-        counter += 1
+        sortedConfidence[counter] = sim
 
     # dump the ranked result as a series of batches
     if debug :
@@ -53,7 +53,7 @@ def sortDataset(netList, imagery, percentile=.95, debug=False) :
             saveTiledImage(tmp[ii], str(ii) + '_sorted.tif',
                            imagery.shape[-2:])
 
-    return sortedImagery
+    return sortedImagery, sortedConfidence
 
 if __name__ == '__main__' :
     '''This application tests how close the examples are to a provided target

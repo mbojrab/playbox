@@ -156,7 +156,7 @@ class ClassifierSAENetwork (SAENetwork) :
         self._profiler = tmp
 
         # ensure targetData is at least one batchSize, otherwise enlarge
-        batchSize = self.getNetworkInputSize()[0]
+        batchSize = networkInput.shape.eval()[0]
         numTargets = self._targetData.shape[0]
         if numTargets < batchSize :
             # add rows of zeros to fill out the rest of the batch
