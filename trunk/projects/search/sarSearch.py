@@ -10,7 +10,7 @@ def preProcessing (confDir) :
     detectedOptions = npar.DetectedOptions(confDir, threads, False, 
                                            apodize.HNNS_1D, 
                                            rsa.RSA3, 
-                                           "GDM", 3, True, True);
+                                           "GDM", 3, True, True)
     return (detectedOptions, 
             npar.makeSharedLogger(), 
             threads)
