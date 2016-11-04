@@ -80,7 +80,7 @@ class ContiguousLayer(Layer) :
         matSize = self._weights.get_value(borrow=True).shape
 
         buffer = self._weights.get_value(borrow=True).T
-        if len(self.input[0].shape.eval()) > 2 :
+        if self.input[0].ndim > 2 :
             import numpy as np
             buffer = np.reshape(buffer, [self._numNeurons] +
                                         list(self.input[0].shape.eval()[1:]))
