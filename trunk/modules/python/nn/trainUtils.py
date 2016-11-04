@@ -48,18 +48,18 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5,
     #       training instead of naive number of epochs.
     network.save(lastSave)
     for layerIndex in range(network.getNumLayers()) :
-        globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 
-                                               numEpochs)
-        lastSave = buildPickleInterim(base=base,
-                                      epoch=globalEpoch,
-                                      dropout=dropout,
-                                      learnC=learnC,
-                                      learnF=learnF,
-                                      contrF=contrF,
-                                      kernel=kernel,
-                                      neuron=neuron,
-                                      layer=layerIndex)
-        network.save(lastSave)
+        for jj in range(numEpochs) :
+            globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 1)
+            lastSave = buildPickleInterim(base=base,
+                                          epoch=globalEpoch,
+                                          dropout=dropout,
+                                          learnC=learnC,
+                                          learnF=learnF,
+                                          contrF=contrF,
+                                          kernel=kernel,
+                                          neuron=neuron,
+                                          layer=layerIndex)
+            network.save(lastSave)
 
     # rename the network which achieved the highest accuracy
     bestNetwork = buildPickleFinal(base=base, appName=appName, 

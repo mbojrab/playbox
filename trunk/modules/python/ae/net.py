@@ -374,6 +374,7 @@ class TrainerSAENetwork (SAENetwork) :
         if '_numTrainBatches' in dict : del dict['_numTrainBatches']
         if '_trainGreedy' in dict : del dict['_trainGreedy']
         if '_trainNetwork' in dict : del dict['_trainNetwork']
+        if 'reconstruction' in dict : del dict['reconstruction']
         return dict
 
     def __setstate__(self, dict) :
@@ -383,6 +384,7 @@ class TrainerSAENetwork (SAENetwork) :
         # theano functions to be rebuilt with the new buffers
         if hasattr(self, '_trainGreedy') : delattr(self, '_trainGreedy')
         if hasattr(self, '_trainNetwork') : delattr(self, '_trainNetwork')
+        if hasattr(self, 'reconstruction') : delattr(self, 'reconstruction')
         self._trainGreedy = []
         SAENetwork.__setstate__(self, dict)
 
