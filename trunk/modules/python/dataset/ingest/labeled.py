@@ -2,7 +2,6 @@ import os
 import numpy as np
 import theano.tensor as t
 
-
 def checkAvailableMemory(dataMemoryConsumption, shared, log) :
     '''There are three possible cases of memory consumption:
        1. GPU has enough memory, thus load the dataset directly to the device.
@@ -66,7 +65,7 @@ def readDataset(trainDataH5, train, trainShape, batchSize, threads, log) :
     import theano
     from six.moves import queue
     import threading
-    from dataset.reader import readImage
+    from dataset.reader import padImageData, readImage
 
     # add jobs to the queue --
     # NOTE : h5py.Dataset doesn't implement __setslice__, so we must implement
@@ -87,7 +86,8 @@ def readDataset(trainDataH5, train, trainShape, batchSize, threads, log) :
             # allocate a load the batch locally so our write are coherent
             tmp = np.ndarray((batchSize), theano.config.floatX)
             for ii, imageFile in enumerate(imageFiles) :
-                tmp[ii][:] = readImage(imageFile[0], log)[:]
+                tmp[ii][:] = padImageData(readImage(imageFile[0], log),
+                                          batchSize[-3:])[:]
             dataH5[sliceIndex] = tmp[:]
 
             workQueueData.task_done()
@@ -137,9 +137,14 @@ def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
         # this ensures a minimum number of examples are used for testing
         holdoutPercentage = (float(numTest) / float(len(files)))
 
+        # use the most common type of file in the dir and exclude
+        # other types (avoid generated jpegs, other junk)
+        suffix = mostCommonSuffix(files, samplesize=50)
+
         # prepare the data
         items = np.asarray(
-            [(os.path.join(root, file), indx) for file in files],
+            [(os.path.join(root, file), indx) for file in files
+                if file.endswith(suffix)],
             dtype=np.object)
         naiveShuffle(items)
 
@@ -176,7 +181,7 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     import threading
     import multiprocessing
     from six.moves import queue
-    from dataset.reader import getImageDims
+    from dataset.reader import getImageDims, mostCommon
     from dataset.hdf5 import createHDF5Labeled
 
     rootpath = os.path.abspath(filepath)
@@ -228,7 +233,17 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     # Here we create the handles to the data buffers. This operates on the
     # assumption the dataset may not fit entirely in memory. The handles allow
     # data to overflow and ultimately be stored entirely on disk. 
-    imageShape = list(getImageDims(train[0][0], log))
+    #
+    # Sample the directory for a probable chip size
+    size = mostCommon((t[0] for t in train),
+                      lambda f: os.path.getsize(f),
+                      sampleSize=50)
+    sizedFile = next((t[0] for t in train if os.path.getsize(t[0]) == size))
+    imageShape = list(getImageDims(sizedFile, log))
+
+    trainShape = [len(train) // batchSize, batchSize] + imageShape
+    # TODO: performs a floor, so if there is less than one batch no
+    #       data will be returned. Add a check for this.
     trainShape = [len(train) // batchSize, batchSize] + imageShape
     testShape = [len(test) // batchSize, batchSize] + imageShape
 

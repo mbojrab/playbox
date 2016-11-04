@@ -2,6 +2,31 @@ import os
 import numpy as np
 import theano as t
 
+def mostCommon(arr, func, sampleSize=None) :
+    '''Identify the most common element of the series.'''
+    from numpy.random import choice
+    from collections import Counter
+
+    # sample the list (choose without replacement)
+    arr = list(arr)
+    if sampleSize is not None and sampleSize < len(arr) :
+        arr = choice(arr, sampleSize, replace=False)
+
+    # return the most common element
+    counter = Counter([func(s) for s in arr])
+    return counter.most_common()[0][0]
+
+def mostCommonExtension(files, samplesize=None) :
+    '''Returns the most common extension in the set of names.'''
+    return mostCommon(files, lambda f: os.path.splitext(f)[1], samplesize)
+
+def padImageData(imgData, dims) :
+    '''Add zeropadding to an image to achieve the target dimensions.'''
+    if (imgData.shape != dims) :
+        pads = tuple([(0, a - b) for a, b in zip(dims, imgData.shape)])
+        imgData = np.pad(imgData, pads, mode='constant', constant_values=0)
+    return imgData
+
 def normalize(v) :
     '''Normalize a vector in a naive manner.'''
     minimum, maximum = np.amin(v), np.amax(v)

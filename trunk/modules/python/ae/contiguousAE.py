@@ -89,7 +89,7 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         if 'reconstruction' in dict : del dict['reconstruction']
         if '_costs' in dict : del dict['_costs']
         if '_updates' in dict : del dict['_updates']
-        if '_trainLayer' in dict : del dict['_trainLayer']
+        if 'trainLayer' in dict : del dict['trainLayer']
         return dict
 
     def __setstate__(self, dict) :
@@ -100,7 +100,7 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         if hasattr(self, 'reconstruction') : delattr(self, 'reconstruction')
         if hasattr(self, '_costs') : delattr(self, '_costs')
         if hasattr(self, '_updates') : delattr(self, '_updates')
-        if hasattr(self, '_trainLayer') : delattr(self, '_trainLayer')
+        if hasattr(self, 'trainLayer') : delattr(self, 'trainLayer')
         ContiguousLayer.__setstate__(self, dict)
         initialThresholdsBack = self._thresholdsBack
         self._thresholdsBack = shared(value=initialThresholdsBack, borrow=True)
