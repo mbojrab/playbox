@@ -20,10 +20,10 @@ def dir2hdf5(directory, outputfile, log):
 
         fidx = 0
         for root, dirs, files in os.walk(directory):
-            # intermediate directories get created
-            # automatically
+            # Create groups for empty directories
             if len(files) == 0:
-                continue
+                for d in (osp.join(root, d) for d in dirs):
+                    dset = h5file.create_group(d)
 
             for f in (osp.join(root, f) for f in files):
 
