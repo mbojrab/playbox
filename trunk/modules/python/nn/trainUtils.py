@@ -12,7 +12,7 @@ def renameBestNetwork(lastSave, bestNetwork, log=None) :
 
     return bestNetwork
 
-def trainUnsupervised(network, appName, dataPath, numEpochs=5, 
+def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=30,
                       synapse=None, base=None, dropout=None, 
                       learnC=None, learnF=None, contrF=None, momentum=None, 
                       kernel=None, neuron=None, log=None) :
@@ -31,7 +31,9 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5,
     # the last iteration trains the network as a whole --
     # this ensures the network fine-tunes its encodings wrt to all layers'
     # encoding and decoding loss.
-    globalEpoch = resumeEpoch(synapse)
+    degradationCount = 0
+    globalEpoch = lastBest = resumeEpoch(synapse)
+    runningCost = 10000000.# max float
     lastSave = buildPickleInterim(base=base,
                                   epoch=globalEpoch,
                                   dropout=dropout,
@@ -41,30 +43,48 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5,
                                   kernel=kernel,
                                   neuron=neuron,
                                   layer=0)
-
-    # TODO: Should we additionally have a test set set to allow early
-    #       stoppage? This will test the ability to reconstruct data 
-    #       never before encountered. It's likely a better way to perform
-    #       training instead of naive number of epochs.
     network.save(lastSave)
+
+    # train each layer individually
+    # this fully trains each layer before moving to next
     for layerIndex in range(network.getNumLayers()) :
-        for jj in range(numEpochs) :
+
+        # continue training the layer until the network the network stops
+        # making progress or it hit a max limit
+        while True and not globalEpoch+1 % numEpochs == 0 :
+
+            timer = time()
             globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 1)
-            lastSave = buildPickleInterim(base=base,
-                                          epoch=globalEpoch,
-                                          dropout=dropout,
-                                          learnC=learnC,
-                                          learnF=learnF,
-                                          contrF=contrF,
-                                          kernel=kernel,
-                                          neuron=neuron,
-                                          layer=layerIndex)
-            network.save(lastSave)
+            log.info('Checking Loss - {0}s - {1}'.format(time() - timer, cost))
+
+            # check if we've improved
+            if cost < runningCost :
+                # reset and save the network
+                degradationCount = 0
+                runningCost = cost
+                lastBest = globalEpoch
+                lastSave = buildPickleInterim(base=base,
+                                              epoch=globalEpoch,
+                                              dropout=dropout,
+                                              learnC=learnC,
+                                              learnF=learnF,
+                                              contrF=contrF,
+                                              kernel=kernel,
+                                              neuron=neuron,
+                                              layer=layerIndex)
+                network.save(lastSave)
+        else :
+            # increment the number of poor performing runs
+            degradationCount += 1
+
+        # stopping conditions for regularization
+        if degradationCount > int(stop) or runningCost == 0. :
+            break
 
     # rename the network which achieved the highest accuracy
-    bestNetwork = buildPickleFinal(base=base, appName=appName, 
-                                   dataName=os.path.basename(dataPath), 
-                                   epoch=globalEpoch)
+    bestNetwork = buildPickleFinal(base=base, appName=appName,
+                                   dataName=os.path.basename(dataPath),
+                                   epoch=lastBest)
     return renameBestNetwork(lastSave, bestNetwork, log)
 
 def trainSupervised (network, appName, dataPath, numEpochs=5, stop=30, 
