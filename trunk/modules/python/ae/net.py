@@ -279,6 +279,8 @@ class TrainerSAENetwork (SAENetwork) :
 
        train    : theano.shared dataset used for network training in format --
                   (numBatches, batchSize, numChannels, rows, cols)
+       test     : theano.shared dataset used for network test reconstruction --
+                  (numBatches, batchSize, numChannels, rows, cols)
        regType  : type of regularization term to use
                   default None : perform no additional regularization
                   L1           : Least Absolute Deviation
@@ -289,12 +291,13 @@ class TrainerSAENetwork (SAENetwork) :
                   'None' creates randomized weighting
        prof     : Profiler to use
     '''
-    def __init__ (self, train, regType='L2', regScaleFactor=0.,
+    def __init__ (self, train, test, regType='L2', regScaleFactor=0.,
                   filepath=None, prof=None) :
         from nn.reg import Regularization
         SAENetwork.__init__ (self, filepath, prof)
         self._indexVar = t.lscalar('index')
         self._trainData = train[0] if isinstance(train, list) else train
+        self._testData = test[0] if isinstance(test, list) else test
         self._numTrainBatches = self._trainData.shape.eval()[0]
         self._trainGreedy = []
         self._regularization = Regularization(regType, regScaleFactor)
@@ -390,13 +393,14 @@ class TrainerSAENetwork (SAENetwork) :
         self._trainGreedy = []
         SAENetwork.__setstate__(self, dict)
 
-    def finalizeNetwork(self, networkInputs) :
+    def finalizeNetwork(self, networkInput) :
         '''Setup the network based on the current network configuration.
            This is used to create several network-wide functions so they will
            be pre-compiled and optimized when we need them. The only function
            across all network types is classify()
         '''
-        
+        from nn.costUtils import calcLoss
+
         if len(self._layers) == 0 :
             raise IndexError('Network must have at least one layer' +
                              'to call finalizeNetwork().')
@@ -406,8 +410,30 @@ class TrainerSAENetwork (SAENetwork) :
         # disable the profiler temporarily so we don't get a second entry
         tmp = self._profiler
         self._profiler = None
-        SAENetwork.finalizeNetwork(self, networkInputs)
+        SAENetwork.finalizeNetwork(self, networkInput)
         self._profiler = tmp
+
+        # NOTE: This uses the lamda function as a means to consolidate the
+        #       calling scheme. This saves us from later using conditionals in
+        #       the inner loops and optimizes the libary
+        netInput = self.getNetworkInput()[0].flatten(2) \
+                   if len(self.getNetworkInput()[0].shape.eval()) != \
+                      len(self.getNetworkInputSize()) else \
+                   self.getNetworkInput()[0]
+        cost = calcLoss(netInput, decodedInput,
+                        self._layers[0].getActivation()) / \
+                        self.getNetworkInputSize()[0]
+        if isShared(self._testData) :
+            checkAcc = theano.function(
+                [index], numCorrect, 
+                givens={self.getNetworkInput()[0] : self._testData[index],
+                        expectedLabels: self._testLabels[index]})
+            self._checkAccuracy = lambda ii : checkAcc(ii)
+        else :
+            checkAcc = theano.function(
+                [self.getNetworkInput()[0], expectedLabels], numCorrect)
+            self._checkAccuracy = lambda ii : checkAcc(self._testData[ii],
+                                                       self._testLabels[ii])
 
         self.__buildEncoder()
         self.__buildDecoder()

@@ -337,9 +337,6 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         index = t.lscalar('index')
         expectedLabels = t.ivector('expectedLabels')
         numCorrect = t.sum(t.eq(self._outClassMax, expectedLabels))
-        # NOTE: the 'input' variable name was created elsewhere and provided as
-        #       input to the first layer. We now use that object to connect
-        #       our shared buffers.
         # NOTE: This uses the lamda function as a means to consolidate the
         #       calling scheme. This saves us from later using conditionals in
         #       the inner loops and optimizes the libary
@@ -372,9 +369,6 @@ class TrainerNetwork (LabeledClassifierNetwork) :
                                  xEntropy + 
                                  self._regularization.calculate(self._layers))
 
-        # NOTE: the 'input' variable name was create elsewhere and provided as
-        #       input to the first layer. We now use that object to connect
-        #       our shared buffers.
         # NOTE: This uses the lamda function as a means to consolidate the
         #       calling scheme. This saves us from later using conditionals in
         #       the inner loops and optimizes the libary
