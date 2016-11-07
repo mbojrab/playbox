@@ -20,10 +20,10 @@ def dir2hdf5(directory, outputfile, log):
 
         fidx = 0
         for root, dirs, files in os.walk(directory):
-            # Create groups for empty directories
-            if len(files) == 0:
-                for d in (osp.join(root, d) for d in dirs):
-                    dset = h5file.create_group(d)
+
+            # Create groups for directories
+            for d in (osp.join(root, d) for d in dirs):
+                dset = h5file.create_group(d)
 
             for f in (osp.join(root, f) for f in files):
 
@@ -31,7 +31,8 @@ def dir2hdf5(directory, outputfile, log):
                 if f in h5file:
                     del h5file[f]
                 blob = np.fromfile(f, dtype=STORAGE_TYPE)
-                dset = h5file.create_dataset(f, data=blob, compression='gzip')
+                dset = h5file.create_dataset(f, data=blob,
+                                             compression='gzip')
                   
                 fidx += 1
                 if fidx % 1024 == 0: 
