@@ -91,13 +91,41 @@ def openSIO(image, log=None) :
     import coda.sio_lite
     return coda.sio_lite.read(image)
 
-def readSIO(image, log=None) :
-    imData = openSIO(image, log)
+def transformSIOData(imData, log=None):
+    ''' Apply phase amp conversion to image data '''
     if imData.dtype == np.complex64 :
         return convertPhaseAmp(imData, log)
     else :
         # TODO: this assumes the imData is already band-interleaved
         return imData
+
+def readSIO(image, log=None) :
+    return transformSIOData(openSIO(image, log), log)
+
+def memSIOToNumpy(buf, log=None):
+    ''' Read an sio byte buffer into a numpy array '''
+    from coda.sio_lite import dtypeFromSioType, StreamReader
+    from coda.coda_io import StringStream
+
+    inputstream = StringStream()
+    inputstream.write(buf)
+    reader = StreamReader(inputstream)
+    header = reader.getHeader()
+
+    elementSize = header.getElementSize()
+    dtype = dtypeFromSioType(header.getElementType(), elementSize)
+
+    numpyArray = numpy.empty(shape=(header.getNumLines(),
+                                    header.getNumElements()),
+                             dtype=dtype)
+    pointer, ro = numpyArray.__array_interface__['data']
+    reader.read(pointer,
+                numpyAray.shape[0], numpyArray.shape[1], elementSize)
+    return numpyArray
+
+
+def readSIOFromMem(image, log=None) :
+    return transformSIOData(memSIOToNumpy(image, log), log)
 
 def readNITF(image, log=None) :
     import nitf
