@@ -16,7 +16,7 @@ def mostCommon(arr, func, sampleSize=None) :
     counter = Counter([func(s) for s in arr])
     return counter.most_common()[0][0]
 
-def mostCommonExtension(files, samplesize=None) :
+def mostCommonExt(files, samplesize=None) :
     '''Returns the most common extension in the set of names.'''
     return mostCommon(files, lambda f: os.path.splitext(f)[1], samplesize)
 

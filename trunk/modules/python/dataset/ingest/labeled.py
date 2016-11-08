@@ -106,6 +106,7 @@ def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
        user specified holdout over two "train" and "test" sets.
     '''
     from dataset.shuffle import naiveShuffle
+    from dataset.reader import mostCommonExt
 
     # read the directory structure --
     # each subdirectory becomes a label and the imagery within are examples.
@@ -139,7 +140,7 @@ def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
 
         # use the most common type of file in the dir and exclude
         # other types (avoid generated jpegs, other junk)
-        suffix = mostCommonSuffix(files, samplesize=50)
+        suffix = mostCommonExt(files, samplesize=50)
 
         # prepare the data
         items = np.asarray(
