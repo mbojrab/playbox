@@ -131,8 +131,10 @@ class ClassifierSAENetwork (SAENetwork) :
         import os
         from dataset.minibatch import makeContiguous
         from dataset.reader import readImage
-        return makeContiguous([(readImage(os.path.join(targetpath, im))) \
-                               for im in os.listdir(targetpath)])[0]
+        targets = makeContiguous([(readImage(os.path.join(targetpath, im)), 0)\
+                                  for im in os.listdir(targetpath)])[0]
+        return np.resize(targets, 
+                         [targets.shape[0]] + list(targets.shape[-3:]))
 
     def finalizeNetwork(self, networkInput) :
         '''Setup the network based on the current network configuration.
@@ -394,6 +396,7 @@ class TrainerSAENetwork (SAENetwork) :
            be pre-compiled and optimized when we need them. The only function
            across all network types is classify()
         '''
+        
         if len(self._layers) == 0 :
             raise IndexError('Network must have at least one layer' +
                              'to call finalizeNetwork().')

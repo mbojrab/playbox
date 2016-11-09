@@ -8,11 +8,10 @@ from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainUnsupervised
 from nn.profiler import setupLogging, Profiler
-from dataset.minibatch import makeContiguous
 
 tmpNet = './local.pkl.gz'
 
-def buildTrainerSAENetwork(train, regType, regValue, target,
+def buildTrainerSAENetwork(train, regType, regValue,
                            kernelConv, kernelSizeConv, downsampleConv, 
                            learnConv, momentumConv, dropoutConv,
                            neuronFull, learnFull, momentumFull, dropoutFull, 
@@ -65,13 +64,6 @@ def buildTrainerSAENetwork(train, regType, regValue, target,
         layerCount, layerInputSize = prepare(network, layerCount)
 
     return network
-
-def readTargetData(targetpath) :
-    '''Read a directory of data to use as a feature matrix.'''
-    import os
-    from dataset.reader import readImage
-    return makeContiguous([(readImage(os.path.join(targetpath, im))) \
-                           for im in os.listdir(targetpath)])[0]
 
 def testCloseness(net, imagery) :
     '''Test the imagery for how close it is to the target data. This also sorts
@@ -156,15 +148,11 @@ if __name__ == '__main__' :
     train, test, labels = ingestImagery(filepath=options.data, shared=True,
                                         batchSize=options.batchSize, log=log)
 
-    # load example imagery --
-    # these are confirmed objects we are attempting to identify 
-    target = readTargetData(options.targetDir)
-
     if options.synapse is None :
         regType = 'L2'
         regValue = .001
         trainer = buildTrainerSAENetwork(train, regType, regValue, 
-                                         target, prof=prof,
+                                         prof=prof,
                                          kernelConv=options.kernel, 
                                          kernelSizeConv=options.kernelSize, 
                                          downsampleConv=options.downsample, 
@@ -186,7 +174,7 @@ if __name__ == '__main__' :
         trainer.save(tmpNet)
         options.synapse = tmpNet
 
-    net = ClassifierSAENetwork(target, options.synapse, prof)
+    net = ClassifierSAENetwork(options.targetDir, options.synapse, prof)
 
     # test the training data for similarity to the target
     testCloseness(net, test[0].get_value(borrow=True))
