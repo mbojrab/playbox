@@ -102,30 +102,35 @@ def transformSIOData(imData, log=None):
 def readSIO(image, log=None) :
     return transformSIOData(openSIO(image, log), log)
 
-def memSIOToNumpy(buf, log=None):
-    ''' Read an sio byte buffer into a numpy array '''
-    from coda.sio_lite import dtypeFromSioType, StreamReader
-    from coda.coda_io import StringStream
-
-    inputstream = StringStream()
-    inputstream.write(buf)
-    reader = StreamReader(inputstream)
+def readerToNumpyArray(reader):
+    # this is the bottom half of the sio_lite.read function
+    # TODO: patch coda so that this is avalable everywhere
+    from coda.sio_lite import dtypeFromSioType
     header = reader.getHeader()
 
     elementSize = header.getElementSize()
     dtype = dtypeFromSioType(header.getElementType(), elementSize)
 
-    numpyArray = numpy.empty(shape=(header.getNumLines(),
-                                    header.getNumElements()),
-                             dtype=dtype)
+    numpyArray = np.empty(shape=(header.getNumLines(),
+                                 header.getNumElements()),
+                          dtype=dtype)
     pointer, ro = numpyArray.__array_interface__['data']
     reader.read(pointer,
-                numpyAray.shape[0], numpyArray.shape[1], elementSize)
+                numpyArray.shape[0] * numpyArray.shape[1] * elementSize)
     return numpyArray
 
+def memSIOToNumpy(buf):
+    ''' Read an sio byte buffer into a numpy array '''
+    from coda.sio_lite import StreamReader
+    from coda.coda_io import StringStream
+
+    inputstream = StringStream()
+    inputstream.write(buf)
+    reader = StreamReader(inputstream)
+    return readerToNumpyArray(reader)
 
 def readSIOFromMem(image, log=None) :
-    return transformSIOData(memSIOToNumpy(image, log), log)
+    return transformSIOData(memSIOToNumpy(image), log)
 
 def readNITF(image, log=None) :
     import nitf
