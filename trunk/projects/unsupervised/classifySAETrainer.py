@@ -80,8 +80,9 @@ def testCloseness(net, imagery) :
         for jj, sim in enumerate(sims) :
             sortedBatch[jj][:] = batch[sim[0]][:]
 
-        saveTiledImage(batch, str(ii) + '.tif', (28,28))
-        saveTiledImage(sortedBatch, str(ii) + '_sorted.tif', (28,28))
+        imgDims = imagery.shape[-2:]
+        saveTiledImage(batch, str(ii) + '.tif', imgDims)
+        saveTiledImage(sortedBatch, str(ii) + '_sorted.tif', imgDims)
 
 if __name__ == '__main__' :
     '''Build and train an SAE, then test a '''
