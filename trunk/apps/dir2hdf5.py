@@ -8,10 +8,11 @@ import h5py
 import numpy as np
 
 from nn.profiler import setupLogging
+from dataset.reader import readImage
 
 STORAGE_TYPE = np.uint8
 
-def dir2hdf5(directory, outputfile, log):
+def dir2hdf5(directory, outputfile, convert, log):
     ''' Convert a directory to an hdf5 file with the same content '''
 
     log.info('Processing {0} into {1}'.format(directory, outputfile))
@@ -30,7 +31,10 @@ def dir2hdf5(directory, outputfile, log):
                 # replace old contents with new
                 if f in h5file:
                     del h5file[f]
-                blob = np.fromfile(f, dtype=STORAGE_TYPE)
+                if convert:
+                    blob = readImage(f, log)
+                else:
+                    blob = np.fromfile(f, dtype=STORAGE_TYPE)
                 dset = h5file.create_dataset(f, data=blob,
                                              compression='gzip')
                   
@@ -43,7 +47,7 @@ def dir2hdf5(directory, outputfile, log):
 
 
 def hdf52dir(inputfile, outputdirectory, log):
-    ''' Dump an hd5f to the filesystem '''
+    ''' Dump an hdf5 to the filesystem '''
 
     log.info('Dumping {0} to {1}'.format(inputfile, outputdirectory))
     
@@ -69,6 +73,9 @@ if __name__ == '__main__':
                         help='Specify log output file.')
     parser.add_argument('--level', dest='level', default='INFO', type=str, 
                         help='Log Level.')
+    parser.add_argument('--convert', dest='convert', action='store_true',
+                        help='Convert image file to numpy arrays before'
+                              ' storinng in the hdf5')
     parser.add_argument('--reverse', dest='reverse', action='store_true',
                         help='Run process in reverse and create directory from'
                               ' the hdf5')
@@ -90,7 +97,7 @@ if __name__ == '__main__':
             outputfile = osp.basename(options.directory)
         if not outputfile.endswith('.hdf5'):
             outputfile += '.hdf5'
-        dir2hdf5(directory, outputfile, log)
+        dir2hdf5(directory, outputfile, options.convert, log)
     else:
         # Extract the file contents to a directory tree
         inputfile = options.directory
