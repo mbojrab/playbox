@@ -1,4 +1,5 @@
 import os
+import h5py
 import numpy as np
 import theano.tensor as t
 
@@ -61,11 +62,11 @@ def checkAvailableMemory(dataMemoryConsumption, shared, log) :
 
     return shared
 
-def readDataset(trainDataH5, train, trainShape, batchSize, threads, log) :
+def readDataset(fileData, trainDataH5, train, trainShape, batchSize, threads, log) :
     import theano
     from six.moves import queue
     import threading
-    from dataset.reader import padImageData, readImage
+    from dataset.reader import padImageData
 
     # add jobs to the queue --
     # NOTE : h5py.Dataset doesn't implement __setslice__, so we must implement
@@ -86,8 +87,9 @@ def readDataset(trainDataH5, train, trainShape, batchSize, threads, log) :
             # allocate a load the batch locally so our write are coherent
             tmp = np.ndarray((batchSize), theano.config.floatX)
             for ii, imageFile in enumerate(imageFiles) :
-                tmp[ii][:] = padImageData(readImage(imageFile[0], log),
-                                          batchSize[-3:])[:]
+                tmp[ii][:] = padImageData(fileData.readImage(imageFile[0],
+                                                             log),
+                                          batchSize[-2:])[:]
             dataH5[sliceIndex] = tmp[:]
 
             workQueueData.task_done()
@@ -101,6 +103,96 @@ def readDataset(trainDataH5, train, trainShape, batchSize, threads, log) :
     # join the threads and complete
     workQueueData.join()
 
+
+def hdf5get(inputfile, key):
+    ''' Get a record from an hdf5 file '''
+    with h5py.File(inputfile, 'r') as f:
+        return f[key][:]
+
+
+class FileData:
+
+    def __init__(self, rootpath):
+        self.rootpath = rootpath
+
+    def walk(self):
+        return os.walk(rootpath)
+
+    def getGetSize(self):
+        return lambda f: os.path.getsize(f)
+
+    def getImageShape(self, filename, log=None):
+        return list(getImageDims(filename, log))
+
+    def readImage(self, filename, log=None):
+        from dataset.reader import readImage
+        return readImage(filename, log)
+
+
+class Hdf5FileData(FileData):
+
+    def __init__(self, rootpath):
+        self.rootpath = rootpath
+
+    def walk(self):
+        from dataset.hdf5walk import hdf5walk
+        return hdf5walk(self.rootpath)
+
+    def getGetSize(self):
+        from functools import partial
+        def h5filesize(inputfile, key):
+            return hdf5get(inputfile, key).nbytes
+        return partial(h5filesize, self.rootpath)
+
+    def getImageShape(self, filename, log=None):
+        return list(hdf5get(self.rootpath, filename).shape)
+
+    def readImage(self, filename, log=None):
+        return hdf5get(self.rootpath, filename)
+
+
+def fileDataFactory(rootpath):
+    if os.path.isdir(rootpath):
+        return FileData()
+    elif h5py.is_hdf5(rootpath):
+        return Hdf5FileData(rootpath)
+    else:
+        raise ValueError('Unsupported path type {}'.format(path))
+
+##def walk(path):
+##    ''' Walk files or hdf5 '''
+##    from dataset.hdf5walk import hdf5walk
+##    if os.path.isdir(path):
+##        return os.walk(path)
+##    elif h5py.is_hdf5(path)
+##        return hdf5walk(path)
+##    else:
+##        raise ValueError('Unsupported path type {}'.format(path))
+##
+##def getgetsize(path):
+##    ''' Get a routine for getting file sizes '''
+##    getsize = lambda f: os.path.getsize(f)
+##    if h5py.is_hdf5(path):
+##        def h5filesize(inputfile, key):
+##            return hdf5get(inputfile, key).shape[0]
+##        getsize = partial(h5filesize, path)
+##    return getsize
+##
+##def getImageShape(rootpath, filename, log=None):
+##    ''' Get the shape of an a file '''
+##    if h5py.is_hdf5(rootpath):
+##        # write the hdf5 file to a temp file and read it via getImageDims
+##        # Also, die a little inside because there is not currently a
+##        # more elegant *and* robust way to to read from memory
+##        from tempfile import NamedTemporaryFile
+##        suffix = osp.splitext(filename)[1]
+##        with NamedTemporaryFile(suffix=suffix) as temp:
+##            temp.write(hdf5get(inputfile, filename))
+##            imageShape = list(getImageDims(temp, log))
+##    else:
+##        imageShape = list(getImageDims(filename, log))
+##    return imageShape
+
 def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
     '''This walks the directory structure and divides the data according to the
        user specified holdout over two "train" and "test" sets.
@@ -112,8 +204,9 @@ def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
     # each subdirectory becomes a label and the imagery within are examples.
     # Splitting the data per label ensures each category is represented in the
     # holdout set.
+    fileData = fileDataFactory(path)
     train, test, labels = [], [], []
-    for root, dirs, files in os.walk(path) :
+    for root, dirs, files in fileData.walk() :
         if root == path :
             continue
         if len(files) == 0 :
@@ -166,6 +259,12 @@ def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
 
     return train, test, labels
 
+def hdf5Name(rootpath, holdoutPercentage, batchSize):
+    return rootpath + '_labeled' + \
+           '_holdout_' + str(holdoutPercentage) + \
+           '_batch_' + str(batchSize) +'.hdf5'
+
+
 def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
                 batchSize=1, log=None) :
     '''Create a hdf5 file out of a directory structure. The directory structure
@@ -181,15 +280,19 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     import theano
     import threading
     import multiprocessing
+    from functools import partial
     from six.moves import queue
     from dataset.reader import getImageDims, mostCommon
     from dataset.hdf5 import createHDF5Labeled
 
     rootpath = os.path.abspath(filepath)
-    outputFile = os.path.join(rootpath, os.path.basename(rootpath) + 
-                              '_labeled' + 
-                              '_holdout_' + str(holdoutPercentage) +
-                              '_batch_' + str(batchSize) +'.hdf5')
+    outDir = rootpath if os.path.isdir(rootpath) else os.path.dirname(rootpath)
+    # remove the extension if there is one
+    basefname = os.path.splitext(os.path.basename(rootpath))[0]
+    outputFile = os.path.join(outDir,
+                              hdf5Name(basefname,
+                                       holdoutPercentage,
+                                       batchSize))
     if os.path.exists(outputFile) :
         if log is not None :
             log.info('HDF5 exists for this dataset [' + outputFile +
@@ -236,13 +339,12 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     # data to overflow and ultimately be stored entirely on disk. 
     #
     # Sample the directory for a probable chip size
-    size = mostCommon((t[0] for t in train),
-                      lambda f: os.path.getsize(f),
-                      sampleSize=50)
-    sizedFile = next((t[0] for t in train if os.path.getsize(t[0]) == size))
-    imageShape = list(getImageDims(sizedFile, log))
+    fileData = fileDataFactory(rootpath)
+    getsize = fileData.getGetSize()
+    size = mostCommon((t[0] for t in train), getsize, sampleSize=50)
+    sizedFile = next((t[0] for t in train if getsize(t[0]) == size))
+    imageShape = fileData.getImageShape(sizedFile, log)
 
-    trainShape = [len(train) // batchSize, batchSize] + imageShape
     # TODO: performs a floor, so if there is less than one batch no
     #       data will be returned. Add a check for this.
     trainShape = [len(train) // batchSize, batchSize] + imageShape
@@ -279,8 +381,8 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
 
     # read the image data
     threads = multiprocessing.cpu_count()
-    readDataset(trainDataH5, train, trainShape, batchSize, threads, log)
-    readDataset(testDataH5, test, testShape, batchSize, threads, log)
+    readDataset(fileData, trainDataH5, train, trainShape, batchSize, threads, log)
+    readDataset(fileData, testDataH5, test, testShape, batchSize, threads, log)
 
     # stream in the label in string form
     labelsH5[:] = labels[:]
@@ -320,14 +422,18 @@ def ingestImagery(filepath, shared=True, log=None, **kwargs) :
                  indexing. For now numpy indexing is sufficient.
     '''
     import os
+    import re
     from dataset.shared import splitToShared
     from dataset.hdf5 import readHDF5
 
     if not os.path.exists(filepath) :
         raise ValueError('The path specified does not exist.')
 
+    # See if the file is a not a filesystem hdf5
+    ingestedhdf = re.compile(hdf5Name('.*', '.*', '.*'))
+
     # read the directory structure and pickle it up
-    if os.path.isdir(filepath) :
+    if os.path.isdir(filepath) or ingestedhdf.match(filepath) is None:
         filepath = hdf5Dataset(filepath, log=log, **kwargs)
 
     # Load the dataset to memory
