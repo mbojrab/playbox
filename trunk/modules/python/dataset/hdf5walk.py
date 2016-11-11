@@ -76,7 +76,7 @@ def hdf5walkimpl(path, top='', names_only=True):
     for name in dirs:
         new_path = name[1]
         new_top = osp.join(top, name[0])
-        for x in h5walkimpl(new_path, new_top, names_only):
+        for x in hdf5walkimpl(new_path, new_top, names_only):
             yield x
 
 
