@@ -159,40 +159,6 @@ def fileDataFactory(rootpath):
     else:
         raise ValueError('Unsupported path type {}'.format(path))
 
-##def walk(path):
-##    ''' Walk files or hdf5 '''
-##    from dataset.hdf5walk import hdf5walk
-##    if os.path.isdir(path):
-##        return os.walk(path)
-##    elif h5py.is_hdf5(path)
-##        return hdf5walk(path)
-##    else:
-##        raise ValueError('Unsupported path type {}'.format(path))
-##
-##def getgetsize(path):
-##    ''' Get a routine for getting file sizes '''
-##    getsize = lambda f: os.path.getsize(f)
-##    if h5py.is_hdf5(path):
-##        def h5filesize(inputfile, key):
-##            return hdf5get(inputfile, key).shape[0]
-##        getsize = partial(h5filesize, path)
-##    return getsize
-##
-##def getImageShape(rootpath, filename, log=None):
-##    ''' Get the shape of an a file '''
-##    if h5py.is_hdf5(rootpath):
-##        # write the hdf5 file to a temp file and read it via getImageDims
-##        # Also, die a little inside because there is not currently a
-##        # more elegant *and* robust way to to read from memory
-##        from tempfile import NamedTemporaryFile
-##        suffix = osp.splitext(filename)[1]
-##        with NamedTemporaryFile(suffix=suffix) as temp:
-##            temp.write(hdf5get(inputfile, filename))
-##            imageShape = list(getImageDims(temp, log))
-##    else:
-##        imageShape = list(getImageDims(filename, log))
-##    return imageShape
-
 def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
     '''This walks the directory structure and divides the data according to the
        user specified holdout over two "train" and "test" sets.
