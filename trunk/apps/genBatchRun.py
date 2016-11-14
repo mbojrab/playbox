@@ -45,10 +45,23 @@ if __name__ == '__main__' :
                         help='Batch size for training and test sets.')
     parser.add_argument('--syn', dest='synapse', type=str, default=None,
                         help='Load from a previously saved network.')
-    parser.add_argument('--data', type=str, default=None,
+    parser.add_argument('data', type=str, default=None,
                         help='Directory or pkl.gz file for the training ' + \
                              'and test sets')
     options = parser.parse_args()
+
+    #import pdb; pdb.set_trace()
+
+
+    optiondict = vars(options)
+
+    OPT_STR, OPT_DEST, OPT_VALUE, OPT_TYPE = range(0, 4)
+    optionmapping = [(p.option_strings, p.dest, optiondict[p.dest], p.type)
+                     for p in parser._actions
+                     if p.dest in optiondict and
+                        optiondict[p.dest] is not None]
+    # sort by the option strings
+    optionmapping.sort(key=lambda tup: tup[OPT_STR])
 
     # setup the logger
     logName = 'batchGen: ' + str(options.data)
@@ -56,39 +69,44 @@ if __name__ == '__main__' :
 
     def genSteps(args) :
         '''Generate the range specified by the user.'''
+        if isinstance(args, str):  ## a string arg might have len == 3
+            return args
         return np.arange(args[0], args[1], args[2]) if len(args) == 3 else args
 
-    def permute(learnC, learnF, momentum, dropout,
-                kernel, neuron, limit, stop, batch) :
+    def permute(*args) :
         '''Generate all possible permutations of the parameters.'''
         import itertools
-        params = [learnC, learnF, momentum, dropout,
-                  kernel, neuron, limit, stop, batch]
-        paramSets = [genSteps(x) for x in params]
+        # if args are passed as a list, unwrap them
+        a = args[0] if len(args) == 1 else args
+        paramSets = [genSteps(x) for x in a]
         return list(itertools.product(*paramSets))
 
-    permutations = permute(options.learnC, options.learnF, options.momentum,
-                           options.dropout, options.kernel, options.neuron,
-                           options.limit, options.stop, options.batchSize)
 
-    filename = 'batch' + '.bat' if sys.platform == 'win32' else '.sh'
+    # get the permutations in the same order as for the arguments
+
+    permutable = [tup for tup in optionmapping if
+                  len(tup[OPT_STR]) > 0 and tup[OPT_TYPE] is not str]
+    impermutable = [tup for tup in optionmapping if
+                    len(tup[OPT_STR]) < 1 or tup[OPT_TYPE] is str]
+
+    permutations = permute([tup[OPT_VALUE] for tup in permutable])
+
+    filename = 'batch' + ('.bat' if sys.platform == 'win32' else '.sh')
     with open(filename, 'w') as f :
         for perm in permutations :
             perm = [str(x) for x in perm]            
             cmd = 'python .\lenet5Trainer.py'
-            cmd += ' --learnC '   + perm[0]
-            cmd += ' --learnF '   + perm[1]
-            cmd += ' --momentum ' + perm[2]
-            cmd += ' --dropout '  + perm[3]
-            cmd += ' --kernel '   + perm[4]
-            cmd += ' --neuron '   + perm[5]
-            cmd += ' --limit '    + perm[6]
-            cmd += ' --stop '     + perm[7]
-            cmd += ' --batch '    + perm[8]
-            
-            if options.synapse is not None :
-                cmd += ' --syn ' + options.synapse
-            if options.data is not None :
-                cmd += ' ' + options.data
+            for optmap, p in zip(permutable, perm):
+                cmd += ' {0} {1}'.format(optmap[OPT_STR][0], p)
+
+
+            # TODO: may need to sort the mandatory args 
+            # to the end
+            for optmap in impermutable:
+                arg = optmap[OPT_VALUE]
+                if len(optmap[0]) > 0:
+                    cmd += ' {0} {1}'.format(optmap[OPT_STR][0], arg)
+                else:
+                    cmd += ' {0} '.format(arg)
 
             f.write(cmd + '\n')
