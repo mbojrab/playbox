@@ -9,13 +9,7 @@ from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainSupervised
 from nn.profiler import setupLogging, Profiler
 
-'''This is a simple network in the topology of leNet5 the well-known
-   MNIST dataset trainer from Yann LeCun. This is capable of training other
-   datasets, however the sizing must be correct.
-'''
-if __name__ == '__main__' :
-
-    parser = argparse.ArgumentParser()
+def buildParser(parser=argparse.ArgumentParser()):
     parser.add_argument('--log', dest='logfile', type=str, default=None,
                         help='Specify log output file.')
     parser.add_argument('--level', dest='level', default='INFO', type=str, 
@@ -52,6 +46,17 @@ if __name__ == '__main__' :
                         help='Load from a previously saved network.')
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
                                      'training and test sets')
+
+    return parser
+
+
+'''This is a simple network in the topology of leNet5 the well-known
+   MNIST dataset trainer from Yann LeCun. This is capable of training other
+   datasets, however the sizing must be correct.
+'''
+if __name__ == '__main__' :
+
+    parser = buildParser(argparse.ArgumentParser())
     options = parser.parse_args()
 
     # setup the logger
