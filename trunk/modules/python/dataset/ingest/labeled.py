@@ -335,7 +335,9 @@ def ingestImagery(filepath, shared=True, log=None, **kwargs) :
     train, test, labels = readHDF5(filepath, log)
 
     # calculate the memory needed by this dataset
-    dt = [4., 4., 4., 4.] if t.config.floatX == 'float32' else [8., 4., 8., 4.]
+    floatsize = float(np.dtype(t.config.floatX).itemsize)
+    intsize = float(np.dtype(np.int32).itemsize)
+    dt = [floatsize, intsize, floatsize, intsize]
     dataMemoryConsumption = \
         np.prod(np.asarray(train[0].shape, dtype=np.float32)) * dt[0] + \
         np.prod(np.asarray(train[1].shape, dtype=np.float32)) * dt[1] + \
