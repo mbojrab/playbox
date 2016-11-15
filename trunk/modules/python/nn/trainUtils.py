@@ -12,7 +12,10 @@ def renameBestNetwork(lastSave, bestNetwork, log=None) :
 
     return bestNetwork
 
-def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=30,
+# TODO: This is largely redundant with the method below. Look into combining
+#       them in an intuitive manner. There are minor differences between them
+#       so watch out for this!
+def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=1,
                       synapse=None, base=None, dropout=None, 
                       learnC=None, learnF=None, contrF=None, momentum=None, 
                       kernel=None, neuron=None, log=None) :
@@ -33,7 +36,6 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=30,
     # encoding and decoding loss.
     degradationCount = 0
     globalEpoch = lastBest = resumeEpoch(synapse)
-    runningCost = 10000000.# max float
     lastSave = buildPickleInterim(base=base,
                                   epoch=globalEpoch,
                                   dropout=dropout,
@@ -48,23 +50,29 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=30,
     # train each layer individually
     # this fully trains each layer before moving to next
     for layerIndex in range(network.getNumLayers()) :
+        runningCost = network.checkReconstructionLoss(layerIndex)
 
         # continue training the layer until the network the network stops
         # making progress or it hit a max limit
-        while True and not globalEpoch+1 % numEpochs == 0 :
+        while True :
 
+            # train each layer -- greedily
             timer = time()
-            globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch, 1)
-            log.info('Checking Loss - {0}s - {1}'.format(time() - timer, cost))
+            globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch,
+                                                   numEpochs)
+            elapsed = time() - timer
+            curCost = network.checkReconstructionLoss(layerIndex)
+            log.info('Checking Loss - {0}s - {1}'.format(elapsed, curCost))
 
             # check if we've improved
-            if cost < runningCost :
+            if curCost < runningCost :
+
                 # reset and save the network
                 degradationCount = 0
-                runningCost = cost
+                runningCost = curCost
                 lastBest = globalEpoch
                 lastSave = buildPickleInterim(base=base,
-                                              epoch=globalEpoch,
+                                              epoch=lastBest,
                                               dropout=dropout,
                                               learnC=learnC,
                                               learnF=learnF,
@@ -73,13 +81,13 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=30,
                                               neuron=neuron,
                                               layer=layerIndex)
                 network.save(lastSave)
-        else :
-            # increment the number of poor performing runs
-            degradationCount += 1
+            else :
+                # increment the number of poor performing runs
+                degradationCount += 1
 
-        # stopping conditions for regularization
-        if degradationCount > int(stop) or runningCost == 0. :
-            break
+            # stopping conditions for regularization
+            if degradationCount > int(stop) or runningCost == 0. :
+                break
 
     # rename the network which achieved the highest accuracy
     bestNetwork = buildPickleFinal(base=base, appName=appName,
@@ -97,7 +105,6 @@ def trainSupervised (network, appName, dataPath, numEpochs=5, stop=30,
        return  : Path to the trained network. This will be used as a 
                  pre-trainer for the Neural Network
     '''
-
     degradationCount = 0
     globalCount = lastBest = resumeEpoch(synapse)
     runningAccuracy = network.checkAccuracy()

@@ -11,7 +11,7 @@ from nn.profiler import setupLogging, Profiler
 
 tmpNet = './local.pkl.gz'
 
-def buildTrainerSAENetwork(train, regType, regValue,
+def buildTrainerSAENetwork(train, test, regType, regValue,
                            kernelConv, kernelSizeConv, downsampleConv, 
                            learnConv, momentumConv, dropoutConv,
                            neuronFull, learnFull, momentumFull, dropoutFull, 
@@ -23,7 +23,7 @@ def buildTrainerSAENetwork(train, regType, regValue,
     rng = RandomState(int(time()))
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = TrainerSAENetwork(train, regType, regValue, prof=prof)
+    network = TrainerSAENetwork(train, test, regType, regValue, prof=prof)
 
     if log is not None :
         log.info('Initialize the Network')
@@ -99,19 +99,19 @@ if __name__ == '__main__' :
                         default=None,
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--kernelSize', dest='kernelSize', type=int, nargs='+',
-                        default=[5, 5],
+                        default=None,
                         help='Size of Convolutional Kernels in each Layer.')
     parser.add_argument('--downsample', dest='downsample', type=int, nargs='+',
-                        default=[2, 2],
+                        default=None,
                         help='Downsample factor in each Convolutional Layer.')
     parser.add_argument('--learnC', dest='learnC', type=float, nargs='+',
-                        default=[.08, .08],
+                        default=None,
                         help='Rate of learning on Convolutional Layers.')
     parser.add_argument('--momentumC', dest='momentumC', type=float, nargs='+',
-                        default=[.5, .5],
+                        default=None,
                         help='Rate of momentum on Convolutional Layers.')
     parser.add_argument('--dropoutC', dest='dropoutC', type=float, nargs='+',
-                        default=[0.8, 0.5],
+                        default=None,
                         help='Dropout amount for the Convolutional Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, nargs='+',
                         default=[500, 300, 100],
@@ -125,8 +125,10 @@ if __name__ == '__main__' :
     parser.add_argument('--dropoutF', dest='dropoutF', type=float, nargs='+',
                         default=[0.5, 0.5, 1],
                         help='Dropout amount for the Fully-Connected Layer.')
-    parser.add_argument('--epoch', dest='numEpochs', type=int, default=15,
-                        help='Number of epochs to run per layer.')
+    parser.add_argument('--limit', dest='limit', type=int, default=5,
+                        help='Number of runs between validation checks.')
+    parser.add_argument('--stop', dest='stop', type=int, default=5,
+                        help='Number of inferior validation checks to end.')
     parser.add_argument('--batch', dest='batchSize', type=int, default=100,
                         help='Batch size for training and test sets.')
     parser.add_argument('--base', dest='base', type=str, default='./saeClass',
@@ -150,9 +152,9 @@ if __name__ == '__main__' :
                                         batchSize=options.batchSize, log=log)
 
     if options.synapse is None :
-        regType = 'L2'
-        regValue = .001
-        trainer = buildTrainerSAENetwork(train, regType, regValue, 
+        regType = None
+        regValue = .000
+        trainer = buildTrainerSAENetwork(train, test, regType, regValue, 
                                          prof=prof,
                                          kernelConv=options.kernel, 
                                          kernelSizeConv=options.kernelSize, 
@@ -167,8 +169,10 @@ if __name__ == '__main__' :
 
         # train the SAE
         trainUnsupervised(trainer, __file__, options.data, 
-                          numEpochs=options.numEpochs, synapse=options.synapse,
-                          base=options.base, dropout=(len(options.dropoutC)>0),
+                          numEpochs=options.limit, stop=options.stop, 
+                          synapse=options.synapse, base=options.base,
+                          dropout=(options.dropoutC is not None and \
+                                   len(options.dropoutC) > 0),
                           learnC=options.learnC, learnF=options.learnF,
                           contrF=None, kernel=options.kernel,
                           neuron=options.neuron, log=log)

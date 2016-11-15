@@ -298,8 +298,22 @@ class TrainerSAENetwork (SAENetwork) :
         self._indexVar = t.lscalar('index')
         self._trainData = train[0] if isinstance(train, list) else train
         self._testData = test[0] if isinstance(test, list) else test
-        self._numTrainBatches = self._trainData.shape.eval()[0]
         self._trainGreedy = []
+        self._checkGreedy = []
+
+        if isShared(self._trainData) :
+            self._numTrainBatches = self._trainData.shape.eval()[0]
+        else :
+            self._numTrainBatches = self._trainData.shape[0]
+        if isShared(self._testData) :
+            self._numTestBatches = self._testData.shape.eval()[0]
+            self._numTestSize = self._numTestBatches * \
+                                self._testData.shape.eval()[1]
+        else :
+            self._numTestBatches = self._testData.shape[0]
+            self._numTestSize = self._numTestBatches * \
+                                self._testData.shape[1]
+
         self._regularization = Regularization(regType, regScaleFactor)
 
     def __buildEncoder(self) :
@@ -317,6 +331,20 @@ class TrainerSAENetwork (SAENetwork) :
                 theano.function([self._indexVar], out, updates=up,
                                 givens={self.getNetworkInput()[0] : 
                                         self._trainData[self._indexVar]}))
+
+            # create a function to quickly check the reconstruction error against
+            # the test set. This will be used as an early stoppage criteria
+            if isShared(self._testData) :
+                checkLoss = theano.function(
+                    [self._indexVar], out[0],
+                    givens={self.getNetworkInput()[0] :
+                            self._testData[self._indexVar]})
+                self._checkGreedy.append(lambda ii : checkLoss(ii))
+            else :
+                checkLoss = theano.function(
+                    [self.getNetworkInput()[0]], out[0])
+                self._checkGreedy.append(lambda ii : checkLoss(self._testData[ii]))
+
             self._endProfile()
 
     def __buildDecoder(self) :
@@ -368,6 +396,20 @@ class TrainerSAENetwork (SAENetwork) :
                     self._trainData[self._indexVar]})
             #mode=NanGuardMode(nan_is_error=True, inf_is_error=True,\
             #                   big_is_error=True))
+
+        # create a function to quickly check the reconstruction error against
+        # the test set. This will be used as an early stoppage criteria
+        if isShared(self._testData) :
+            checkNetwork = theano.function(
+                [self._indexVar], cost,
+                givens={self.getNetworkInput()[0] :
+                        self._testData[self._indexVar]})
+            self._checkNetwork = lambda ii : checkNetwork(ii)
+        else :
+            checkNetwork = theano.function(
+                [self.getNetworkInput()[0]], cost)
+            self._checkNetwork = lambda ii : checkNetwork(self._testData[ii])
+
         self._endProfile()
 
     def __getstate__(self) :
@@ -376,9 +418,14 @@ class TrainerSAENetwork (SAENetwork) :
         # remove the functions -- they will be rebuilt JIT
         if '_indexVar' in dict : del dict['_indexVar']
         if '_trainData' in dict : del dict['_trainData']
+        if '_testData' in dict : del dict['_testData']
         if '_numTrainBatches' in dict : del dict['_numTrainBatches']
+        if '_numTestBatches' in dict : del dict['_numTestBatches']
+        if '_numTestSize' in dict : del dict['_numTestSize']
         if '_trainGreedy' in dict : del dict['_trainGreedy']
         if '_trainNetwork' in dict : del dict['_trainNetwork']
+        if '_checkGreedy' in dict : del dict['_checkGreedy']
+        if '_checkNetwork' in dict : del dict['_checkNetwork']
         if 'reconstruction' in dict : del dict['reconstruction']
         return dict
 
@@ -389,6 +436,8 @@ class TrainerSAENetwork (SAENetwork) :
         # theano functions to be rebuilt with the new buffers
         if hasattr(self, '_trainGreedy') : delattr(self, '_trainGreedy')
         if hasattr(self, '_trainNetwork') : delattr(self, '_trainNetwork')
+        if hasattr(self, '_checkGreedy') : delattr(self, '_checkGreedy')
+        if hasattr(self, '_checkNetwork') : delattr(self, '_checkNetwork')
         if hasattr(self, 'reconstruction') : delattr(self, 'reconstruction')
         self._trainGreedy = []
         SAENetwork.__setstate__(self, dict)
@@ -412,28 +461,6 @@ class TrainerSAENetwork (SAENetwork) :
         self._profiler = None
         SAENetwork.finalizeNetwork(self, networkInput)
         self._profiler = tmp
-
-        # NOTE: This uses the lamda function as a means to consolidate the
-        #       calling scheme. This saves us from later using conditionals in
-        #       the inner loops and optimizes the libary
-        netInput = self.getNetworkInput()[0].flatten(2) \
-                   if len(self.getNetworkInput()[0].shape.eval()) != \
-                      len(self.getNetworkInputSize()) else \
-                   self.getNetworkInput()[0]
-        cost = calcLoss(netInput, decodedInput,
-                        self._layers[0].getActivation()) / \
-                        self.getNetworkInputSize()[0]
-        if isShared(self._testData) :
-            checkAcc = theano.function(
-                [index], numCorrect, 
-                givens={self.getNetworkInput()[0] : self._testData[index],
-                        expectedLabels: self._testLabels[index]})
-            self._checkAccuracy = lambda ii : checkAcc(ii)
-        else :
-            checkAcc = theano.function(
-                [self.getNetworkInput()[0], expectedLabels], numCorrect)
-            self._checkAccuracy = lambda ii : checkAcc(self._testData[ii],
-                                                       self._testLabels[ii])
 
         self.__buildEncoder()
         self.__buildDecoder()
@@ -511,9 +538,9 @@ class TrainerSAENetwork (SAENetwork) :
                     self._layers[layerIndex].getInputSize())
                 tileShape = None
                 if layerIndex == 0 :
-                    imageShape = (28,28)
+                    imageShape = self._testData.shape.eval()[-2:]
                     reconstructedInput = np.resize(reconstructedInput,
-                                                   (50,1,28,28))
+                                                   self._testData.shape.eval()[-4:])
                 elif len(self._layers[layerIndex].getInputSize()) > 2 :
                     imageShape = tuple(self._layers[
                                        layerIndex].getInputSize()[-2:])
@@ -531,9 +558,9 @@ class TrainerSAENetwork (SAENetwork) :
             else :
                 reconstructedInput = self.reconstruction(
                     self._trainData.get_value(borrow=True)[0])
-                imageShape = (28,28)
+                imageShape = self._testData.shape.eval()[-2:]
                 reconstructedInput = np.resize(reconstructedInput, 
-                                               (50,1,28,28))
+                                               self._testData.shape.eval()[-4:])
                 saveTiledImage(image=reconstructedInput,
                                path='network_reconstruction_' + 
                                      str(globalEpoch+localEpoch) + '.png',
@@ -541,3 +568,29 @@ class TrainerSAENetwork (SAENetwork) :
                                interleave=True)
             '''
         return globalEpoch + numEpochs, globCost
+
+    def checkReconstructionLoss(self, layerIndex) :
+        '''Check the reconstruction cost of the layer/network against the test
+           set. This runs against the entire test set in a single call and
+           returns the current loss of the layer/network [0:inf].
+        '''
+        self._startProfile('Checking Reconstruction Loss', 'debug')
+        if not hasattr(self, '_checkGreedy') or \
+           not hasattr(self, '_checkNetwork') :
+            from dataset.shared import toShared
+            inp = toShared(self._testData[0], borrow=True) \
+                  if not isShared(self._testData) else self._testData[0]
+            self.finalizeNetwork(inp[:])
+
+        # check the reconstruction error --
+        # the user decides whether this will be a greedy or network check
+        # by passing in a layer index. If the index does not have an associated
+        # layer, it automatically chooses network-wide training.
+        loss = 0.0
+        for ii in range(self._numTestBatches) :
+            if layerIndex < 0 or layerIndex >= self.getNumLayers() :
+                loss += float(self._checkNetwork(ii))
+            else :
+                loss += float(self._checkGreedy[layerIndex](ii))
+        self._endProfile()
+        return loss / float(self._numTestSize)
