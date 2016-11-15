@@ -34,10 +34,9 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=1,
     # the last iteration trains the network as a whole --
     # this ensures the network fine-tunes its encodings wrt to all layers'
     # encoding and decoding loss.
-    degradationCount = 0
     globalEpoch = lastBest = resumeEpoch(synapse)
     lastSave = buildPickleInterim(base=base,
-                                  epoch=globalEpoch,
+                                  epoch=lastBest,
                                   dropout=dropout,
                                   learnC=learnC,
                                   learnF=learnF,
@@ -50,6 +49,7 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=1,
     # train each layer individually
     # this fully trains each layer before moving to next
     for layerIndex in range(network.getNumLayers()) :
+        degradationCount = 0
         runningCost = network.checkReconstructionLoss(layerIndex)
 
         # continue training the layer until the network the network stops
@@ -58,8 +58,8 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=1,
 
             # train each layer -- greedily
             timer = time()
-            globalEpoch, cost = network.trainEpoch(layerIndex, globalEpoch,
-                                                   numEpochs)
+            globalEpoch, _ = network.trainEpoch(layerIndex, globalEpoch,
+                                                numEpochs)
             elapsed = time() - timer
             curCost = network.checkReconstructionLoss(layerIndex)
             log.info('Checking Loss - {0}s - {1}'.format(elapsed, curCost))
@@ -106,7 +106,7 @@ def trainSupervised (network, appName, dataPath, numEpochs=5, stop=30,
                  pre-trainer for the Neural Network
     '''
     degradationCount = 0
-    globalCount = lastBest = resumeEpoch(synapse)
+    globalEpoch = lastBest = resumeEpoch(synapse)
     runningAccuracy = network.checkAccuracy()
     lastSave = buildPickleInterim(base=base,
                                   epoch=lastBest,
@@ -121,7 +121,7 @@ def trainSupervised (network, appName, dataPath, numEpochs=5, stop=30,
         timer = time()
 
         # run the specified number of epochs
-        globalCount = network.trainEpoch(globalCount, numEpochs)
+        globalEpoch = network.trainEpoch(globalEpoch, numEpochs)
         # calculate the accuracy against the test set
         curAcc = network.checkAccuracy()
         log.info('Checking Accuracy - {0}s ' \
@@ -133,7 +133,7 @@ def trainSupervised (network, appName, dataPath, numEpochs=5, stop=30,
             # reset and save the network
             degradationCount = 0
             runningAccuracy = curAcc
-            lastBest = globalCount
+            lastBest = globalEpoch
             lastSave = buildPickleInterim(base=base,
                                           epoch=lastBest,
                                           dropout=dropout,
