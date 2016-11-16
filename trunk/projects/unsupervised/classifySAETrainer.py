@@ -41,6 +41,7 @@ def buildTrainerSAENetwork(train, test, regType, regValue,
             # add a convolutional layer as defined
             network.addLayer(ConvolutionalAutoEncoder(
                 layerID='conv' + str(layerCount), 
+                regType=regType, regValue=regValue,
                 inputSize=layerInputSize,
                 kernelSize=(k,layerInputSize[1],ks,ks),
                 downsampleFactor=[do,do], dropout=dr, 
@@ -55,7 +56,8 @@ def buildTrainerSAENetwork(train, test, regType, regValue,
     for n,l,m,dr in zip(neuronFull, learnFull, momentumFull, dropoutFull) :
         # add a fully-connected layer as defined
         network.addLayer(ContiguousAutoEncoder(
-            layerID='fully' + str(layerCount), regType='L2',
+            layerID='fully' + str(layerCount),
+            regType=regType, contractionRate=regValue,
             inputSize=layerInputSize, numNeurons=n, learningRate=l,
             activation=t.nnet.sigmoid, dropout=dr, #momentum=m, 
             randomNumGen=rng))
@@ -86,7 +88,6 @@ def testCloseness(net, imagery) :
 
 if __name__ == '__main__' :
     '''Build and train an SAE, then test a '''
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--log', dest='logfile', type=str, default=None,
                         help='Specify log output file.')
@@ -152,8 +153,8 @@ if __name__ == '__main__' :
                                         batchSize=options.batchSize, log=log)
 
     if options.synapse is None :
-        regType = None
-        regValue = .000
+        regType = 'L2'
+        regValue = .001
         trainer = buildTrainerSAENetwork(train, test, regType, regValue, 
                                          prof=prof,
                                          kernelConv=options.kernel, 
