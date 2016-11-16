@@ -32,11 +32,16 @@ def dir2hdf5(directory, outputfile, convert, log):
                 if f in h5file:
                     del h5file[f]
                 if convert:
-                    blob = readImage(f, log)
+                    blob, typeinfo = readImage(f, None, raw=True)
                 else:
                     blob = np.fromfile(f, dtype=STORAGE_TYPE)
+                    typeinfo = None
+
+                # TODO: add the type info
                 dset = h5file.create_dataset(f, data=blob,
                                              compression='gzip')
+                if typeinfo is not None:
+                    dset.attrs['type'] = typeinfo
                   
                 fidx += 1
                 if fidx % 1024 == 0: 
