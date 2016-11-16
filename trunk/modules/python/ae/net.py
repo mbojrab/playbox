@@ -316,10 +316,11 @@ class TrainerSAENetwork (SAENetwork) :
 
         self._regularization = Regularization(regType, regScaleFactor)
 
-    def __buildEncoder(self) :
-        '''Build the greedy-layerwise function --
-           All layers start with the input original input, however are updated
-           in a layerwise manner.
+    def __buildGreedy(self) :
+        '''Build the layer-wise training and reconstruction methods -- 
+           All layers start with the same input, however compare their
+           reconstruction error against the input to the layer. 
+
            NOTE: this uses theano.shared variables for optimized GPU execution
         '''
         for encoder in self._layers :
@@ -332,23 +333,20 @@ class TrainerSAENetwork (SAENetwork) :
                                 givens={self.getNetworkInput()[0] : 
                                         self._trainData[self._indexVar]}))
 
-            # create a function to quickly check the reconstruction error against
-            # the test set. This will be used as an early stoppage criteria
             if isShared(self._testData) :
                 checkLoss = theano.function(
                     [self._indexVar], out[0],
                     givens={self.getNetworkInput()[0] :
                             self._testData[self._indexVar]})
-                self._checkGreedy.append(lambda ii : checkLoss(ii))
             else :
                 checkLoss = theano.function(
                     [self.getNetworkInput()[0]], out[0])
-                self._checkGreedy.append(lambda ii : checkLoss(self._testData[ii]))
+            self._checkGreedy.append(checkLoss)
 
             self._endProfile()
 
-    def __buildDecoder(self) :
-        '''Build the decoding section and the network-wide training method.'''
+    def __buildNetwork(self) :
+        '''Build the network-wide training and reconstruction methods.'''
         from nn.costUtils import calcLoss, \
                                  calcSparsityConstraint, \
                                  compileUpdates
@@ -462,8 +460,8 @@ class TrainerSAENetwork (SAENetwork) :
         SAENetwork.finalizeNetwork(self, networkInput)
         self._profiler = tmp
 
-        self.__buildEncoder()
-        self.__buildDecoder()
+        self.__buildGreedy()
+        self.__buildNetwork()
         self._endProfile()
 
     def train(self, layerIndex, index) :
@@ -582,15 +580,28 @@ class TrainerSAENetwork (SAENetwork) :
                   if not isShared(self._testData) else self._testData[0]
             self.finalizeNetwork(inp[:])
 
+        # WARNING: there is something strange going on between the interaction
+        #          between theano and its usage with a list of lambdas. In
+        #          normal cases it would be better not to build this lambda
+        #          JIT, however this bug forces my hand.
+        #          At least we can still get around the if/else tight inner loop
+        networkWide = layerIndex < 0 or layerIndex >= self.getNumLayers()
+        if not networkWide :
+            checkGreedy = lambda l, x: self._checkGreedy[l](x) \
+                          if isShared(self._testData) else \
+                          lambda l, x: self._checkGreedy[l](self._testData[x])
+
         # check the reconstruction error --
         # the user decides whether this will be a greedy or network check
         # by passing in a layer index. If the index does not have an associated
         # layer, it automatically chooses network-wide training.
         loss = 0.0
         for ii in range(self._numTestBatches) :
-            if layerIndex < 0 or layerIndex >= self.getNumLayers() :
+            if networkWide :
                 loss += float(self._checkNetwork(ii))
             else :
-                loss += float(self._checkGreedy[layerIndex](ii))
+                loss += float(checkGreedy(layerIndex, ii))
         self._endProfile()
-        return loss / float(self._numTestSize)
+
+        return loss / float(self.getLayer(
+            layerIndex % self.getNumLayers()).getInputSize()[0])

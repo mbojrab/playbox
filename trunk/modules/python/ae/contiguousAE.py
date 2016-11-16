@@ -29,7 +29,6 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
                           default None : perform no additional regularization
                           L1           : Least Absolute Deviation
                           L2           : Least Squares
-       regType          : 
        learningRate     : learning rate for all neurons
        contractionRate  : variance (dimensionality) reduction rate
                           None uses '1 / numNeurons'
