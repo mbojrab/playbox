@@ -104,10 +104,15 @@ def readDataset(fileData, trainDataH5, train, trainShape, batchSize, threads, lo
     workQueueData.join()
 
 
-def hdf5get(inputfile, key):
+def hdf5get(inputfile, key, metadata=False):
     ''' Get a record from an hdf5 file '''
     with h5py.File(inputfile, 'r') as f:
-        return f[key][:]
+        value = f[key]
+        if metadata:
+            rval = value[:], dict(value.attrs)
+        else:
+            rval = value[:]
+        return rval
 
 
 class FileData:
@@ -148,7 +153,10 @@ class Hdf5FileData(FileData):
         return list(hdf5get(self.rootpath, filename).shape)
 
     def readImage(self, filename, log=None):
-        return hdf5get(self.rootpath, filename)
+        from dataset.reader import readImage
+        data, metadata = hdf5get(self.rootpath, filename, True)
+        typename = metadata['type'] if 'type' in metadata else None
+        return readImage((data, typename), raw=False)
 
 
 def fileDataFactory(rootpath):
