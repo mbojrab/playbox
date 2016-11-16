@@ -67,6 +67,9 @@ def openSICD(image, log=None) :
     '''This method reads the XML and complex data from SICD.'''
     import pysix.six_sicd
 
+    if type(image) != numpy.ndarray:
+        return image
+
     # setup the schema validation if the user has it specified
     schemaPaths = pysix.six_sicd.VectorString()
     if 'SIX_SCHEMA_PATH' in os.environ :
@@ -78,17 +81,24 @@ def openSICD(image, log=None) :
     wbData, cmplxData = pysix.six_sicd.read(image, schemaPaths)
     return (wbData, cmplxData)
 
-def readSICD(image, log=None) :
+def readSICD(image, log=None, **kwargs) :
     '''This method should read and prepare the data for training or testing.'''
     wbData, cmplxData = openSICD(image, log)
-    return convertPhaseAmp(wbData, log)
+    raw = kwargs.get('raw', False)
+    if not raw:
+        wbData = convertPhaseAmp(wbData, log)
+    else:
+        wbData = wbData, 'sicd'
+    return wbData
 
-def readSIDD(image, log=None) :
+def readSIDD(image, log=None, **kwargs) :
     '''This method should read a prepare the data for training or testing.'''
     raise NotImplementedError('Implement the datasetUtils.readSIDD() method')
 
 def openSIO(image, log=None) :
     import coda.sio_lite
+    if type(image) == np.ndarray:
+        return image
     return coda.sio_lite.read(image)
 
 def transformSIOData(imData, log=None):
@@ -99,8 +109,14 @@ def transformSIOData(imData, log=None):
         # TODO: this assumes the imData is already band-interleaved
         return imData
 
-def readSIO(image, log=None) :
-    return transformSIOData(openSIO(image, log), log)
+def readSIO(image, log=None, **kwargs) :
+    siodata = openSIO(image, log)
+    raw = kwargs.get('raw', False)
+    if not raw:
+        siodata = transformSIOData(siodata, log)
+    else:
+        siodata = siodata, '.sio'
+    return siodata
 
 def readerToNumpyArray(reader):
     # this is the bottom half of the sio_lite.read function
@@ -132,32 +148,42 @@ def memSIOToNumpy(buf):
 def readSIOFromMem(image, log=None) :
     return transformSIOData(memSIOToNumpy(image), log)
 
-def readNITF(image, log=None) :
+def readNITF(image, log=None, **kwargs) :
     import nitf
 
-    # read the nitf
-    reader, record = nitf.read(image)
+    if type(image) != np.ndarray: 
+        # read the nitf
+        reader, record = nitf.read(image)
 
-    # there could be multiple images per nitf --
-    # for now just read the first.
-    # TODO: we could read each image separately, but its unlikely to
-    #       encounter a multi-image file in the wild.
-    segment = record.getImages()[0]
-    imageReader = reader.newImageReader(0)
-    window = nitf.SubWindow()
-    window.numRows = segment.subheader['numRows'].intValue()
-    window.numCols = segment.subheader['numCols'].intValue()
-    window.bandList = range(segment.subheader.getBandCount())
+        # there could be multiple images per nitf --
+        # for now just read the first.
+        # TODO: we could read each image separately, but its unlikely to
+        #       encounter a multi-image file in the wild.
+        segment = record.getImages()[0]
+        imageReader = reader.newImageReader(0)
+        window = nitf.SubWindow()
+        window.numRows = segment.subheader['numRows'].intValue()
+        window.numCols = segment.subheader['numCols'].intValue()
+        window.bandList = range(segment.subheader.getBandCount())
 
-    # read the bands and interleave them by band --
-    # this assumes the image is non-complex and treats bands as color.
-    a = np.concatenate(imageReader.read(window))
-    a = np.resize(statisticalNorm(a), 
-                  (segment.subheader.getBandCount(),
-                   window.numRows, window.numCols))
+        # read the bands and interleave them by band --
+        # this assumes the image is non-complex and treats bands as color.
+        a = np.concatenate(imageReader.read(window))
 
-    # explicitly close the handle -- for peace of mind
-    reader.io.close()
+        a = np.resize(a, 
+                      (segment.subheader.getBandCount(),
+                       window.numRows, window.numCols))
+
+        # explicitly close the handle -- for peace of mind
+        reader.io.close()
+    else:
+        a = image[0]
+
+    raw = kwargs.get('raw', False)
+    if not raw:
+        a = statisticalNorm(a)
+    else:
+        a = a, '.nitf'
     return a
 
 def makePILImageBandContiguous(img, log=None) :
@@ -177,38 +203,76 @@ def makePILImageBandContiguous(img, log=None) :
         a = np.asarray(img.getdata(), dtype=t.config.floatX)
         return np.resize(statisticalNorm(a), (1, img.size[1], img.size[0]))
 
-def readPILImage(image, log=None) :
+def readPILImage(image, log=None, **kwargs) :
     '''This method should be used for all regular image formats from JPEG,
        PNG, TIFF, etc. A PIL error may originate from this method if the image
        format is unsupported.
     '''
     from PIL import Image
-    img = Image.open(image)
-    img.load() # because PIL can be lazy
-    return makePILImageBandContiguous(img)
+    from io import BytesIO
 
-def readImage(image, log=None) :
+    # PIL images can be a bunch of different types
+    # with different memory layouts that are nasty
+    # to recreate (putting them as numpy arrays
+    # disturbs their delicate nature)
+    #
+    # So for 'raw' input, just punt on interpreting
+    # them at all and just grab the raw file bytes.
+    # 
+    # When we need the 'processed' version, PIL
+    # is smart enough to decode these in memory
+
+    if type(image) == tuple:
+        # pass in buffer and type as tuple
+        # read raw bytes
+        img = Image.open(BytesIO(image[0].tobytes()))
+    else:
+        img = Image.open(image)
+        img.load() # because PIL can be lazy
+
+    raw = kwargs.get('raw', False)
+    if not raw:
+        out = makePILImageBandContiguous(img, log)
+    else:
+        if type(image) == str:
+            out = (np.fromfile(image, dtype=np.uint8),
+                   img.mode)
+        else:
+            # just hand back the input
+            out = image
+
+    return out
+
+def readImage(image, log=None, **kwargs) :
     '''Load the image into memory. It can be any type supported by PIL.'''
     if log is not None :
-        log.debug('Openning Image [' + image + ']')
-    imageLower = image.lower()
+        log.debug('Opening Image [' + image + ']')
+    if type(image) == tuple:
+        typeinfo = image[1]  # type of image is second tuple entry
+        image = image[0]
+        pilargs = (image, typeinfo)
+    else:
+        typeinfo = image.lower()
+        pilargs = image
+
     # TODO: Images are named differently and this is not a great measure for
     #       for image types. Change this in the future to a try/catch and 
     #       allow the library decide what it is (or pass in a parameter for
     #       optimized performance).
     ret = None
-    if imageLower.endswith('.sio') :
-        ret = readSIO(image, log)
-    elif 'sicd' in imageLower :
-        ret = readSICD(image, log)
-    elif 'sidd' in imageLower :
-        ret = readSIDD(image, log)
-    elif imageLower.endswith('.nitf') or imageLower.endswith('.ntf') :
-        ret = readNITF(image, log)
+    if typeinfo.endswith('.sio') :
+        ret = readSIO(image, log, **kwargs)
+    elif 'sicd' in typeinfo :
+        ret = readSICD(image, log, **kwargs)
+    elif 'sidd' in typeinfo :
+        ret = readSIDD(image, log, **kwargs)
+    elif typeinfo.endswith('.nitf') or typeinfo.endswith('.ntf') :
+        ret = readNITF(image, log, **kwargs)
     else :
-        ret = readPILImage(image, log)
+        ret = readPILImage(pilargs, log, **kwargs)
 
-    return atleastND(ret, 3)
+    raw = kwargs.get('raw', False)
+    return ret if raw else atleastND(ret, 3)
 
 def getImageDims(image, log=None) :
     '''Load the image and return its dimensions.
