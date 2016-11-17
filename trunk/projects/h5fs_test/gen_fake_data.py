@@ -45,7 +45,7 @@ def cd(newdir):
         os.chdir(prevdir)
 
 
-def make_directory(path):
+def make_directory(path, nsios=1000):
     ''' Make a directory with a bunch of test files '''
 
     if not osp.exists(path):
@@ -53,13 +53,13 @@ def make_directory(path):
 
     with cd(path):
 
-        for x in range(0, 1000):
+        for x in range(0, nsios):
             write_sio(x)
-        write_any(1000, 'jpg', False)
-        write_any(1001, 'jpg')
-        write_any(1002, 'tif')
+        write_any(nsios, 'jpg', False)
+        write_any(nsios+1, 'jpg')
+        write_any(nsios+2, 'tif')
 
-        nitffilename = '001003.nitf'
+        nitffilename = '{:06d}.nitf'.format(nsios+3)
         if not osp.exists(nitffilename):
             nitfurl = 'http://www.gwg.nga.mil/ntb/baseline/software/testfile/Nitfv2_0/U_1001A.NTF'
             nitffile = urllib2.urlopen(nitfurl)
@@ -75,14 +75,18 @@ if __name__ == '__main__':
     parser.add_argument('dataset', type=str,
                         choices=['unsorted', 'test_train'],
                         help='Directory of input imagery.')
+    parser.add_argument('--count', type=int,
+                        default=1000,
+                        help='Nuumber of sios to create.')
     options = parser.parse_args()
 
     dataset = options.dataset
+    count = options.count
 
     if dataset == 'unsorted':
-        make_directory('unsorted')
+        make_directory('unsorted', count)
     elif dataset == 'test_train':
-        make_directory('test_train/train/{}'.format(imagesize[0]))
+        make_directory('test_train/train/{}'.format(imagesize[0]), count)
         traindir = 'test_train/test/{}'.format(imagesize[0])
         if osp.exists(traindir):
             os.makedirs(traindir)
