@@ -17,47 +17,6 @@ def buildParser(parser=argparse.ArgumentParser()):
 '''
 if __name__ == '__main__' :
     parser = buildParser(argparse.ArgumentParser())
-    #parser.add_argument('--log', dest='logfile', type=str, default=None,
-    #                    help='Specify log output file.')
-    #parser.add_argument('--level', dest='level', default='INFO', type=str, 
-    #                    help='Log Level.')
-    #parser.add_argument('--learnC', dest='learnC', type=float, nargs='+', 
-    #                    default=[.1,1,.25],
-    #                    help='Rate of learning on Convolutional Layers.')
-    #parser.add_argument('--learnF', dest='learnF', type=float, nargs='+', 
-    #                    default=[.1,1,.25], 
-    #                    help='Rate of learning on Fully-Connected Layers.')
-    #parser.add_argument('--momentum', dest='momentum', type=float, nargs='+', 
-    #                    default=[.1,1,.4],
-    #                    help='Momentum rate all layers.')
-    #parser.add_argument('--dropout', dest='dropout', type=bool,
-    #                    nargs='+', default=[False, True],
-    #                    help='Enable dropout throughout the network. Dropout '\
-    #                         'percentages are based on optimal reported '\
-    #                         'results. NOTE: Networks using dropout need to '\
-    #                         'increase both neural breadth and learning rates')
-    #parser.add_argument('--kernel', dest='kernel', type=int, nargs='+', 
-    #                    default=[20,80,20], 
-    #                    help='Number of Convolutional Kernels in each Layer.')
-    #parser.add_argument('--neuron', dest='neuron', type=int, nargs='+', 
-    #                    default=[200,500,150],
-    #                    help='Number of Neurons in Hidden Layer.')
-    #parser.add_argument('--limit', dest='limit', type=int, nargs='+', 
-    #                    default=[2],
-    #                    help='Number of runs between validation checks.')
-    #parser.add_argument('--stop', dest='stop', type=int, nargs='+', 
-    #                    default=[20],
-    #                    help='Number of inferior validation checks to end.')
-    #parser.add_argument('--batch', dest='batchSize', type=int, nargs='+', 
-    #                    default=[10,60,20],
-    #                    help='Batch size for training and test sets.')
-    #parser.add_argument('--syn', dest='synapse', type=str, default=None,
-    #                    help='Load from a previously saved network.')
-    #parser.add_argument('data', type=str, default=None,
-    #                    help='Directory or pkl.gz file for the training ' + \
-    #                         'and test sets')
-    #parser.add_argument('script', type=str, default=None,
-    #                    help='script file to generate stuff for')
     options, rest = parser.parse_known_args()
 
     appmodulename = osp.splitext(options.script)[0]
