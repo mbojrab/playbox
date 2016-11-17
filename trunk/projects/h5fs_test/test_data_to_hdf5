@@ -1,0 +1,19 @@
+#!/bin/bash
+
+name=${1:?No input directory provided}
+
+rm -r "${name}2"
+rm $name.hdf5
+
+script_loc=$(readlink -f ../../apps/)
+
+echo $PYTHONPATH
+
+#ipython --pdb $script_loc/dir2hdf5.py -- --convert $name $name.hdf5 
+python $script_loc/dir2hdf5.py --convert $name $name.hdf5 
+python $script_loc/dir2hdf5.py --reverse $name.hdf5 "${name}2"
+
+# warn about bad stuff in the hdf5
+diff -qr $name "${name}2/${name}" | grep -v sio | grep -v nitf
+
+rm -r "${name}2"
