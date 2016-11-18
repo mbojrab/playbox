@@ -1,6 +1,7 @@
 #!/bin/sh
 
 name=${1:-unsorted}
-python gen_fake_data.py --count 50000 $name
+count=${2:-1000}
+python gen_fake_data.py --count $count $name
 ./test_data_to_hdf5 $name
 
