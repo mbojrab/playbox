@@ -301,6 +301,8 @@ class TrainerSAENetwork (SAENetwork) :
         self._trainGreedy = []
         self._checkGreedy = []
 
+        # setup the sizing --
+        # NOTE: this supports both theano.shared and np.ndarray
         if isShared(self._trainData) :
             self._numTrainBatches = self._trainData.shape.eval()[0]
         else :
@@ -324,7 +326,8 @@ class TrainerSAENetwork (SAENetwork) :
            NOTE: this uses theano.shared variables for optimized GPU execution
         '''
         for encoder in self._layers :
-            # forward pass through layers
+            # setup the layer-wise training functions --
+            # This performs bookkeeping across all layers
             self._startProfile('Finalizing Encoder [' + encoder.layerID + ']', 
                                'debug')
             out, up = encoder.getUpdates()
@@ -333,6 +336,8 @@ class TrainerSAENetwork (SAENetwork) :
                                 givens={self.getNetworkInput()[0] : 
                                         self._trainData[self._indexVar]}))
 
+            # build the layer-wide reconstruction check --
+            # This will be used as an early stoppage criteria
             if isShared(self._testData) :
                 checkLoss = theano.function(
                     [self._indexVar], out[0],
@@ -351,16 +356,16 @@ class TrainerSAENetwork (SAENetwork) :
                                  calcSparsityConstraint, \
                                  compileUpdates
 
-        # setup the decoders -- 
-        # this is the second half of the network and is equivalent to the
-        # encoder network reversed.
+        # setup the network-wide decoder --
+        # this starts at the end of the network, and decodes layerwise
+        # all the way back to the input, and checks reconstruction error.
         layerInput = self.getNetworkOutput()[0]
         sparseConstr = calcSparsityConstraint(
             layerInput, self.getNetworkOutputSize())
         jacobianCost = self._layers[-1].getUpdates()[0][1]
 
+        # backward pass through layers
         for decoder in reversed(self._layers) :
-            # backward pass through layers
             self._startProfile('Finalizing Decoder [' + decoder.layerID + ']', 
                                'debug')
             layerInput = decoder.buildDecoder(layerInput)
@@ -370,7 +375,7 @@ class TrainerSAENetwork (SAENetwork) :
         self.reconstruction = theano.function([self.getNetworkInput()[0]],
                                               decodedInput)
 
-        # TODO: here we assume the first layer uses sigmoid activation
+        # check the reconstruction loss after passing through all layers
         self._startProfile('Setting up Network-wide Decoder', 'debug')
 
         netInput = self.getNetworkInput()[0].flatten(2) \
@@ -395,8 +400,8 @@ class TrainerSAENetwork (SAENetwork) :
             #mode=NanGuardMode(nan_is_error=True, inf_is_error=True,\
             #                   big_is_error=True))
 
-        # create a function to quickly check the reconstruction error against
-        # the test set. This will be used as an early stoppage criteria
+        # build the network-wide reconstruction check --
+        # This will be used as an early stoppage criteria
         if isShared(self._testData) :
             checkNetwork = theano.function(
                 [self._indexVar], cost,
