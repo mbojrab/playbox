@@ -62,10 +62,25 @@ def checkAvailableMemory(dataMemoryConsumption, shared, log) :
 
     return shared
 
+
+class ParallelReader:
+
+    def __init__(self, fileData, batchSize):
+        self.fileData = fileData
+        self.batchSize = batchSize
+
+    def __call__(self, imageFile):
+      from dataset.reader import padImageData
+      # No logging
+      return padImageData(self.fileData.readImage(imageFile[0], None),
+                          self.batchSize[-2:])[:]
+
+
 def readDataset(fileData, trainDataH5, train, trainShape, batchSize, threads, log) :
     import theano
     from six.moves import queue
     import threading
+    import multiprocessing
     from dataset.reader import padImageData
 
     # add jobs to the queue --
@@ -73,9 +88,13 @@ def readDataset(fileData, trainDataH5, train, trainShape, batchSize, threads, lo
     #        the copy via __setitem__. This differs from my normal index
     #        formatting, but it gets the job done.
     workQueueData = queue.Queue()
+    jobs = []
     for ii in range(trainShape[0]) :
-        workQueueData.put((trainDataH5, np.s_[ii, :], trainShape[1:],
-                           train[ii*batchSize:(ii+1)*batchSize], log))
+        jobs.append((trainDataH5, np.s_[ii, :], trainShape[1:],
+                     train[ii*batchSize:(ii+1)*batchSize], log))
+
+        #workQueueData.put((trainDataH5, np.s_[ii, :], trainShape[1:],
+        #                   train[ii*batchSize:(ii+1)*batchSize], log))
 
     # stream the imagery into the buffers --
     # we are threading this for efficiency
@@ -86,22 +105,43 @@ def readDataset(fileData, trainDataH5, train, trainShape, batchSize, threads, lo
 
             # allocate a load the batch locally so our write are coherent
             tmp = np.ndarray((batchSize), theano.config.floatX)
-            for ii, imageFile in enumerate(imageFiles) :
-                tmp[ii][:] = padImageData(fileData.readImage(imageFile[0],
-                                                             log),
-                                          batchSize[-2:])[:]
+            ##for ii, imageFile in enumerate(imageFiles) :
+            ##    tmp[ii][:] = padImageData(fileData.readImage(imageFile[0],
+            ##                                                 log),
+            ##                              batchSize[-2:])[:]
+
+            pr = ParallelReader(fileData, batchSize)
+
+            pool = multiprocessing.Pool(threads) 
+            for ii, imageData in enumerate(pool.map(pr, imageFiles)):
+                tmp[ii][:] = imageData
+
             dataH5[sliceIndex] = tmp[:]
 
             workQueueData.task_done()
 
-    # create the workers
-    for ii in range(threads) :
-        thread = threading.Thread(target=readImagery)
-        thread.daemon = True
-        thread.start()
+    
+    pool = multiprocessing.Pool(threads) 
+    for dataH5, sliceIndex, batchSize, imageFiles, log in jobs:
 
-    # join the threads and complete
-    workQueueData.join()
+        tmp = np.ndarray((batchSize), theano.config.floatX)
+        pr = ParallelReader(fileData, batchSize)
+
+        for ii, imageData in enumerate(pool.imap(pr, imageFiles)):
+            tmp[ii][:] = imageData
+
+        dataH5[sliceIndex] = tmp[:]
+    pool.close()
+
+
+    # create the workers
+    ##for ii in range(1) :
+    ##    thread = threading.Thread(target=readImagery)
+    ##    thread.daemon = True
+    ##    thread.start()
+
+    ### join the threads and complete
+    ##workQueueData.join()
 
 
 def hdf5get(inputfile, key, metadata=False):
@@ -121,12 +161,13 @@ class FileData:
         self.rootpath = rootpath
 
     def walk(self):
-        return os.walk(rootpath)
+        return os.walk(self.rootpath)
 
     def getGetSize(self):
         return lambda f: os.path.getsize(f)
 
     def getImageShape(self, filename, log=None):
+        from dataset.reader import getImageDims
         return list(getImageDims(filename, log))
 
     def readImage(self, filename, log=None):
@@ -161,7 +202,7 @@ class Hdf5FileData(FileData):
 
 def fileDataFactory(rootpath):
     if os.path.isdir(rootpath):
-        return FileData()
+        return FileData(rootpath)
     elif h5py.is_hdf5(rootpath):
         return Hdf5FileData(rootpath)
     else:
@@ -214,11 +255,12 @@ def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
             [(os.path.join(root, file), indx) for file in files
                 if file.endswith(suffix)],
             dtype=np.object)
-        naiveShuffle(items)
+        #naiveShuffle(items)
 
         # randomly distribute the data using Random Assignment based on
         # Bernoulli trials
         # TODO: There may be a more compact way to represent this in python
+        np.random.seed(25)
         randomAssign = np.random.binomial(1, holdoutPercentage, len(items))
         train.extend(
             [items[ii] for ii in range(len(items)) if randomAssign[ii] == 0])
@@ -228,8 +270,8 @@ def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
     # randomize the data across categories -- otherwise its not stochastic
     if log is not None :
         log.info('Shuffling the data for randomization')
-    naiveShuffle(train)
-    naiveShuffle(test)
+    #naiveShuffle(train)
+    #naiveShuffle(test)
 
     return train, test, labels
 
