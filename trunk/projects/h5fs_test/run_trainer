@@ -6,13 +6,19 @@ script_loc=$(readlink -f ../../projects/unsupervised)
 hdf5file=${1:-./unsorted.hdf5}
 test_dir=${2:-./test1}
 
-# fake a test dir
-mkdir -p $test_dir
 
 # steal a file to put in the test dir
-hdfdir=$(basename $hdf5file .hdf5)
+
+hdfdirname=$(basename $hdf5file .hdf5)
+hdfdir=$(dirname $hdf5file)/$hdfdirname
 test_file=$(find $hdfdir -type f -name '*.sio' | head -n 1)
 test -e "$test_file" || { echo "No dummy data directory found! "; exit; }
+
+# fake a test dir
+rm -r $test_dir
+mkdir -p $test_dir
 cp $test_file $test_dir/
 
-ipython --pdb $script_loc/classifySAETrainer.py -- --neuron 1000 200 --learnF .12 .12 --momentumF .5 .5 --dropoutF .8 1. --batch 200 --epoch 0 --target $test_dir $hdf5file 
+date
+ipython --pdb $script_loc/classifySAETrainer.py -- --neuron 1000 200 --learnF .12 .12 --momentumF .5 .5 --dropoutF .8 1. --batch 200 --epoch 1 --target $test_dir $hdf5file 
+date
