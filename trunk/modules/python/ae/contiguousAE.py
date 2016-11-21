@@ -174,12 +174,6 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         '''This allows the Stacker to build the layerwise training.'''
         return (self._costs, self._updates)
 
-    # DEBUG: For Debugging purposes only
-    def saveReconstruction(self, image, ii) :
-        from dataset.debugger import saveNormalizedImage
-        saveNormalizedImage(np.resize(self.reconstruction(image), (28, 28)),
-                            'chip_' + str(ii) + '_reconst.png')
-
 
 if __name__ == '__main__' :
     import argparse, logging, time

@@ -10,3 +10,10 @@ class AutoEncoder () :
 
     def getUpdates(self) :
         raise NotImplementedError('Implement the getUpdates() method')
+
+    # DEBUG: For Debugging purposes only
+    def saveReconstruction(self, image, ii) :
+        from dataset.debugger import saveNormalizedImage
+        saveNormalizedImage(np.resize(self.reconstruction(image), 
+                                      image.shape[-2:]),
+                            'chip_' + str(ii) + '_reconst.png')
