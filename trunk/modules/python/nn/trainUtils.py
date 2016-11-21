@@ -111,7 +111,7 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=1,
            numEpochs=numEpochs, stop=stop, synapse=synapse, base=base,
            dropout=dropout, learnC=learnC, learnF=learnF, contrF=contrF,
            momentum=momentum, kernel=kernel, neuron=neuron,
-           numLayers=network.getNumLayers(), log=log)
+           numLayers=network.getNumLayers()+1, log=log)
 
 def trainSupervised (network, appName, dataPath, numEpochs=5, stop=30, 
                      synapse=None, base=None, dropout=None, 

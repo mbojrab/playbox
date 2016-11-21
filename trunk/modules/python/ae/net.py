@@ -316,7 +316,10 @@ class TrainerSAENetwork (SAENetwork) :
             self._numTestSize = self._numTestBatches * \
                                 self._testData.shape[1]
 
-        self._regularization = Regularization(regType, regScaleFactor)
+        self._regularization = Regularization(regType,
+                                              regScaleFactor / 2. if \
+                                              regType == 'L2' else \
+                                              regScaleFactor)
 
     def __buildGreedy(self) :
         '''Build the layer-wise training and reconstruction methods -- 
@@ -360,8 +363,7 @@ class TrainerSAENetwork (SAENetwork) :
         # this starts at the end of the network, and decodes layerwise
         # all the way back to the input, and checks reconstruction error.
         layerInput = self.getNetworkOutput()[0]
-        sparseConstr = calcSparsityConstraint(
-            layerInput, self.getNetworkOutputSize())
+        sparseConstr = self._layers[-1].getUpdates()[0][2]
         jacobianCost = self._layers[-1].getUpdates()[0][1]
 
         # backward pass through layers
@@ -378,10 +380,9 @@ class TrainerSAENetwork (SAENetwork) :
         # check the reconstruction loss after passing through all layers
         self._startProfile('Setting up Network-wide Decoder', 'debug')
 
-        netInput = self.getNetworkInput()[0].flatten(2) \
-                   if len(self.getNetworkInput()[0].shape.eval()) != \
-                      len(self.getNetworkInputSize()) else \
-                   self.getNetworkInput()[0]
+        netInput = self.getNetworkInput()[0]
+        if len(netInput.shape.eval()) != len(self.getNetworkInputSize()) :
+            netInput = netInput.flatten(2)
         cost = calcLoss(netInput, decodedInput,
                         self._layers[0].getActivation()) / \
                         self.getNetworkInputSize()[0]
