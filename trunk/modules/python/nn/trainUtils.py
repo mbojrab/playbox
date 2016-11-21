@@ -37,7 +37,8 @@ def _train(network, appName, dataPath, numEpochs=5, stop=1,
         learnC=learnC, learnF=learnF, contrF=contrF,
         momentum=momentum, kernel=kernel, neuron=neuron,
         layer=getLayer(0, network))
-    network.save(lastSave)
+    if not os.path.exists(lastSave) :
+        network.save(lastSave)
 
     # this loop allows the network to be trained layer-wise. The unsupervised
     # learning method allows each layer to be trained individually.
