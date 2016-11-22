@@ -8,6 +8,7 @@ from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainUnsupervised
 from nn.profiler import setupLogging, Profiler
+from dataset.shared import getShape
 
 tmpNet = './local.pkl.gz'
 
@@ -34,14 +35,14 @@ def buildTrainerSAENetwork(train, test, regType, regValue,
                 network.getNetworkOutputSize())
 
     layerCount = 1
-    layerInputSize = train[0].shape.eval()[1:]
+    layerInputSize = getShape(train[0])[1:]
     if kernelConv is not None :
         for k,ks,do,l,m,dr in zip(kernelConv, kernelSizeConv, downsampleConv, 
                                   learnConv, momentumConv, dropoutConv) :
             # add a convolutional layer as defined
             network.addLayer(ConvolutionalAutoEncoder(
                 layerID='conv' + str(layerCount), 
-                regType=regType, regValue=regValue,
+                regType=regType, contractionRate=regValue,
                 inputSize=layerInputSize,
                 kernelSize=(k,layerInputSize[1],ks,ks),
                 downsampleFactor=[do,do], dropout=dr, 
@@ -96,7 +97,7 @@ if __name__ == '__main__' :
     parser.add_argument('--prof', dest='profile', type=str, 
                         default='Application-Profiler.xml',
                         help='Specify profile output file.')
-    parser.add_argument('--kernel', dest='kernel', 
+    parser.add_argument('--kernel', dest='kernel', type=int, nargs='+',
                         default=None,
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--kernelSize', dest='kernelSize', type=int, nargs='+',
@@ -154,7 +155,7 @@ if __name__ == '__main__' :
 
     if options.synapse is None :
         regType = 'L2'
-        regValue = .001
+        regValue = .0001
         trainer = buildTrainerSAENetwork(train, test, regType, regValue, 
                                          prof=prof,
                                          kernelConv=options.kernel, 
