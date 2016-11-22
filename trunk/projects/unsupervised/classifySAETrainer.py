@@ -88,6 +88,8 @@ def testCloseness(net, imagery) :
 
 if __name__ == '__main__' :
     '''Build and train an SAE, then test a '''
+    import numpy as np
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--log', dest='logfile', type=str, default=None,
                         help='Specify log output file.')
@@ -128,6 +130,9 @@ if __name__ == '__main__' :
                         help='Dropout amount for the Fully-Connected Layer.')
     parser.add_argument('--limit', dest='limit', type=int, default=5,
                         help='Number of runs between validation checks.')
+    parser.add_argument('--epoch', dest='epoch', type=float,
+                        default=np.inf,
+                        help='Maximum number of runs per layer')
     parser.add_argument('--stop', dest='stop', type=int, default=5,
                         help='Number of inferior validation checks to end.')
     parser.add_argument('--batch', dest='batchSize', type=int, default=100,
@@ -176,7 +181,8 @@ if __name__ == '__main__' :
                                    len(options.dropoutC) > 0),
                           learnC=options.learnC, learnF=options.learnF,
                           contrF=None, kernel=options.kernel,
-                          neuron=options.neuron, log=log)
+                          neuron=options.neuron,
+                          maxEpoch=options.epoch, log=log)
         trainer.save(tmpNet)
         options.synapse = tmpNet
 
