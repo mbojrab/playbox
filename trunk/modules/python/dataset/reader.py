@@ -20,12 +20,12 @@ def mostCommonExt(files, samplesize=None) :
     '''Returns the most common extension in the set of names.'''
     return mostCommon(files, lambda f: os.path.splitext(f)[1], samplesize)
 
-def atleast3D(imgData) :
-    '''Convert input to a 3d numpy array'''
+def atleastND(imgData, nd) :
+    '''Convert input to an n-d numpy array'''
     # I'd like to use numpy.atleast_3d but it puts
     # the singleton dimensions before and after the input
     # while we want them before it
-    while len(imgData.shape) < 3:
+    while len(imgData.shape) < nd:
         imgData = np.expand_dims(imgData, axis=0)
     return imgData
 
@@ -179,7 +179,7 @@ def readImage(image, log=None) :
     else :
         ret = readPILImage(image, log)
 
-    return atleast3D(ret)
+    return atleastND(ret, 3)
 
 def getImageDims(image, log=None) :
     '''Load the image and return its dimensions.
