@@ -241,6 +241,8 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
                       sampleSize=50)
     sizedFile = next((t[0] for t in train if os.path.getsize(t[0]) == size))
     imageShape = list(getImageDims(sizedFile, log))
+    if len(imageShape) == 2:  # pad out single channel data
+        imageShape = [1] + imageShape
 
     trainShape = [len(train) // batchSize, batchSize] + imageShape
     # TODO: performs a floor, so if there is less than one batch no
