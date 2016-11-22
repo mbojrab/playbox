@@ -3,7 +3,7 @@ import theano
 from nn.net import ClassifierNetwork
 from ae.encoder import AutoEncoder
 import numpy as np
-from dataset.shared import isShared
+from dataset.shared import isShared, getShape
 
 class SAENetwork (ClassifierNetwork) :
     '''The SAENetwork object allows autoencoders to be stacked such that the 
@@ -303,23 +303,11 @@ class TrainerSAENetwork (SAENetwork) :
 
         # setup the sizing --
         # NOTE: this supports both theano.shared and np.ndarray
-        if isShared(self._trainData) :
-            self._numTrainBatches = self._trainData.shape.eval()[0]
-        else :
-            self._numTrainBatches = self._trainData.shape[0]
-        if isShared(self._testData) :
-            self._numTestBatches = self._testData.shape.eval()[0]
-            self._numTestSize = self._numTestBatches * \
-                                self._testData.shape.eval()[1]
-        else :
-            self._numTestBatches = self._testData.shape[0]
-            self._numTestSize = self._numTestBatches * \
-                                self._testData.shape[1]
-
-        self._regularization = Regularization(regType,
-                                              regScaleFactor / 2. if \
-                                              regType == 'L2' else \
-                                              regScaleFactor)
+        self._numTrainBatches = getShape(self._trainData)[0]
+        self._numTestBatches = getShape(self._testData)[0]
+        self._numTestSize = self._numTestBatches * \
+                            getShape(self._testData)[1]
+        self._regularization = Regularization(regType, regScaleFactor)
 
     def __buildGreedy(self) :
         '''Build the layer-wise training and reconstruction methods -- 
@@ -532,7 +520,7 @@ class TrainerSAENetwork (SAENetwork) :
 
             self._endProfile()
 
-            '''            # DEBUG: For debugging pursposes only!
+            # DEBUG: For debugging pursposes only!
             from dataset.debugger import saveTiledImage
             if layerIndex >= 0 and layerIndex < self.getNumLayers() :
                 reconstructedInput = self._layers[layerIndex].reconstruction(
@@ -570,7 +558,7 @@ class TrainerSAENetwork (SAENetwork) :
                                      str(globalEpoch+localEpoch) + '.png',
                                imageShape=imageShape, spacing=1,
                                interleave=True)
-            '''
+
         return globalEpoch + numEpochs, globCost
 
     def checkReconstructionLoss(self, layerIndex) :

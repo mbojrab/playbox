@@ -6,7 +6,7 @@ class Regularization :
     '''
     def __init__(self, regType, scaleFactor=1.) :
         self._type = regType
-        self._scale = scaleFactor
+        self._scale = scaleFactor / 2. if regType == 'L2' else scaleFactor
 
     def calculate(self, layers) :
         '''Calculate the type of regularization given weights from the network.

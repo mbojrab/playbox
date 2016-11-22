@@ -63,10 +63,7 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
                                  randomNumGen=randomNumGen)
         AutoEncoder.__init__(self, 1. / numNeurons if contractionRate is None \
                                    else contractionRate)
-        self._regularization = Regularization(regType,
-                                              self._contractionRate / 2. if \
-                                              regType == 'L2' else \
-                                              self._contractionRate)
+        self._regularization = Regularization(regType, self._contractionRate)
 
         # setup initial values for the hidden thresholds
         if initialVisThresh is None :
