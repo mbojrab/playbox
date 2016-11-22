@@ -50,7 +50,7 @@ def _train(network, appName, dataPath, numEpochs=5, stop=1,
 
         # continue training until the network hits the early stoppage condition
         layerCount = 0
-        while True :
+        while layerCount < maxEpoch :
 
             # train the network and log the result
             timer = time()
@@ -89,8 +89,7 @@ def _train(network, appName, dataPath, numEpochs=5, stop=1,
 
             # stopping conditions for early stoppage
             stopCondition = 100. if isSup(network) else 0.
-            if degraded > int(stop) or running == stopCondition or \
-                layerCount >= maxEpoch:
+            if degraded > int(stop) or running == stopCondition :
                 break
 
     # rename the network which achieved the highest accuracy
