@@ -22,6 +22,13 @@ def mostCommonExt(files, samplesize=None) :
 
 def padImageData(imgData, dims) :
     '''Add zeropadding to an image to achieve the target dimensions.'''
+    if type(dims) != tuple :
+        dims = tuple(dims)
+
+    # add an extra singleton dimension for 1-channel arrays
+    if len(imgData.shape) == (len(dims) - 1) :
+        imgData = np.expand_dims(imgData, axis=0)
+
     if (imgData.shape != dims) :
         pads = tuple([(0, a - b) for a, b in zip(dims, imgData.shape)])
         imgData = np.pad(imgData, pads, mode='constant', constant_values=0)
