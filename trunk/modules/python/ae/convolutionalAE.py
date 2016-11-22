@@ -7,7 +7,8 @@ from theano.tensor.nnet.conv import conv2d
 
 class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
     '''This class describes a Contractive AutoEncoder (CAE) for a convolutional
-       layer. This differs from the normal CAE 
+       layer. This differs from the normal CAE in that it is useful for
+       contextual information like imagery or text.
 
        If the decoded message matches the original input, the encoders is
        considered lossless. Otherwise the loss is calculated and the encoder 
@@ -24,6 +25,10 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
        layerID          : unique name identifier for this layer
        inputSize        : (batch size, channels, rows, columns)
        kernelSize       : (number of kernels, channels, rows, columns)
+       regType          : type of regularization term to use
+                          default None : perform no additional regularization
+                          L1           : Least Absolute Deviation
+                          L2           : Least Squares
        downsampleFactor : (rowFactor, columnFactor)
        learningRate     : learning rate for all neurons
        contractionRate  : variance (dimensionality) reduction rate
@@ -32,6 +37,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                           NOTE: input layers should be around .8 or .9
                                 hidden layers should be around .5 or .6
                                 output layers should always be 1.
+       initialWeights   : weights to initialize the network
+                          None generates random weights for the layer
        initialHidThresh : thresholds to initialize the forward network
                           None generates random thresholds for the layer
        initialVisThresh : thresholds to initialize the backward network
@@ -41,11 +48,12 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
        randomNumGen     : generator for the initial weight values
     '''
     def __init__ (self, layerID, inputSize, kernelSize, 
-                  downsampleFactor, learningRate=0.001,
+                  downsampleFactor, regType=None, learningRate=0.001,
                   dropout=None, contractionRate=None,
                   initialWeights=None, initialHidThresh=None,
                   initialVisThresh=None, activation=t.nnet.sigmoid,
                   randomNumGen=None) :
+        from nn.reg import Regularization
         ConvolutionalLayer.__init__(self, layerID=layerID,
                                     inputSize=inputSize,
                                     kernelSize=kernelSize,
@@ -65,6 +73,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
             initialVisThresh = np.zeros((self._inputSize[1],), 
                                         dtype=config.floatX)
         self._thresholdsBack = shared(value=initialVisThresh, borrow=True)
+        self._regularization = Regularization(regType, self._contractionRate)
 
     def _setActivation(self, out) :
         from theano.tensor import round
@@ -101,9 +110,11 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
            which produced the largest input during pooling in order to produce
            the sparse upsample.
         '''
-        op = t.signal.pool.Pool(ds=upsampleFactor, ignore_border=True, 
-                                st=None, padding=(0, 0), mode='max')
-        return op.grad((self._prePoolingInput[1],), (input,))[0]
+        if input.ndim < len(self.getOutputSize()) :
+            input = t.reshape(input, self.getOutputSize())
+        return input.repeat(upsampleFactor[0], axis=2).repeat(
+                            upsampleFactor[1], axis=3) \
+               if upsampleFactor[0] > 1 else input
 
     def _getWeightsBack(self) :
         '''Calculate the weights used for decoding.'''
@@ -136,18 +147,17 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # and runs the output back through the network in reverse. The net
         # effect is to reconstruct the input, and ultimately to see how well
         # the network is at encoding the message.
-        unpooling = self._unpool_2d(self.output[1], self._downsampleFactor)
-        decodedInput = self._decode(unpooling)
+        decodedInput = self.buildDecoder(self.output[0])
 
         # DEBUG: For Debugging purposes only
         self.reconstruction = function([networkInput[0]], decodedInput)
-
         sparseConstr = calcSparsityConstraint(self.output[0], 
                                               self.getOutputSize())
 
         # compute the jacobian cost of the output --
         # This works as a sparsity constraint in case the hidden vector is
         # larger than the input vector.
+        unpooling = self._unpool_2d(self.output[0], self._downsampleFactor)
         jacobianMat = conv2d(unpooling * (1 - unpooling), weightsBack,
                              self.getFeatureSize(), weightsBack.shape.eval(), 
                              border_mode='full')
@@ -159,8 +169,10 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # NOTE: The jacobian was computed however takes much longer to process
         #       and does not help convergence or regularization. It was removed
         cost = calcLoss(self.input[0], decodedInput, self._activation) / \
-               self.getInputSize()[0]
+               np.prod(self.getInputSize()[-3:])
         self._costs = [cost, jacobianCost, sparseConstr]
+        self._costs.extend(x for x in [self._regularization.calculate([self])]\
+                           if x is not None)
 
         gradients = t.grad(t.sum(self._costs), self.getWeights())
         self._updates = [(weights, weights - self._learningRate * gradient)
@@ -181,21 +193,15 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         '''
         # NOTE: the output may come back as a different shape than it left
         #       so we reshape here just in case.
-        return self._decode(self._unpool_2d(
-            t.reshape(input, self.getOutputSize()), self._downsampleFactor))
+        return self._decode(self._unpool_2d(input, self._downsampleFactor))
 
     def getWeights(self) :
         '''Update to account for the decode thresholds.'''
         return [self._weights, self._thresholds, self._thresholdsBack]
+
     def getUpdates(self) :
         '''This allows the Stacker to build the layerwise training.'''
         return (self._costs, self._updates)
-
-    # DEBUG: For Debugging purposes only
-    def saveReconstruction(self, image, ii) :
-        from dataset.debugger import saveNormalizedImage
-        saveNormalizedImage(np.resize(self.reconstruction(image), (28, 28)),
-                            'chip_' + str(ii) + '_reconst.png')
 
 
 if __name__ == '__main__' :
