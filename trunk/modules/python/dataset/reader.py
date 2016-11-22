@@ -22,16 +22,15 @@ def mostCommonExt(files, samplesize=None) :
 
 def atleastND(imgData, nd) :
     '''Convert input to an n-d numpy array'''
-    # I'd like to use numpy.atleast_3d but it puts
-    # the singleton dimensions before and after the input
-    # while we want them before it
+    # NOTE: np.atleast_3d does not provide enough control,
+    # so this is performed manually.
     while len(imgData.shape) < nd:
         imgData = np.expand_dims(imgData, axis=0)
     return imgData
 
 def padImageData(imgData, dims) :
     '''Add zeropadding to an image to achieve the target dimensions.'''
-    if (imgData.shape != tuple(dims)) :
+    if imgData.shape != tuple(dims) :
         pads = tuple([(0, a - b) for a, b in zip(dims, imgData.shape)])
         imgData = np.pad(imgData, pads, mode='constant', constant_values=0)
     return imgData
