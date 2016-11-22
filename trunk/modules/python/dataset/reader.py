@@ -20,9 +20,17 @@ def mostCommonExt(files, samplesize=None) :
     '''Returns the most common extension in the set of names.'''
     return mostCommon(files, lambda f: os.path.splitext(f)[1], samplesize)
 
+def atleastND(imgData, nd) :
+    '''Convert input to an n-d numpy array'''
+    # NOTE: np.atleast_3d does not provide enough control,
+    # so this is performed manually.
+    while len(imgData.shape) < nd:
+        imgData = np.expand_dims(imgData, axis=0)
+    return imgData
+
 def padImageData(imgData, dims) :
     '''Add zeropadding to an image to achieve the target dimensions.'''
-    if (imgData.shape != dims) :
+    if imgData.shape != tuple(dims) :
         pads = tuple([(0, a - b) for a, b in zip(dims, imgData.shape)])
         imgData = np.pad(imgData, pads, mode='constant', constant_values=0)
     return imgData
@@ -155,16 +163,19 @@ def readImage(image, log=None) :
     #       for image types. Change this in the future to a try/catch and 
     #       allow the library decide what it is (or pass in a parameter for
     #       optimized performance).
+    ret = None
     if imageLower.endswith('.sio') :
-        return readSIO(image, log)
+        ret = readSIO(image, log)
     elif 'sicd' in imageLower :
-        return readSICD(image, log)
+        ret = readSICD(image, log)
     elif 'sidd' in imageLower :
-        return readSIDD(image, log)
+        ret = readSIDD(image, log)
     elif imageLower.endswith('.nitf') or imageLower.endswith('.ntf') :
-        return readNITF(image, log)
+        ret = readNITF(image, log)
     else :
-        return readPILImage(image, log)
+        ret = readPILImage(image, log)
+
+    return atleastND(ret, 3)
 
 def getImageDims(image, log=None) :
     '''Load the image and return its dimensions.
