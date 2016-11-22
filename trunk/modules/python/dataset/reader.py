@@ -20,14 +20,19 @@ def mostCommonExt(files, samplesize=None) :
     '''Returns the most common extension in the set of names.'''
     return mostCommon(files, lambda f: os.path.splitext(f)[1], samplesize)
 
+def atleast3D(imgData) :
+    '''Convert input to a 3d numpy array'''
+    # I'd like to use numpy.atleast_3d but it puts
+    # the singleton dimensions before and after the input
+    # while we want them before it
+    while len(imgData.shape) < 3:
+        imgData = np.expand_dims(imgData, axis=0)
+    return imgData
+
 def padImageData(imgData, dims) :
     '''Add zeropadding to an image to achieve the target dimensions.'''
     if type(dims) != tuple :
         dims = tuple(dims)
-
-    # add an extra singleton dimension for 1-channel arrays
-    if len(imgData.shape) == (len(dims) - 1) :
-        imgData = np.expand_dims(imgData, axis=0)
 
     if (imgData.shape != dims) :
         pads = tuple([(0, a - b) for a, b in zip(dims, imgData.shape)])
@@ -162,16 +167,19 @@ def readImage(image, log=None) :
     #       for image types. Change this in the future to a try/catch and 
     #       allow the library decide what it is (or pass in a parameter for
     #       optimized performance).
+    ret = None
     if imageLower.endswith('.sio') :
-        return readSIO(image, log)
+        ret = readSIO(image, log)
     elif 'sicd' in imageLower :
-        return readSICD(image, log)
+        ret = readSICD(image, log)
     elif 'sidd' in imageLower :
-        return readSIDD(image, log)
+        ret = readSIDD(image, log)
     elif imageLower.endswith('.nitf') or imageLower.endswith('.ntf') :
-        return readNITF(image, log)
+        ret = readNITF(image, log)
     else :
-        return readPILImage(image, log)
+        ret = readPILImage(image, log)
+
+    return atleast3D(ret)
 
 def getImageDims(image, log=None) :
     '''Load the image and return its dimensions.
