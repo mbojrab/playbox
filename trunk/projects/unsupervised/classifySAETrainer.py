@@ -160,7 +160,7 @@ if __name__ == '__main__' :
 
     if options.synapse is None :
         regType = 'L2'
-        regValue = .0001
+        regValue = .00001
         trainer = buildTrainerSAENetwork(train, test, regType, regValue, 
                                          prof=prof,
                                          kernelConv=options.kernel, 
