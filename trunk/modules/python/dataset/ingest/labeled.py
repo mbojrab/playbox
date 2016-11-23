@@ -88,11 +88,7 @@ def readDataset(fileData, trainDataH5, train, trainShape, batchSize, threads, lo
     #        the copy via __setitem__. This differs from my normal index
     #        formatting, but it gets the job done.
     workQueueData = queue.Queue()
-    jobs = []
     for ii in range(trainShape[0]) :
-        #jobs.append((trainDataH5, np.s_[ii, :], trainShape[1:],
-        #             train[ii*batchSize:(ii+1)*batchSize], log))
-
         workQueueData.put((trainDataH5, np.s_[ii, :], trainShape[1:],
                            train[ii*batchSize:(ii+1)*batchSize], log))
 
@@ -114,22 +110,6 @@ def readDataset(fileData, trainDataH5, train, trainShape, batchSize, threads, lo
             dataH5[sliceIndex] = tmp[:]
 
             workQueueData.task_done()
-
-    
-    ##pool = multiprocessing.Pool(threads) 
-    ##try:
-    ##    for dataH5, sliceIndex, batchSize, imageFiles, log in jobs:
-
-    ##        tmp = np.ndarray((batchSize), theano.config.floatX)
-    ##        pr = ParallelReader(fileData, batchSize)
-
-    ##        for ii, imageData in enumerate(pool.imap(pr, imageFiles)):
-    ##            tmp[ii][:] = imageData
-
-    ##        dataH5[sliceIndex] = tmp[:]
-    ##finally:
-    ##    pool.close()
-
 
     # create the workers
     for ii in range(threads) :
