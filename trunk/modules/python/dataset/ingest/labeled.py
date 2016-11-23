@@ -225,12 +225,11 @@ def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
             [(os.path.join(root, file), indx) for file in files
                 if file.endswith(suffix)],
             dtype=np.object)
-        #naiveShuffle(items)
+        naiveShuffle(items)
 
         # randomly distribute the data using Random Assignment based on
         # Bernoulli trials
         # TODO: There may be a more compact way to represent this in python
-        np.random.seed(25)
         randomAssign = np.random.binomial(1, holdoutPercentage, len(items))
         train.extend(
             [items[ii] for ii in range(len(items)) if randomAssign[ii] == 0])
@@ -240,8 +239,8 @@ def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
     # randomize the data across categories -- otherwise its not stochastic
     if log is not None :
         log.info('Shuffling the data for randomization')
-    #naiveShuffle(train)
-    #naiveShuffle(test)
+    naiveShuffle(train)
+    naiveShuffle(test)
 
     return train, test, labels
 
