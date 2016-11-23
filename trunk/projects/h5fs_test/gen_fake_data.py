@@ -77,19 +77,22 @@ if __name__ == '__main__':
                         help='Directory of input imagery.')
     parser.add_argument('--count', type=int,
                         default=1000,
-                        help='Nuumber of sios to create.')
+                        help='Number of sios to create.')
+    parser.add_argument('--holdout', type=float,
+                        default=.05,
+                        help='holdout percentage for test data.')
     options = parser.parse_args()
 
     dataset = options.dataset
     count = options.count
+    holdout = options.holdout
 
     if dataset == 'unsorted':
         make_directory('unsorted', count)
     elif dataset == 'test_train':
         make_directory('test_train/train/{}'.format(imagesize[0]), count)
-        traindir = 'test_train/test/{}'.format(imagesize[0])
-        if osp.exists(traindir):
-            os.makedirs(traindir)
+        make_directory('test_train/test/{}'.format(imagesize[0]),
+                       int(count * holdout))
     else:
         raise ValueError('Unknown test set type')
 
