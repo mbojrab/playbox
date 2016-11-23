@@ -30,8 +30,10 @@ def atleastND(imgData, nd) :
 
 def padImageData(imgData, dims) :
     '''Add zeropadding to an image to achieve the target dimensions.'''
-    if imgData.shape != tuple(dims) :
-        pads = tuple([(0, a - b) for a, b in zip(dims, imgData.shape)])
+    if imgData.shape[-2:] != tuple(dims[-2:]) :
+         # Only pad the last 2 dimensions
+        pads = ((0,) * imgData.shape[:-2]) + \
+               tuple([(0, a - b) for a, b in zip(dims[-2:], imgData.shape[-2:])])
         imgData = np.pad(imgData, pads, mode='constant', constant_values=0)
     return imgData
 
