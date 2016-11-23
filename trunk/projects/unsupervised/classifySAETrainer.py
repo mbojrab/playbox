@@ -86,8 +86,8 @@ def testCloseness(net, imagery) :
         saveTiledImage(batch, str(ii) + '.tif', imgDims)
         saveTiledImage(sortedBatch, str(ii) + '_sorted.tif', imgDims)
 
-if __name__ == '__main__' :
-    '''Build and train an SAE, then test a '''
+
+def buildParser(parser=argparse.ArgumentParser()):
     import numpy as np
 
     parser = argparse.ArgumentParser()
@@ -145,6 +145,13 @@ if __name__ == '__main__' :
                         help='Load from a previously saved network.')
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
                                      'training and test sets')
+    return parser
+
+
+if __name__ == '__main__' :
+    '''Build and train an SAE, then test a '''
+
+    parser = buildParser(argparse.ArgumentParser())
     options = parser.parse_args()
 
     # setup the logger
