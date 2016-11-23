@@ -63,19 +63,6 @@ def checkAvailableMemory(dataMemoryConsumption, shared, log) :
     return shared
 
 
-class ParallelReader:
-
-    def __init__(self, fileData, batchSize):
-        self.fileData = fileData
-        self.batchSize = batchSize
-
-    def __call__(self, imageFile):
-      from dataset.reader import padImageData
-      # No logging
-      return padImageData(self.fileData.readImage(imageFile[0], None),
-                          self.batchSize[-2:])[:]
-
-
 def readDataset(fileData, trainDataH5, train, trainShape, batchSize, threads, log) :
     import theano
     from six.moves import queue
