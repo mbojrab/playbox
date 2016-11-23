@@ -119,7 +119,10 @@ def hdf5get(inputfile, key, metadata=False):
 
 
 class FileData:
+    """Filesystem-backed file data provider
 
+    :param rootpath: path to directory of files 
+    """
     def __init__(self, rootpath):
         self.rootpath = rootpath
 
@@ -139,7 +142,10 @@ class FileData:
 
 
 class Hdf5FileData(FileData):
+    """Hdf5-backed file data provider
 
+    :param rootpath: path to hdf5 file
+    """
     def __init__(self, rootpath):
         self.rootpath = rootpath
 
@@ -164,6 +170,7 @@ class Hdf5FileData(FileData):
 
 
 def fileDataFactory(rootpath):
+    ''' Factory for FileData objects '''
     if os.path.isdir(rootpath):
         return FileData(rootpath)
     elif h5py.is_hdf5(rootpath):
