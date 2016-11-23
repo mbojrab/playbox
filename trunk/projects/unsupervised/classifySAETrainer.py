@@ -195,7 +195,8 @@ if __name__ == '__main__' :
                       neuron=options.neuron, maxEpoch=options.epoch, log=log)
     trainer.save(tmpNet)
     options.synapse = tmpNet
-        # train the SAE
+
+    # train the SAE
     net = ClassifierSAENetwork(options.targetDir, options.synapse, prof)
 
     # test the training data for similarity to the target
