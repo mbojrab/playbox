@@ -33,7 +33,7 @@ then
 fi
 
 # create command
-cmd="ipython --pdb $script_loc/classifySAETrainer.py -- --neuron 1000 200 --learnF .12 .12 --momentumF .5 .5 --dropoutF .8 1. --batch $batchsize --epoch 1 --target $test_dir $hdf5file"
+cmd="ipython --pdb $script_loc/classifySAETrainer.py -- --neuron 1000 200 --learnF .12 .12 --momentumF .5 .5 --dropoutF .8 1. --batch $batchsize --limit 1 --epoch 1 --target $test_dir $hdf5file"
 echo $cmd
 
 # run it
