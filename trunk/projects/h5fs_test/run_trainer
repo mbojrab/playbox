@@ -6,9 +6,7 @@ script_loc=$(readlink -f ../../projects/unsupervised)
 hdf5file=${1:-./unsorted.hdf5}
 test_dir=${2:-./test1}
 
-
 # steal a file to put in the test dir
-
 hdfdirname=$(basename $hdf5file .hdf5)
 hdfdir=$(dirname $hdf5file)/$hdfdirname
 test_file=$(find $hdfdir -type f -name '*.sio' | head -n 1)
@@ -19,6 +17,26 @@ rm -r $test_dir
 mkdir -p $test_dir
 cp $test_file $test_dir/
 
+# count the files in the directory
+num_files=$(find $hdfdir | wc -l | sed -e 's/\n//')
+
+# compute the holdout
+holdout=$(echo "0.05 * $num_files" | bc -l)
+holdout=$(printf "%.0f" $holdout)
+
+# decrease batchsize so that hdft gets createed correctly
+batchsize=200
+if [ $batchsize -gt $holdout ];
+then
+    batchsize=$holdout
+    echo "decreased batchsize to $batchsize"
+fi
+
+# create command
+cmd="ipython --pdb $script_loc/classifySAETrainer.py -- --neuron 1000 200 --learnF .12 .12 --momentumF .5 .5 --dropoutF .8 1. --batch $batchsize --epoch 1 --target $test_dir $hdf5file"
+echo $cmd
+
+# run it
 date
-ipython --pdb $script_loc/classifySAETrainer.py -- --neuron 1000 200 --learnF .12 .12 --momentumF .5 .5 --dropoutF .8 1. --batch 200 --epoch 1 --target $test_dir $hdf5file 
+$cmd
 date
