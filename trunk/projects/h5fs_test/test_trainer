@@ -23,7 +23,7 @@ num_files=$(find $hdfdir | wc -l | sed -e 's/\n//')
 holdout=$(echo "0.05 * $num_files" | bc -l)
 holdout=$(printf "%.0f" $holdout)
 
-# decrease batchsize so that hdf5 gets createed correctly
+# decrease batchsize so that hdf5 gets created correctly
 batchsize=200
 if [ $batchsize -gt $holdout ];
 then
