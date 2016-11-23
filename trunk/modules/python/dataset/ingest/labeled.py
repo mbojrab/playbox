@@ -67,7 +67,6 @@ def readDataset(fileData, trainDataH5, train, trainShape, batchSize, threads, lo
     import theano
     from six.moves import queue
     import threading
-    import multiprocessing.dummy as multiprocessing
     from dataset.reader import padImageData
 
     # add jobs to the queue --
