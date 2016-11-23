@@ -1,4 +1,6 @@
+import os
 import h5py
+import numpy as np
 
 def createHDF5Unlabeled (outputFile, trainDataShape, trainDataDtype,
                          trainMaxShape=None, log=None) :
@@ -141,3 +143,90 @@ def readHDF5 (inFile, log=None) :
 
     # the returned information should be checked for None
     return [trainData, trainIndices], [testData, testIndices], labels
+
+def archiveDirToHDF5(outputFile, inDir, flushRate=1024, log=None) :
+    '''Convert a directory to an HDF5 file with matching content.
+       NOTE: This stores the imagery into a raw array as returned from 
+             dataset.reader.openImage
+
+       outputFile : Name of the file to write.
+                    The extension should be .hdf5 or .h5
+       inDir      : The direcotry to archive. All contents and their positions
+                    will be stored relative to this directory.
+       flushRate  : Number of files to write before forcing the flush to disk.
+       log        : Logger to use
+    '''
+    log.info('Archiving [' + directory + '] into [' + outputfile + ']')
+
+    outLower = outputFile.lower()
+    if not (outLower.endswith('.h5') or outLower.endswith('.hdf5')) :
+        raise ValueError('The output file is not a valid archive [' +
+                         outputFile + ']')
+
+    # open the file and recreate the relative directory contents
+    # within the HDF5 file. All images will be stored as 3-channel
+    # arrays.
+    with h5py.File(outputFile, 'a') as h5 :
+
+        count = 0
+        for root, dirs, files in os.walk(inDir) :
+
+            # reset the lists to be full relative path
+            dirs = [os.path.relpath(
+                    os.path.join(root, dir), inDir) for dir in dirs]
+            files = [os.path.relpath(
+                     os.path.join(root, file), inDir) for file in files]
+
+            # create h5 groups for each relative directory
+            [h5.create_group(dir) for dir in dirs]
+
+            # create h5 dataset fr each relative directory
+            for file in files :
+
+                # replace old contents
+                if file in h5 :
+                    del h5[file]
+
+                # create h5 dataset for each image --
+                # this save the imagery in a three channel format
+                h5.create_dataset(file, data=readImage(file, log),
+                                  compression='gzip')
+
+                # flush the data to disk periodically
+                count += 1
+                if count % flushRate == 0 : 
+                    log.debug('Flushing HDF5 file to disk')
+                    h5.flush()
+
+        # one final flush
+        h5.flush()
+
+
+def expandHDF5(hdf5, outDir, log=None) :
+    '''Expand an existing HDF5 to the filesystem. This is mostly for
+       debugging and verification purposes. The files will be recreate exactly
+       as they are within the HDF5 archive, however the numpy arrays are
+       written as .npy files.
+
+       hdf5      : HDF5 to expand out into the file system. Extension should be
+                   .hdf5 or .h5
+                   NOTE: this assume the file system is sufficiently large.
+       outDir    : The direcotry to place thev archive contents.
+       log       : Logger to use
+    '''
+    log.info('Expanding [' + hdf5 + '] into [' + outDir + ']')
+
+    def createtree(name, item) :
+        outPath = os.path.join(outDir, name)
+
+        # create the directory path
+        if isinstance(item, h5py.Group) :
+            os.makedirs(outPath)
+
+        # write the image to an npy file --
+        # TODO: this incurs an additional copy due to the slice
+        elif isinstance(item, h5py.Dataset) :
+            np.frombuffer(item[:], dtype=item.dtype).tofile(outPath)
+
+    with h5py.File(inputfile, 'r') as h5 :
+        h5.visititems(createTree)
