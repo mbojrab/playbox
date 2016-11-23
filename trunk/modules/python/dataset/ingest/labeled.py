@@ -327,11 +327,11 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     sizedFile = next((t[0] for t in train if getsize(t[0]) == size))
     imageShape = fileData.getImageShape(sizedFile, log)
 
-    # TODO: performs a floor, so if there is less than one batch no
-    #       data will be returned. Add a check for this.
+    # Compute dataset shapes
     trainShape = [len(train) // batchSize, batchSize] + imageShape
     testShape = [len(test) // batchSize, batchSize] + imageShape
 
+    # Check for nonempty datasets before creating the file
     def okShape(x, n):
         if x < 1: raise AssertionError('{} was empty'.format(n))
     okShape(trainShape[0], 'training set')
