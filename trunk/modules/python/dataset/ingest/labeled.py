@@ -87,7 +87,6 @@ def readDataset(fileData, trainDataH5, train, trainShape, batchSize, threads, lo
 
             # allocate a load the batch locally so our write are coherent
             tmp = np.ndarray((batchSize), theano.config.floatX)
-            #import pdb; pdb.set_trace()
             for ii, imageFile in enumerate(imageFiles) :
                 tmp[ii][:] = padImageData(fileData.readImage(imageFile[0],
                                                              log),
