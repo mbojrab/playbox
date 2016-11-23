@@ -77,7 +77,7 @@ if __name__ == '__main__' :
     with open(filename, 'w') as f :
         for perm in permutations :
             perm = [str(x) for x in perm]            
-            cmd = 'python {0}'.format(options.script)
+            cmd = 'python {0}'.format(myoptions.script)
             for optmap, p in zip(permutable, perm):
                 cmd += ' {0} {1}'.format(optmap[OPT_STR][0], p)
 
