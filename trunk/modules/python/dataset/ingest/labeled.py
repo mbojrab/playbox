@@ -249,6 +249,11 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     trainShape = [len(train) // batchSize, batchSize] + imageShape
     testShape = [len(test) // batchSize, batchSize] + imageShape
 
+    def okShape(x, n):
+        if x < 1: raise AssertionError('{} was empty'.format(n))
+    okShape(trainShape[0], 'training set')
+    okShape(testShape[0], 'test set')
+
     [handleH5, trainDataH5, trainIndicesH5, 
      testDataH5, testIndicesH5, labelsH5] = \
         createHDF5Labeled (outputFile, 
