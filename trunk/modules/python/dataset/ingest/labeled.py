@@ -267,7 +267,6 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     import theano
     import threading
     import multiprocessing
-    from functools import partial
     from six.moves import queue
     from dataset.reader import getImageDims, mostCommon
     from dataset.hdf5 import createHDF5Labeled
