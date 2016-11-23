@@ -37,7 +37,6 @@ def dir2hdf5(directory, outputfile, convert, log):
                     blob = np.fromfile(f, dtype=STORAGE_TYPE)
                     typeinfo = None
 
-                # TODO: add the type info
                 dset = h5file.create_dataset(f, data=blob,
                                              compression='gzip')
                 if typeinfo is not None:
