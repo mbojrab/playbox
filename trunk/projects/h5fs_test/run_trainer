@@ -1,10 +1,9 @@
 #!/bin/bash
 
-export THEANO_FLAGS='floatX=float32,blas.ldflags="-L/data1/u/abeaucha/.local/lib/python2.7/site-packages/numpy/.libs/ -lopenblasp-r0-39a31c03.2.18"'
-script_loc=$(readlink -f ../../projects/unsupervised)
-
 hdf5file=${1:-./unsorted.hdf5}
 test_dir=${2:-./test1}
+
+script_loc=$(readlink -f ../../projects/unsupervised)
 
 # steal a file to put in the test dir
 hdfdirname=$(basename $hdf5file .hdf5)
