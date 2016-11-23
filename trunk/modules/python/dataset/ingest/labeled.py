@@ -240,6 +240,9 @@ def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
     return train, test, labels
 
 def hdf5Name(rootpath, holdoutPercentage, batchSize):
+    '''Generate a name for an hdf5 dataset'''
+    # TODO: put this in a common area for labeled and
+    #       unlabeled use
     return rootpath + '_labeled' + \
            '_holdout_' + str(holdoutPercentage) + \
            '_batch_' + str(batchSize) +'.hdf5'
