@@ -45,6 +45,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                           None generates random thresholds for the layer
        activation       : the sigmoid function to use for activation
                           this must be a function with a derivative form
+       forceSparsity    : round the output of the neurons to {0,1}
+                          this put more emphasis on the pattern extraction
        randomNumGen     : generator for the initial weight values
     '''
     def __init__ (self, layerID, inputSize, kernelSize, 
@@ -52,7 +54,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                   dropout=None, contractionRate=None,
                   initialWeights=None, initialHidThresh=None,
                   initialVisThresh=None, activation=t.nnet.sigmoid,
-                  randomNumGen=None) :
+                  forceSparsity=True, randomNumGen=None) :
         from nn.reg import Regularization
         ConvolutionalLayer.__init__(self, layerID=layerID,
                                     inputSize=inputSize,
@@ -64,9 +66,9 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                                     initialThresholds=initialHidThresh,
                                     activation=activation, 
                                     randomNumGen=randomNumGen)
-        AutoEncoder.__init__(self, 1. / np.prod(kernelSize[:]) if \
-                                   contractionRate is None else \
-                                   contractionRate)
+        AutoEncoder.__init__(self, forceSparsity, 
+                             1. / np.prod(kernelSize[:]) \
+                             if contractionRate is None else contractionRate)
 
         # setup initial values for the hidden thresholds
         if initialVisThresh is None :
@@ -76,9 +78,10 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         self._regularization = Regularization(regType, self._contractionRate)
 
     def _setActivation(self, out) :
+        from nn.layer import Layer
         from theano.tensor import round
-        return round(out) if self._activation is None else \
-               round(self._activation(out))
+        act = Layer._setActivation(self, out)
+        return round(act) if self._forceSparse else act
 
     def __getstate__(self) :
         '''Save network pickle'''

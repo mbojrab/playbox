@@ -1,9 +1,10 @@
 class AutoEncoder () :
-    def __init__ (self, contractionRate=0.01) :
+    def __init__ (self, forceSparse=True, contractionRate=0.01) :
         '''This class describes an abstract AutoEncoder.
            contractionRate  : variance (dimensionality) reduction rate
         '''
         self._contractionRate = contractionRate
+        self._forceSparse = forceSparse
 
     def buildDecoder(self, input) :
         raise NotImplementedError('Implement the buildDecoder() method')
