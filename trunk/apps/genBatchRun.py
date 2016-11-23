@@ -17,14 +17,15 @@ def buildParser(parser=argparse.ArgumentParser()):
 '''
 if __name__ == '__main__' :
     parser = buildParser(argparse.ArgumentParser())
-    options, rest = parser.parse_known_args()
+    myoptions, rest = parser.parse_known_args()
 
-    appmodulename = osp.splitext(options.script)[0]
+    appmodulename = osp.splitext(myoptions.script)[0]
 
-    appmodule = __import__(appmodulename)
+    sys.path.append(osp.dirname(appmodulename))
+    appmodule = __import__(osp.basename(appmodulename))
 
     parser = appmodule.buildParser(buildParser())
-    options = parser.parse_args()
+    options, rest2 = parser.parse_known_args()
 
     #import pdb; pdb.set_trace()
 
