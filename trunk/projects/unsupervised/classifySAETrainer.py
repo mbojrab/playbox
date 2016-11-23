@@ -9,10 +9,9 @@ from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainUnsupervised
 from nn.profiler import setupLogging, Profiler
 from dataset.shared import getShape
-
 tmpNet = './local.pkl.gz'
 
-def buildTrainerSAENetwork(train, test, regType, regValue,
+def buildTrainerSAENetwork(network, layerInputSize, regType, regValue,
                            kernelConv, kernelSizeConv, downsampleConv, 
                            learnConv, momentumConv, dropoutConv,
                            neuronFull, learnFull, momentumFull, dropoutFull, 
@@ -23,9 +22,6 @@ def buildTrainerSAENetwork(train, test, regType, regValue,
     from numpy.random import RandomState
     rng = RandomState(int(time()))
 
-    # create the stacked network -- LeNet-5 (minus the output layer)
-    network = TrainerSAENetwork(train, test, regType, regValue, prof=prof)
-
     if log is not None :
         log.info('Initialize the Network')
 
@@ -35,7 +31,6 @@ def buildTrainerSAENetwork(train, test, regType, regValue,
                 network.getNetworkOutputSize())
 
     layerCount = 1
-    layerInputSize = getShape(train[0])[1:]
     if kernelConv is not None :
         for k,ks,do,l,m,dr in zip(kernelConv, kernelSizeConv, downsampleConv, 
                                   learnConv, momentumConv, dropoutConv) :
@@ -153,11 +148,14 @@ if __name__ == '__main__' :
     train, test, labels = ingestImagery(filepath=options.data, shared=True,
                                         batchSize=options.batchSize, log=log)
 
+    regType = 'L2'
+    regValue = .00001
+    # create the stacked network
+    trainer = TrainerSAENetwork(train, test, regType, regValue,
+                                options.synapse, prof)
     if options.synapse is None :
-        regType = 'L2'
-        regValue = .00001
-        trainer = buildTrainerSAENetwork(train, test, regType, regValue, 
-                                         prof=prof,
+        trainer = buildTrainerSAENetwork(trainer, getShape(train[0])[1:],
+                                         regType, regValue, prof=prof,
                                          kernelConv=options.kernel, 
                                          kernelSizeConv=options.kernelSize, 
                                          downsampleConv=options.downsample, 
@@ -168,18 +166,17 @@ if __name__ == '__main__' :
                                          learnFull=options.learnF, 
                                          momentumFull=options.momentumF,
                                          dropoutFull=options.dropoutF)
-
-        # train the SAE
-        trainUnsupervised(trainer, __file__, options.data, 
-                          numEpochs=options.limit, stop=options.stop, 
-                          synapse=options.synapse, base=options.base,
-                          dropout=(options.dropoutC is not None and \
-                                   len(options.dropoutC) > 0),
-                          learnC=options.learnC, learnF=options.learnF,
-                          contrF=None, kernel=options.kernel,
-                          neuron=options.neuron, log=log)
-        trainer.save(tmpNet)
-        options.synapse = tmpNet
+    # train the SAE
+    trainUnsupervised(trainer, __file__, options.data, 
+                      numEpochs=options.limit, stop=options.stop, 
+                      synapse=options.synapse, base=options.base,
+                      dropout=(options.dropoutC is not None and \
+                               len(options.dropoutC) > 0),
+                      learnC=options.learnC, learnF=options.learnF,
+                      contrF=None, kernel=options.kernel,
+                      neuron=options.neuron, log=log)
+    trainer.save(tmpNet)
+    options.synapse = tmpNet
 
     net = ClassifierSAENetwork(options.targetDir, options.synapse, prof)
 

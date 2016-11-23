@@ -1,5 +1,6 @@
 import os
-from dataset.writer import buildPickleInterim, buildPickleFinal, resumeEpoch
+from dataset.writer import buildPickleInterim, buildPickleFinal, \
+                           resumeEpoch, resumeLayer
 from time import time
 from nn.net import TrainerNetwork
 from ae.net import TrainerSAENetwork
@@ -32,17 +33,23 @@ def _train(network, appName, dataPath, numEpochs=5, stop=1,
     getLayer = lambda x, net: None if isSup(net) else x
 
     globalEpoch = lastBest = resumeEpoch(synapse)
+    resetLayer = resumeLayer(synapse)
     lastSave = buildPickleInterim(
         base=base, epoch=lastBest, dropout=dropout,
         learnC=learnC, learnF=learnF, contrF=contrF,
         momentum=momentum, kernel=kernel, neuron=neuron,
-        layer=getLayer(0, network))
+        layer=getLayer(resetLayer, network))
     if not os.path.exists(lastSave) :
         network.save(lastSave)
 
     # this loop allows the network to be trained layer-wise. The unsupervised
     # learning method allows each layer to be trained individually.
     for layerIndex in range(numLayers) :
+
+        # this advances training to where it left off
+        if not isSup(network) and layerIndex < resetLayer :
+            continue
+
         degraded = 0
         running = network.checkAccuracy() if isSup(network) else \
                   network.checkReconstructionLoss(layerIndex)
