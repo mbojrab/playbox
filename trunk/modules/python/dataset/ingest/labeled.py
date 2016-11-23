@@ -191,7 +191,7 @@ class Hdf5FileData(FileData):
         return partial(h5filesize, self.rootpath)
 
     def getImageShape(self, filename, log=None):
-        return list(hdf5get(self.rootpath, filename).shape)
+        return list(self.readImage(filename, log).shape)
 
     def readImage(self, filename, log=None):
         from dataset.reader import readImage
