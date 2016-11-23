@@ -80,7 +80,7 @@ def readDataset(fileData, trainDataH5, train, trainShape, batchSize, threads, lo
     import theano
     from six.moves import queue
     import threading
-    import multiprocessing
+    import multiprocessing.dummy as multiprocessing
     from dataset.reader import padImageData
 
     # add jobs to the queue --
@@ -90,11 +90,11 @@ def readDataset(fileData, trainDataH5, train, trainShape, batchSize, threads, lo
     workQueueData = queue.Queue()
     jobs = []
     for ii in range(trainShape[0]) :
-        jobs.append((trainDataH5, np.s_[ii, :], trainShape[1:],
-                     train[ii*batchSize:(ii+1)*batchSize], log))
+        #jobs.append((trainDataH5, np.s_[ii, :], trainShape[1:],
+        #             train[ii*batchSize:(ii+1)*batchSize], log))
 
-        #workQueueData.put((trainDataH5, np.s_[ii, :], trainShape[1:],
-        #                   train[ii*batchSize:(ii+1)*batchSize], log))
+        workQueueData.put((trainDataH5, np.s_[ii, :], trainShape[1:],
+                           train[ii*batchSize:(ii+1)*batchSize], log))
 
     # stream the imagery into the buffers --
     # we are threading this for efficiency
@@ -105,43 +105,40 @@ def readDataset(fileData, trainDataH5, train, trainShape, batchSize, threads, lo
 
             # allocate a load the batch locally so our write are coherent
             tmp = np.ndarray((batchSize), theano.config.floatX)
-            ##for ii, imageFile in enumerate(imageFiles) :
-            ##    tmp[ii][:] = padImageData(fileData.readImage(imageFile[0],
-            ##                                                 log),
-            ##                              batchSize[-2:])[:]
-
-            pr = ParallelReader(fileData, batchSize)
-
-            pool = multiprocessing.Pool(threads) 
-            for ii, imageData in enumerate(pool.map(pr, imageFiles)):
-                tmp[ii][:] = imageData
+            #import pdb; pdb.set_trace()
+            for ii, imageFile in enumerate(imageFiles) :
+                tmp[ii][:] = padImageData(fileData.readImage(imageFile[0],
+                                                             log),
+                                          batchSize[-3:])[:]
 
             dataH5[sliceIndex] = tmp[:]
 
             workQueueData.task_done()
 
     
-    pool = multiprocessing.Pool(threads) 
-    for dataH5, sliceIndex, batchSize, imageFiles, log in jobs:
+    ##pool = multiprocessing.Pool(threads) 
+    ##try:
+    ##    for dataH5, sliceIndex, batchSize, imageFiles, log in jobs:
 
-        tmp = np.ndarray((batchSize), theano.config.floatX)
-        pr = ParallelReader(fileData, batchSize)
+    ##        tmp = np.ndarray((batchSize), theano.config.floatX)
+    ##        pr = ParallelReader(fileData, batchSize)
 
-        for ii, imageData in enumerate(pool.imap(pr, imageFiles)):
-            tmp[ii][:] = imageData
+    ##        for ii, imageData in enumerate(pool.imap(pr, imageFiles)):
+    ##            tmp[ii][:] = imageData
 
-        dataH5[sliceIndex] = tmp[:]
-    pool.close()
+    ##        dataH5[sliceIndex] = tmp[:]
+    ##finally:
+    ##    pool.close()
 
 
     # create the workers
-    ##for ii in range(1) :
-    ##    thread = threading.Thread(target=readImagery)
-    ##    thread.daemon = True
-    ##    thread.start()
+    for ii in range(threads) :
+        thread = threading.Thread(target=readImagery)
+        thread.daemon = True
+        thread.start()
 
-    ### join the threads and complete
-    ##workQueueData.join()
+    # join the threads and complete
+    workQueueData.join()
 
 
 def hdf5get(inputfile, key, metadata=False):
