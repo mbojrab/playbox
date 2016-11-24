@@ -89,8 +89,6 @@ def testCloseness(net, imagery) :
 
 def buildParser(parser=argparse.ArgumentParser()):
     import numpy as np
-
-    parser = argparse.ArgumentParser()
     parser.add_argument('--log', dest='logfile', type=str, default=None,
                         help='Specify log output file.')
     parser.add_argument('--level', dest='level', default='INFO', type=str, 
