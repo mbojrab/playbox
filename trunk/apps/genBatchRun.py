@@ -5,9 +5,29 @@ import numpy as np
 import os.path as osp
 
 
+class ParserTransformer :
+    '''Duck-type version of parser
+    '''
+    def __init__(self, numLayers):
+        self.parser = argparse.ArgumentParser()
+        self.numLayers = numLayers
+
+    def add_argument(self, *args, **kwargs):
+        # TODO: transform args, kwargs to make them
+        #       permutation friendly
+        if 'nargs' in kwargs and '--learnC' in args:
+            kwargs['nargs'] = self.numLayers
+            kwargs['action'] = 'append'
+
+        self.parser.add_argument(*args, **kwargs)
+
+
 def buildParser(parser=argparse.ArgumentParser()):
     parser.add_argument('--script', type=str, default=None,
                         help='script file to generate stuff for')
+    # TODO: use this to seed the expectations
+    parser.add_argument('--num-layers', dest='numLayers', type=int, default=3,
+                        help='number of layers')
     return parser
 
 
@@ -16,18 +36,18 @@ def buildParser(parser=argparse.ArgumentParser()):
    of processing parameters sets into a batch file for the appropriate OS.
 '''
 if __name__ == '__main__' :
-    parser = buildParser(argparse.ArgumentParser())
-    myoptions, rest = parser.parse_known_args()
+    baseparser = buildParser(argparse.ArgumentParser())
+    myoptions, rest = baseparser.parse_known_args()
 
     appmodulename = osp.splitext(myoptions.script)[0]
 
+    # add the path so we can import the script as a module
     sys.path.append(osp.dirname(appmodulename))
     appmodule = __import__(osp.basename(appmodulename))
 
-    parser = appmodule.buildParser(buildParser())
-    options, rest2 = parser.parse_known_args()
-
-    #import pdb; pdb.set_trace()
+    transformer = appmodule.buildParser(ParserTransformer(myoptions.numLayers))
+    parser = transformer.parser
+    options = parser.parse_args(rest)
 
     excludes = set(['script'])
 
@@ -43,14 +63,15 @@ if __name__ == '__main__' :
     optionmapping.sort(key=lambda tup: tup[OPT_STR])
 
     # setup the logger
-    logName = 'batchGen: ' + str(options.data)
+    logName = 'batchGen: ' + str(appmodule)
     log = setupLogging(logName, options.level, options.logfile)
 
     def genSteps(args) :
         '''Generate the range specified by the user.'''
         #if isinstance(args, str):  ## a string arg might have len == 3
         #    return args
-        return np.arange(args[0], args[1], args[2]) if len(args) == 3 else args
+        #return np.arange(args[0], args[1], args[2]) if len(args) == 3 else args
+        return args
 
     def permute(*args) :
         '''Generate all possible permutations of the parameters.'''
