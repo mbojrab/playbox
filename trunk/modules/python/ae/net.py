@@ -3,7 +3,7 @@ import theano
 from nn.net import ClassifierNetwork
 from ae.encoder import AutoEncoder
 import numpy as np
-from dataset.shared import isShared
+from dataset.shared import isShared, getShape
 
 class SAENetwork (ClassifierNetwork) :
     '''The SAENetwork object allows autoencoders to be stacked such that the 
@@ -303,19 +303,10 @@ class TrainerSAENetwork (SAENetwork) :
 
         # setup the sizing --
         # NOTE: this supports both theano.shared and np.ndarray
-        if isShared(self._trainData) :
-            self._numTrainBatches = self._trainData.shape.eval()[0]
-        else :
-            self._numTrainBatches = self._trainData.shape[0]
-        if isShared(self._testData) :
-            self._numTestBatches = self._testData.shape.eval()[0]
-            self._numTestSize = self._numTestBatches * \
-                                self._testData.shape.eval()[1]
-        else :
-            self._numTestBatches = self._testData.shape[0]
-            self._numTestSize = self._numTestBatches * \
-                                self._testData.shape[1]
-
+        self._numTrainBatches = getShape(self._trainData)[0]
+        self._numTestBatches = getShape(self._testData)[0]
+        self._numTestSize = self._numTestBatches * \
+                            getShape(self._testData)[1]
         self._regularization = Regularization(regType, regScaleFactor)
 
     def __buildGreedy(self) :
@@ -360,8 +351,7 @@ class TrainerSAENetwork (SAENetwork) :
         # this starts at the end of the network, and decodes layerwise
         # all the way back to the input, and checks reconstruction error.
         layerInput = self.getNetworkOutput()[0]
-        sparseConstr = calcSparsityConstraint(
-            layerInput, self.getNetworkOutputSize())
+        sparseConstr = self._layers[-1].getUpdates()[0][2]
         jacobianCost = self._layers[-1].getUpdates()[0][1]
 
         # backward pass through layers
@@ -378,10 +368,9 @@ class TrainerSAENetwork (SAENetwork) :
         # check the reconstruction loss after passing through all layers
         self._startProfile('Setting up Network-wide Decoder', 'debug')
 
-        netInput = self.getNetworkInput()[0].flatten(2) \
-                   if len(self.getNetworkInput()[0].shape.eval()) != \
-                      len(self.getNetworkInputSize()) else \
-                   self.getNetworkInput()[0]
+        netInput = self.getNetworkInput()[0]
+        if len(netInput.shape.eval()) != len(self.getNetworkInputSize()) :
+            netInput = netInput.flatten(2)
         cost = calcLoss(netInput, decodedInput,
                         self._layers[0].getActivation()) / \
                         self.getNetworkInputSize()[0]

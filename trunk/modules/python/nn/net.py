@@ -2,7 +2,7 @@ from nn.layer import Layer
 import theano.tensor as t
 import theano
 from dataset.pickle import writePickleZip, readPickleZip
-from dataset.shared import isShared
+from dataset.shared import isShared, getShape
 
 class Network () :
     def __init__ (self, prof=None) :
@@ -274,19 +274,10 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         self._trainData, self._trainLabels = train
         self._testData, self._testLabels = test
 
-        if isShared(self._trainData) :
-            self._numTrainBatches = self._trainLabels.shape.eval()[0]
-        else :
-            self._numTrainBatches = self._trainLabels.shape[0]
-        if isShared(self._testData) :
-            self._numTestBatches = self._testLabels.shape.eval()[0]
-            self._numTestSize = self._numTestBatches * \
-                                self._testLabels.shape.eval()[1]
-        else :
-            self._numTestBatches = self._testLabels.shape[0]
-            self._numTestSize = self._numTestBatches * \
-                                self._testLabels.shape[1]
-
+        self._numTrainBatches = getShape(self._trainLabels)[0]
+        self._numTestBatches = getShape(self._testLabels)[0]
+        self._numTestSize = self._numTestBatches * \
+                            getShape(self._testLabels)[1]
         self._regularization = Regularization(regType, regScaleFactor)
 
     def __getstate__(self) :

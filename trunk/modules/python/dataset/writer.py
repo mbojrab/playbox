@@ -43,3 +43,11 @@ def resumeEpoch(synapse) :
     import re
     return 0 if synapse is None or 'epoch' not in synapse else \
            int(re.findall(r'(?<=epoch)\d+', synapse)[0])
+
+def resumeLayer(synapse) :
+    '''Return the current layer for this synapse file. If it cannot be 
+       determined, zero will be returned. 
+    '''
+    import re
+    return 0 if synapse is None or 'layer' not in synapse else \
+           int(re.findall(r'(?<=layer)\d+', synapse)[0])

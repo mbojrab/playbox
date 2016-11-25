@@ -44,13 +44,15 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
                           None generates random thresholds for the layer
        activation       : the sigmoid function to use for activation
                           this must be a function with a derivative form
+       forceSparsity    : round the output of the neurons to {0,1}
+                          this put more emphasis on the pattern extraction
        randomNumGen     : generator for the initial weight values
     '''
     def __init__ (self, layerID, inputSize, numNeurons, regType=None,
                   learningRate=0.001, dropout=None, contractionRate=None,
                   initialWeights=None, initialHidThresh=None,
                   initialVisThresh=None, activation=t.nnet.sigmoid,
-                  randomNumGen=None) :
+                  forceSparsity=True, randomNumGen=None) :
         from nn.reg import Regularization
         ContiguousLayer.__init__(self, layerID=layerID,
                                  inputSize=inputSize,
@@ -61,12 +63,10 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
                                  initialThresholds=initialHidThresh,
                                  activation=activation, 
                                  randomNumGen=randomNumGen)
-        AutoEncoder.__init__(self, 1. / numNeurons if contractionRate is None \
-                                   else contractionRate)
-        self._regularization = Regularization(regType,
-                                              self._contractionRate / 2. if \
-                                              regType == 'L2' else \
-                                              self._contractionRate)
+        AutoEncoder.__init__(self, forceSparsity,
+                             1. / numNeurons if contractionRate is None \
+                             else contractionRate)
+        self._regularization = Regularization(regType, self._contractionRate)
 
         # setup initial values for the hidden thresholds
         if initialVisThresh is None :
@@ -75,9 +75,10 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         self._thresholdsBack = shared(value=initialVisThresh, borrow=True)
 
     def _setActivation(self, out) :
+        from nn.layer import Layer
         from theano.tensor import round
-        return round(out) if self._activation is None else \
-               round(self._activation(out))
+        act = Layer._setActivation(self, out)
+        return round(act) if self._forceSparse else act
 
     def __getstate__(self) :
         '''Save network pickle'''
@@ -173,12 +174,6 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
     def getUpdates(self) :
         '''This allows the Stacker to build the layerwise training.'''
         return (self._costs, self._updates)
-
-    # DEBUG: For Debugging purposes only
-    def saveReconstruction(self, image, ii) :
-        from dataset.debugger import saveNormalizedImage
-        saveNormalizedImage(np.resize(self.reconstruction(image), (28, 28)),
-                            'chip_' + str(ii) + '_reconst.png')
 
 
 if __name__ == '__main__' :

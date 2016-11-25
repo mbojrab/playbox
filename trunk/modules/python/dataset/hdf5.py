@@ -140,4 +140,4 @@ def readHDF5 (inFile, log=None) :
         labels = hdf5.get('labels')
 
     # the returned information should be checked for None
-    return (trainData, trainIndices), (testData, testIndices), labels
+    return [trainData, trainIndices], [testData, testIndices], labels

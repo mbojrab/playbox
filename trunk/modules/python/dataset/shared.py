@@ -7,6 +7,10 @@ def isShared(x) :
     '''
     return 'SharedVariable' in str(type(x))
 
+def getShape(x) :
+    '''Grab the shape in an appropriate manner.'''
+    return x.shape.eval() if isShared(x) else x.shape
+
 def toShared(x, borrow=True, log=None) :
     '''Transfer numpy.ndarry to theano.shared variable.
        NOTE: Shared variables allow for optimized GPU execution
