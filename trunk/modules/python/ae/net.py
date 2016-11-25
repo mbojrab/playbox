@@ -520,7 +520,7 @@ class TrainerSAENetwork (SAENetwork) :
 
             self._endProfile()
 
-            # DEBUG: For debugging pursposes only!
+            '''            # DEBUG: For debugging pursposes only!
             from dataset.debugger import saveTiledImage
             if layerIndex >= 0 and layerIndex < self.getNumLayers() :
                 reconstructedInput = self._layers[layerIndex].reconstruction(
@@ -558,7 +558,7 @@ class TrainerSAENetwork (SAENetwork) :
                                      str(globalEpoch+localEpoch) + '.png',
                                imageShape=imageShape, spacing=1,
                                interleave=True)
-
+            '''
         return globalEpoch + numEpochs, globCost
 
     def checkReconstructionLoss(self, layerIndex) :
