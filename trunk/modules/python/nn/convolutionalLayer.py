@@ -23,10 +23,10 @@ class ConvolutionalLayer(Layer) :
                            None generates random thresholds for the layer
        activation        : the sigmoid function to use for activation
                            this must be a function with a derivative form
-       randomNumGen      : generator for the initial weight values - 
+       randomNumGen      : generator for the initial weight values -
                            type is numpy.random.RandomState
     '''
-    def __init__ (self, layerID, inputSize, kernelSize, 
+    def __init__ (self, layerID, inputSize, kernelSize,
                   downsampleFactor, learningRate=0.001, momentumRate=0.9,
                   dropout=None, initialWeights=None, initialThresholds=None,
                   activation=tanh, randomNumGen=None) :
@@ -49,22 +49,10 @@ class ConvolutionalLayer(Layer) :
         # create weights based on the optimal distribution for the activation
         if initialWeights is None or initialThresholds is None :
             self._initializeWeights(
-                size=self._kernelSize, 
+                size=self._kernelSize,
                 fanIn=np.prod(self._inputSize[1:]),
                 fanOut=self._kernelSize[0],
                 randomNumGen=randomNumGen)
-
-    def __getstate__(self) :
-        '''Save layer pickle'''
-        dict = Layer.__getstate__(self)
-        dict['_prePoolingInput'] = None
-        return dict
-
-    def __setstate__(self, dict) :
-        '''Load layer pickle'''
-        if hasattr(self, '_prePoolingInput') : 
-            delattr(self, '_prePoolingInput')
-        Layer.__setstate__(self, dict)
 
     def finalize(self, networkInput, layerInput) :
         '''Setup the computation graph for this layer.
@@ -75,7 +63,7 @@ class ConvolutionalLayer(Layer) :
         '''
         self.input = layerInput
 
-        def findLogits(input, weights, inputSize, kernelSize, 
+        def findLogits(input, weights, inputSize, kernelSize,
                        downsampleFactor, thresholds) :
             from theano.tensor.nnet.conv import conv2d
             from theano.tensor.signal.pool import pool_2d
@@ -89,18 +77,17 @@ class ConvolutionalLayer(Layer) :
             # the output buffer is now connected to a sequence of operations
             return pooling + thresholds.dimshuffle('x', 0, 'x', 'x'), convolve
 
-        outClass, convClass = findLogits(self.input[0], self._weights, 
+        outClass, convClass = findLogits(self.input[0], self._weights,
                                          self._inputSize, self._kernelSize,
-                                         self._downsampleFactor, 
+                                         self._downsampleFactor,
                                          self._thresholds)
-        outTrain, convTrain = findLogits(self.input[1], self._weights, 
+        outTrain, convTrain = findLogits(self.input[1], self._weights,
                                          self._inputSize, self._kernelSize,
-                                         self._downsampleFactor, 
+                                         self._downsampleFactor,
                                          self._thresholds)
-        self._prePoolingInput = (convClass, convTrain)
 
         # create a convenience function
-        self.output = self._setOutput(self.getOutputSize()[1:], 
+        self.output = self._setOutput(self.getOutputSize()[1:],
                                       outClass, outTrain)
 
     def getInputSize (self) :
@@ -114,7 +101,7 @@ class ConvolutionalLayer(Layer) :
     def getFeatureSize (self) :
         '''This is the post convolution size of the output.
            (batch size, number of kernels, rows, columns)'''
-        return (self._inputSize[0], 
+        return (self._inputSize[0],
                 self._kernelSize[0],
                 self._inputSize[2] - self._kernelSize[2] + 1,
                 self._inputSize[3] - self._kernelSize[3] + 1)
@@ -126,7 +113,7 @@ class ConvolutionalLayer(Layer) :
                 int(fShape[2] / self._downsampleFactor[0]),
                 int(fShape[3] / self._downsampleFactor[1]))
 
-    # DEBUG: For Debugging purposes only 
+    # DEBUG: For Debugging purposes only
     def writeWeights(self, ii) :
         from dataset.debugger import saveTiledImage
         saveTiledImage(image=self._weights.get_value(borrow=True),
