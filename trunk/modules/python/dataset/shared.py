@@ -5,7 +5,8 @@ def isShared(x) :
     '''Test if the data sent is in a Theano shared variable. It is treated
        differently if this check is true.
     '''
-    return 'SharedVariable' in str(type(x))
+    typVar = str(type(x))
+    return 'SharedVariable' in typVar or 'TensorVariable' in typVar
 
 def getShape(x) :
     '''Grab the shape in an appropriate manner.'''
@@ -58,6 +59,7 @@ def splitToShared(x, borrow=True, castLabelInt=True, log=None) :
     # transfer the hard labels
     label = toShared(label, borrow, log)
     if castLabelInt :
+        # NOTE: this resets the value back to TensorVariable
         label = t.tensor.cast(label, 'int32')
     ret = [data, label]
 

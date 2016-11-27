@@ -25,9 +25,9 @@ def checkAvailableMemory(dataMemoryConsumption, shared, log) :
     if log is not None :
         log.info('Dataset will consume [' + memoryConsumGB + '] GBs')
 
-    # check if the machine is capable of loading dataset into CPU memory
-    oneGigMem = 2 ** 30
-    availableCPUMem = psutil.virtual_memory()[1] - oneGigMem
+    # check if the machine is capable of loading dataset into CPU memory --
+    # NOTE: this assumes there is more CPU memory (RAM) than GPU memory (DRAM)
+    availableCPUMem = psutil.virtual_memory()[1]
     if availableCPUMem > dataMemoryConsumption :
         if log is not None :
             log.debug('Dataset will fit in CPU memory. [' + 
@@ -36,6 +36,7 @@ def checkAvailableMemory(dataMemoryConsumption, shared, log) :
         if log is not None :
             log.warn('Dataset is too large for CPU memory. Dataset will ' +
                      'be memory mapped and backed by disk IO.')
+        shared = False
 
     # if the user wants to use the GPU check if the dataset can be loaded 
     # entirely into shared memory

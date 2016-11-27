@@ -274,10 +274,9 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         self._trainData, self._trainLabels = train
         self._testData, self._testLabels = test
 
-        self._numTrainBatches = getShape(self._trainLabels)[0]
-        self._numTestBatches = getShape(self._testLabels)[0]
-        self._numTestSize = self._numTestBatches * \
-                            getShape(self._testLabels)[1]
+        self._numTrainBatches = getShape(self._trainData)[0]
+        self._numTestBatches = getShape(self._testData)[0]
+        self._numTestSize = self._numTestBatches * getShape(self._testData)[1]
         self._regularization = Regularization(regType, regScaleFactor)
 
     def __getstate__(self) :

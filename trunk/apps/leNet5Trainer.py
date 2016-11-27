@@ -8,6 +8,7 @@ from nn.convolutionalLayer import ConvolutionalLayer
 from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainSupervised
 from nn.profiler import setupLogging, Profiler
+from dataset.shared import getShape
 
 '''This is a simple network in the topology of leNet5 the well-known
    MNIST dataset trainer from Yann LeCun. This is capable of training other
@@ -67,12 +68,11 @@ if __name__ == '__main__' :
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
-    shared = True
-    train, test, labels = ingestImagery(filepath=options.data, shared=shared,
+    train, test, labels = ingestImagery(filepath=options.data, shared=True,
                                         batchSize=options.batchSize,
                                         holdoutPercentage=options.holdout,
                                         log=log)
-    trainSize = train[0].shape.eval() if shared else train[0].shape
+    trainSize = getShape(train[0])
 
     # create the network -- LeNet-5
     network = Net(train, test, labels, regType='L2', 
