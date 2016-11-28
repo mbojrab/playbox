@@ -42,7 +42,7 @@ def buildTrainerSAENetwork(network, layerInputSize, regType, regValue,
                 inputSize=layerInputSize,
                 kernelSize=(k,layerInputSize[1],ks,ks),
                 downsampleFactor=[do,do], dropout=dr, 
-                learningRate=l, forceSparsity=sc, #momentum=m,
+                learningRate=l, forceSparsity=sc, momentumRate=m,
                 activation=t.nnet.sigmoid, randomNumGen=rng))
 
             # prepare for the next layer
@@ -58,8 +58,7 @@ def buildTrainerSAENetwork(network, layerInputSize, regType, regValue,
             regType=regType, contractionRate=regValue,
             inputSize=layerInputSize, numNeurons=n, learningRate=l,
             activation=t.nnet.sigmoid, dropout=dr, forceSparsity=sc,
-            #momentum=m, 
-            randomNumGen=rng))
+            momentumRate=m, randomNumGen=rng))
 
         # prepare for the next layer
         layerCount, layerInputSize = prepare(network, layerCount)

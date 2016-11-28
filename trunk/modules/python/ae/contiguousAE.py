@@ -30,6 +30,8 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
                           L1           : Least Absolute Deviation
                           L2           : Least Squares
        learningRate     : learning rate for all neurons
+       momentumRate     : rate of momentum for all neurons
+                          NOTE: momentum allows for higher learning rates
        contractionRate  : variance (dimensionality) reduction rate
                           None uses '1 / numNeurons'
        dropout          : rate of retention in a given neuron during training
@@ -49,7 +51,8 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
        randomNumGen     : generator for the initial weight values
     '''
     def __init__ (self, layerID, inputSize, numNeurons, regType=None,
-                  learningRate=0.001, dropout=None, contractionRate=None,
+                  learningRate=0.001, momentumRate=0.9, 
+                  dropout=None, contractionRate=None,
                   initialWeights=None, initialHidThresh=None,
                   initialVisThresh=None, activation=t.nnet.sigmoid,
                   forceSparsity=True, randomNumGen=None) :
@@ -58,6 +61,7 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
                                  inputSize=inputSize,
                                  numNeurons=numNeurons,
                                  learningRate=learningRate,
+                                 momentumRate=momentumRate,
                                  dropout=dropout,
                                  initialWeights=initialWeights,
                                  initialThresholds=initialHidThresh,
@@ -106,8 +110,9 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         self._thresholdsBack = shared(value=initialThresholdsBack, borrow=True)
 
     def _decode(self, output) :
+        from nn.layer import Layer
         out = dot(output, self._weights.T) + self._thresholdsBack
-        return out if self._activation is None else self._activation(out)
+        return Layer._setActivation(self, out)
 
     def finalize(self, networkInput, layerInput) :
         '''Setup the computation graph for this layer.
@@ -117,7 +122,7 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
                           format (inClass, inTrain)
         '''
         from nn.costUtils import calcLoss, computeJacobian, leastSquares, \
-                                 calcSparsityConstraint
+                                 calcSparsityConstraint, compileUpdate
         ContiguousLayer.finalize(self, networkInput, layerInput)
 
         # setup the decoder --
@@ -149,9 +154,8 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
                            if x is not None)
 
         gradients = t.grad(t.sum(self._costs), self.getWeights())
-        self._updates = [(weights, weights - self._learningRate * gradient)
-                         for weights, gradient in zip(self.getWeights(), 
-                                                      gradients)]
+        self._updates = compileUpdate(self.getWeights(), gradients,
+                                      self._learningRate, self._momentumRate)
 
         # TODO: this needs to be stackable and take the input to the first
         #       layer, not just the input of this layer. This will ensure
