@@ -120,14 +120,40 @@ def computeJacobian(a, wrt, batchSize, inputSize, numNeurons) :
     wrtReshape = (1, inputSize, numNeurons)
     return t.reshape(a * (1 - a), aReshape) * t.reshape(wrt, wrtReshape)
 
+def compileUpdate(weights, gradients, learningRate, momentumRate=0.) :
+    '''Create an updates vector for the layer.
+
+        weights   : w.r.t. the gradients
+        gradients : the scalar loss of the system
+        momentum  : momentum rate of the layer
+    '''
+    import theano
+    import numpy as np
+    updates = []
+    for w, g in zip(weights, gradients) :
+
+        if momentumRate > 0. :
+            # setup a second buffer for storing momentum
+            previousWeightUpdate = theano.shared(
+                np.zeros(w.get_value().shape, theano.config.floatX),
+                borrow=True)
+
+            # add two updates --
+            # perform weight update and save the previous update
+            updates.append((w, w + previousWeightUpdate))
+            updates.append((previousWeightUpdate,
+                            previousWeightUpdate * momentumRate -
+                            learningRate * g))
+        else :
+            updates.append((w, w - learningRate * g))
+    return updates
+
 def compileUpdates(layers, loss) :
     '''Calculate the weight updates required during training.
 
        layers : Layers of the network to compute updates for
        loss   : Total network loss to apply (ie Error Gradient Summation)
     '''
-    import theano
-    import numpy as np
     import theano.tensor as t
 
     updates = []
@@ -139,24 +165,10 @@ def compileUpdates(layers, loss) :
 
         # build the gradients
         layerWeights = layer.getWeights()
-        gradients = t.grad(loss, layerWeights)#, disconnected_inputs='warn')
+        gradients = t.grad(loss, layerWeights)
 
         # add the weight update
-        for w, g in zip(layerWeights, gradients) :
-
-            if layerMomentumRate > 0. :
-                # setup a second buffer for storing momentum
-                previousWeightUpdate = theano.shared(
-                    np.zeros(w.get_value().shape, theano.config.floatX),
-                    borrow=True)
-
-                # add two updates --
-                # perform weight update and save the previous update
-                updates.append((w, w + previousWeightUpdate))
-                updates.append((previousWeightUpdate,
-                                previousWeightUpdate * layerMomentumRate -
-                                layerLearningRate * g))
-            else :
-                updates.append((w, w - layerLearningRate * g))
+        updates.extend(compileUpdate(layerWeights, gradients,
+                                     layerLearningRate, layerMomentumRate))
 
     return updates

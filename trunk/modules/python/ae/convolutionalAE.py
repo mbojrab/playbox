@@ -31,6 +31,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                           L2           : Least Squares
        downsampleFactor : (rowFactor, columnFactor)
        learningRate     : learning rate for all neurons
+       momentumRate     : rate of momentum for all neurons
+                          NOTE: momentum allows for higher learning rates
        contractionRate  : variance (dimensionality) reduction rate
                           None uses '1 / numNeurons'
        dropout          : rate of retention in a given neuron during training
@@ -50,7 +52,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
        randomNumGen     : generator for the initial weight values
     '''
     def __init__ (self, layerID, inputSize, kernelSize, 
-                  downsampleFactor, regType=None, learningRate=0.001,
+                  downsampleFactor, regType=None,
+                  learningRate=0.001, momentumRate=0.9, 
                   dropout=None, contractionRate=None,
                   initialWeights=None, initialHidThresh=None,
                   initialVisThresh=None, activation=t.nnet.sigmoid,
@@ -61,6 +64,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                                     kernelSize=kernelSize,
                                     downsampleFactor=downsampleFactor,
                                     learningRate=learningRate,
+                                    momentumRate=momentumRate,
                                     dropout=dropout,
                                     initialWeights=initialWeights,
                                     initialThresholds=initialHidThresh,
@@ -127,11 +131,12 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         return t.reshape(self._weights, (kernelBackSize))
 
     def _decode(self, input) :
+        from nn.layer import Layer
         weightsBack = self._getWeightsBack()
         deconvolve = conv2d(input, weightsBack, self.getFeatureSize(), 
                             weightsBack.shape.eval(), border_mode='full')
         out = deconvolve + self._thresholdsBack.dimshuffle('x', 0, 'x', 'x')
-        return out if self._activation is None else self._activation(out)
+        return Layer._setActivation(self, out)
 
     def finalize(self, networkInput, layerInput) :
         '''Setup the computation graph for this layer.
@@ -140,7 +145,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
            layerInput   : the input variable tuple for this layer
                           format (inClass, inTrain)
         '''
-        from nn.costUtils import calcLoss, leastSquares, calcSparsityConstraint
+        from nn.costUtils import calcLoss, leastSquares, \
+                                 calcSparsityConstraint, compileUpdate
         ConvolutionalLayer.finalize(self, networkInput, layerInput)
 
         weightsBack = self._getWeightsBack()
@@ -178,9 +184,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                            if x is not None)
 
         gradients = t.grad(t.sum(self._costs), self.getWeights())
-        self._updates = [(weights, weights - self._learningRate * gradient)
-                         for weights, gradient in zip(self.getWeights(), 
-                                                      gradients)]
+        self._updates = compileUpdate(self.getWeights(), gradients,
+                                      self._learningRate, self._momentumRate)
 
         # TODO: this needs to be stackable and take the input to the first
         #       layer, not just the input of this layer. This will ensure
