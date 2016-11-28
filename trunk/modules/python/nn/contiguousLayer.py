@@ -5,7 +5,7 @@ from theano.tensor import tanh
 
 class ContiguousLayer(Layer) :
     '''This class describes a Contiguous Neural Layer.
-       
+
        layerID           : unique name identifier for this layer
        inputSize         : number of elements in input buffer. This can also
                            be a tuple of size (batch size, input vector length)
@@ -23,14 +23,14 @@ class ContiguousLayer(Layer) :
                            None generates random thresholds for the layer
        activation        : the sigmoid function to use for activation
                            this must be a function with a derivative form
-       randomNumGen      : generator for the initial weight values - 
+       randomNumGen      : generator for the initial weight values -
                            type is numpy.random.RandomState
     '''
     def __init__ (self, layerID, inputSize, numNeurons,
                   learningRate=0.001, momentumRate=0.9, dropout=None,
                   initialWeights=None, initialThresholds=None, activation=tanh,
                   randomNumGen=None) :
-        Layer.__init__(self, layerID, learningRate, momentumRate, 
+        Layer.__init__(self, layerID, learningRate, momentumRate,
                        dropout, activation)
 
         self._inputSize = inputSize
@@ -42,7 +42,7 @@ class ContiguousLayer(Layer) :
         # create weights based on the optimal distribution for the activation
         if initialWeights is None or initialThresholds is None :
             self._initializeWeights(
-                size=(self._inputSize[1], self._numNeurons), 
+                size=(self._inputSize[1], self._numNeurons),
                 fanIn=self._inputSize[1],
                 fanOut=self._numNeurons,
                 randomNumGen=randomNumGen)

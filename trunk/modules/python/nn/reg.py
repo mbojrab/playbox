@@ -14,7 +14,7 @@ class Regularization :
            layers : Layers of a network
         '''
         from nn.costUtils import leastAbsoluteDeviation, leastSquares
-    
+
         # calculate a regularization term -- if desired
         reg = None
 
@@ -24,12 +24,12 @@ class Regularization :
             reg = leastAbsoluteDeviation(
                 [layer.getWeights()[0] for layer in layers],
                 batchSize=None, scaleFactor=self._scale)
-    
+
         # L2-norm provides 'Least Squares' --
         # built for dense outputs and is computationally stable at small errors
         elif self._type == 'L2' :
             reg = leastSquares(
                 [layer.getWeights()[0] for layer in layers],
                 batchSize=None, scaleFactor=self._scale)
-    
+
         return reg

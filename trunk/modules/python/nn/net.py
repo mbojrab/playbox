@@ -25,7 +25,7 @@ class Network () :
         if self._profiler is not None :
             self._profiler.startProfile(message, level)
     def _endProfile(self) :
-        if self._profiler is not None : 
+        if self._profiler is not None :
             self._profiler.endProfile()
     def _listify(self, data) :
         if data is None : return []
@@ -78,11 +78,11 @@ class Network () :
 
 class ClassifierNetwork (Network) :
     '''The ClassifierNetwork object allows the user to build multi-layer neural
-       networks of various topologies easily. This class provides users with 
+       networks of various topologies easily. This class provides users with
        functionality to load a trained Network from disk and begin classifying
-       inputs. 
+       inputs.
 
-       filepath    : Path to an already trained network on disk 
+       filepath    : Path to an already trained network on disk
                      'None' creates randomized weighting
        prof        : Profiler to use
     '''
@@ -106,11 +106,11 @@ class ClassifierNetwork (Network) :
         '''Load network pickle'''
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
-        if hasattr(self, '_outClassMax') : 
+        if hasattr(self, '_outClassMax') :
             delattr(self, '_outClassMax')
-        if hasattr(self, '_classify') : 
+        if hasattr(self, '_classify') :
             delattr(self, '_classify')
-        if hasattr(self, '_classifyAndSoftmax') : 
+        if hasattr(self, '_classifyAndSoftmax') :
             delattr(self, '_classifyAndSoftmax')
         Network.__setstate__(self, dict)
 
@@ -141,14 +141,14 @@ class ClassifierNetwork (Network) :
                      if not isinstance(networkInput, tuple) else networkInput
         layerInput = networkInput
         for layer in self._layers :
-            self._startProfile('Finalizing Layer [' + layer.layerID + ']', 
+            self._startProfile('Finalizing Layer [' + layer.layerID + ']',
                                'debug')
             layer.finalize(networkInput, layerInput)
             layerInput = layer.output
             self._endProfile()
 
         # create one function that activates the entire network --
-        # Here we use softmax on the network output to produce a normalized 
+        # Here we use softmax on the network output to produce a normalized
         # output prediction, which emphasizes significant neural responses.
         # This takes as its input, the first layer's input, and uses the final
         # layer's output as the function (ie the network classification).
@@ -157,13 +157,13 @@ class ClassifierNetwork (Network) :
         self._classify = theano.function([self.getNetworkInput()[0]],
                                          self._outClassMax)
         self._classifyAndSoftmax = theano.function(
-            [self.getNetworkInput()[0]], 
+            [self.getNetworkInput()[0]],
             [self._outClassMax, outClass])
         self._endProfile()
 
     def classify (self, inputs) :
-        '''Classify the given inputs. The input is assumed to be 
-           numpy.ndarray with dimensions specified by the first layer of the 
+        '''Classify the given inputs. The input is assumed to be
+           numpy.ndarray with dimensions specified by the first layer of the
            network. The output is the index of the softmax classification.
         '''
         self._startProfile('Classifying the Inputs', 'debug')
@@ -173,15 +173,15 @@ class ClassifierNetwork (Network) :
                   if not isShared(inputs) else inputs
             self.finalizeNetwork(inp[:])
 
-        # activating the last layer triggers all previous 
+        # activating the last layer triggers all previous
         # layers due to dependencies we've enforced
         classIndex = self._classify(inputs)
         self._endProfile()
         return classIndex
 
     def classifyAndSoftmax (self, inputs) :
-        '''Classify the given inputs. The input is assumed to be 
-           numpy.ndarray with dimensions specified by the first layer of the 
+        '''Classify the given inputs. The input is assumed to be
+           numpy.ndarray with dimensions specified by the first layer of the
            network.
 
            return : (classification index, softmax vector)
@@ -193,7 +193,7 @@ class ClassifierNetwork (Network) :
                   if not isShared(inputs) else inputs
             self.finalizeNetwork(inp[:])
 
-        # activating the last layer triggers all previous 
+        # activating the last layer triggers all previous
         # layers due to dependencies we've enforced
         classIndex, softmax = self._classifyAndSoftmax(inputs)
         self._endProfile()
@@ -204,7 +204,7 @@ class LabeledClassifierNetwork (ClassifierNetwork) :
     '''The LabeledClassifierNetwork adds labeling to the classification.
 
        labels      : Labels for the classification layer
-       filepath    : Path to an already trained network on disk 
+       filepath    : Path to an already trained network on disk
                      'None' creates randomized weighting
        prof        : Profiler to use
     '''
@@ -232,12 +232,12 @@ class LabeledClassifierNetwork (ClassifierNetwork) :
 
 class TrainerNetwork (LabeledClassifierNetwork) :
     '''This network allows for training data on a theano.shared wrapped
-       dataset for optimal execution. Because the dataset will be accessed 
+       dataset for optimal execution. Because the dataset will be accessed
        repetitively over the course of training, the shared variables are
        preloaded unto the target architecture. The input to training will be
        an index into this array.
 
-       The network uses a softmax normalization on the output vector to 
+       The network uses a softmax normalization on the output vector to
        obtain [0,1] classification. This allows for a cross-entropy (ie nll)
        loss function.
 
@@ -245,14 +245,14 @@ class TrainerNetwork (LabeledClassifierNetwork) :
                   NOTE: Currently the user is allowed to pass two formats
                         for this field. --
 
-                        (((numBatches, batchSize, numChannels, rows, cols)), 
+                        (((numBatches, batchSize, numChannels, rows, cols)),
                           (numBatches, oneHotIndex))
 
-                        (((numBatches, batchSize, numChannels, rows, cols)), 
+                        (((numBatches, batchSize, numChannels, rows, cols)),
                           (numBatches, batchSize, expectedOutputVect))
 
        test     : theano.shared dataset used for network testing in format --
-                  (((numBatches, batchSize, numChannels, rows, cols)), 
+                  (((numBatches, batchSize, numChannels, rows, cols)),
                   integerLabelIndices)
                   The intersection of train and test datasets should be a null
                   set. The test dataset will be used to regularize the training
@@ -262,7 +262,7 @@ class TrainerNetwork (LabeledClassifierNetwork) :
                   L2           : Least Squares
        regSF    : regularization scale factor
                   NOTE: a good value is 1. / numTotalNeurons
-       filepath : Path to an already trained network on disk 
+       filepath : Path to an already trained network on disk
                   'None' creates randomized weighting
        prof     : Profiler to use
     '''
@@ -332,7 +332,7 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         #       the inner loops and optimizes the libary
         if isShared(self._testData) :
             checkAcc = theano.function(
-                [index], numCorrect, 
+                [index], numCorrect,
                 givens={self.getNetworkInput()[0] : self._testData[index],
                         expectedLabels: self._testLabels[index]})
             self._checkAccuracy = lambda ii : checkAcc(ii)
@@ -355,8 +355,8 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         # create the function for back propagation of all layers --
         # weight/bias are added in reverse order because they will
         # be used back propagation, which runs output to input
-        updates = compileUpdates(self._layers, 
-                                 xEntropy + 
+        updates = compileUpdates(self._layers,
+                                 xEntropy +
                                  self._regularization.calculate(self._layers))
 
         # NOTE: This uses the lamda function as a means to consolidate the
@@ -372,12 +372,12 @@ class TrainerNetwork (LabeledClassifierNetwork) :
             trainNet = theano.function(
                 [self.getNetworkInput()[1], expectedOutputs],
                  xEntropy, updates=updates)
-            self._trainNetwork = lambda ii : trainNet(self._trainData[ii], 
+            self._trainNetwork = lambda ii : trainNet(self._trainData[ii],
                                                       self._trainLabels[ii])
         self._endProfile()
 
     def train(self, index) :
-        '''Train the network against the pre-loaded inputs. This accepts 
+        '''Train the network against the pre-loaded inputs. This accepts
            a batch index into the pre-compiled input and expectedOutput sets.
 
            NOTE: Class labels for expectedOutput are assumed to be [0,1]
@@ -402,12 +402,12 @@ class TrainerNetwork (LabeledClassifierNetwork) :
     def trainEpoch(self, globalEpoch, numEpochs=1) :
         '''Train the network against the pre-loaded inputs for a user-specified
            number of epochs.
-           globalEpoch : total number of epochs the network has previously 
+           globalEpoch : total number of epochs the network has previously
                          trained
            numEpochs   : number of epochs to train this round before stopping
         '''
         for localEpoch in range(numEpochs) :
-            # DEBUG: For Debugging purposes only 
+            # DEBUG: For Debugging purposes only
             #for layer in self._layers :
             #    layer.writeWeights(globalEpoch + localEpoch)
             self._startProfile('Running Epoch [' +
