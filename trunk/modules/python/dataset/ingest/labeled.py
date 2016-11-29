@@ -62,34 +62,34 @@ def checkAvailableMemory(dataMemoryConsumption, shared, log) :
 
     return shared
 
-def readDataset(trainDataH5, train, trainShape, batchSize, threads, log) :
+def readDataset(h5Dataset, data, dataShape, batchSize, threads, log) :
     import theano
     from six.moves import queue
     import threading
-    from dataset.reader import padImageData, readImage
+    from dataset.reader import padImageData, preProcImage
 
     # add jobs to the queue --
     # NOTE : h5py.Dataset doesn't implement __setslice__, so we must implement
     #        the copy via __setitem__. This differs from my normal index
     #        formatting, but it gets the job done.
     workQueueData = queue.Queue()
-    for ii in range(trainShape[0]) :
-        workQueueData.put((trainDataH5, np.s_[ii, :], trainShape[1:],
-                           train[ii*batchSize:(ii+1)*batchSize], log))
+    for ii in range(dataShape[0]) :
+        workQueueData.put((h5Dataset, np.s_[ii, :], dataShape[1:],
+                           data[ii*batchSize:(ii+1)*batchSize], log))
 
     # stream the imagery into the buffers --
     # we are threading this for efficiency
     def readImagery() :
         while True :
-            dataH5, sliceIndex, batchSize, imageFiles, log = \
+            h5, sliceIndex, imSize, imFiles, log = \
                 workQueueData.get()
 
             # allocate a load the batch locally so our write are coherent
-            tmp = np.ndarray((batchSize), theano.config.floatX)
-            for ii, imageFile in enumerate(imageFiles) :
-                tmp[ii][:] = padImageData(readImage(imageFile[0], log),
-                                          batchSize[-3:])[:]
-            dataH5[sliceIndex] = tmp[:]
+            tmp = np.ndarray((imSize), theano.config.floatX)
+            for ii, imFile in enumerate(imFiles) :
+                tmp[ii][:] = padImageData(preProcImage(imFile[0], log),
+                                          imSize[-3:])[:]
+            h5[sliceIndex] = tmp[:]
 
             workQueueData.task_done()
 
