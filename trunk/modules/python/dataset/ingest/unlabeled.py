@@ -75,13 +75,13 @@ def hdf5Dataset(filepaths, batchSize=1, log=None, chipFunc=None, **kwargs) :
         # TODO: insert logic for chipping the imagery individually and 
         #       batching appropriattely
         raise NotImplementedError('Implement support for chipped ingest.')
-        #from dataset.reader import readImage
+        #from dataset.reader import preProcImage
         #from dataset.chip import prepareChips
         #
         #for im in images :
         #    try :
         #        # chip the image using the provided utility
-        #        chips = np.asarray(chipFunc(readImage(im, log), **kwargs))
+        #        chips = np.asarray(chipFunc(preProcImage(im, log), **kwargs))
         #    except IOError : pass
     else :
         from dataset.ingest.labeled import readDataset

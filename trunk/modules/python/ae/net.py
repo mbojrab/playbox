@@ -130,9 +130,10 @@ class ClassifierSAENetwork (SAENetwork) :
         '''Read a directory of data to use as a feature matrix.'''
         import os
         from dataset.minibatch import makeContiguous
-        from dataset.reader import readImage
-        targets = makeContiguous([(readImage(os.path.join(targetpath, im)), 0)\
-                                  for im in os.listdir(targetpath)])[0]
+        from dataset.reader import preProcImage
+        targets = makeContiguous(
+            [(preProcImage(os.path.join(targetpath, im)), 0)
+             for im in os.listdir(targetpath)])[0]
         return np.resize(targets, 
                          [targets.shape[0]] + list(targets.shape[-3:]))
 
@@ -520,7 +521,7 @@ class TrainerSAENetwork (SAENetwork) :
 
             self._endProfile()
 
-            '''            # DEBUG: For debugging pursposes only!
+            # DEBUG: For debugging pursposes only!
             from dataset.debugger import saveTiledImage
             if layerIndex >= 0 and layerIndex < self.getNumLayers() :
                 reconstructedInput = self._layers[layerIndex].reconstruction(
@@ -558,7 +559,7 @@ class TrainerSAENetwork (SAENetwork) :
                                      str(globalEpoch+localEpoch) + '.png',
                                imageShape=imageShape, spacing=1,
                                interleave=True)
-            '''
+            
         return globalEpoch + numEpochs, globCost
 
     def checkReconstructionLoss(self, layerIndex) :
