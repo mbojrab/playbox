@@ -182,7 +182,7 @@ def archiveDirToHDF5(outputFile, inDir, flushRate=1024, log=None) :
             # create h5 groups for each relative directory
             [h5.create_group(dir) for dir in dirs]
 
-            # create h5 dataset for each relative directory
+            # create h5 dataset for each relative image file
             for file in files :
 
                 # try to read the file as an image --
