@@ -189,7 +189,7 @@ def archiveDirToHDF5(outputFile, inDir, flushRate=1024, log=None) :
                 # this excludes all files not readable as an image
                 try :
                     image = openImage(os.path.join(root, file), log)
-                except Exception as ex:
+                except :
                     log.info('File type is not supported. Excluding file [' +
                              file + ']')
                     continue
