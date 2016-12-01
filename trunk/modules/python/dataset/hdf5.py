@@ -156,7 +156,11 @@ def archiveDirToHDF5(outputFile, inDir, flushRate=1024, log=None) :
        flushRate  : Number of files to write before forcing the flush to disk.
        log        : Logger to use
     '''
-    log.info('Archiving [' + directory + '] into [' + outputfile + ']')
+    from dataset.reader import openImage
+    log.info('Archiving [' + inDir + '] into [' + outputFile + ']')
+
+    if os.path.exists(outputFile) :
+        raise ValueError('The file already exists [' + outputFile + ']')
 
     outLower = outputFile.lower()
     if not (outLower.endswith('.h5') or outLower.endswith('.hdf5')) :
@@ -174,23 +178,28 @@ def archiveDirToHDF5(outputFile, inDir, flushRate=1024, log=None) :
             # reset the lists to be full relative path
             dirs = [os.path.relpath(
                     os.path.join(root, dir), inDir) for dir in dirs]
-            files = [os.path.relpath(
-                     os.path.join(root, file), inDir) for file in files]
 
             # create h5 groups for each relative directory
             [h5.create_group(dir) for dir in dirs]
 
-            # create h5 dataset fr each relative directory
+            # create h5 dataset for each relative directory
             for file in files :
 
-                # replace old contents
-                if file in h5 :
-                    del h5[file]
+                # try to read the file as an image --
+                # this excludes all files not readable as an image
+                try :
+                    image = openImage(os.path.join(root, file), log)
+                except Exception as ex:
+                    log.info('File type is not supported. Excluding file [' +
+                             file + ']')
+                    continue
 
                 # create h5 dataset for each image --
                 # this save the imagery in a three channel format
-                h5.create_dataset(file, data=readImage(file, log),
-                                  compression='gzip')
+                # the image is saved into a relative path under the same name
+                h5.create_dataset(
+                    os.path.relpath(os.path.join(root, file), inDir),
+                    data=image, compression='gzip')
 
                 # flush the data to disk periodically
                 count += 1
