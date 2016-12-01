@@ -53,36 +53,37 @@ Agreement.
 import h5py
 import os.path as osp
 
-def hdf5walkimpl(path, top='', names_only=True):
+def hdf5walkimpl(path, top='', names_only=True) :
     ''' Simplified port of os.walk for hdf5 '''
-    
     dirs, nondirs = [], []
-    for name in path.keys():
+    for name in path.keys() :
         item = path[name]
-       
-        if isinstance(item, h5py.Group): # test for group (go down)
+
+        # test for group (go down)
+        if isinstance(item, h5py.Group) :
             dirs.append((name, item))
-        if isinstance(item, h5py.Dataset): # test for dataset
+        # test for dataset
+        if isinstance(item, h5py.Dataset) :
             nondirs.append((name, item))
 
     ds = dirs
     nds = nondirs
-    if names_only:
+    if names_only :
         # filter out the actual item when returning
         ds = [d[0] for d in dirs]
         nds = [nd[0] for nd in nondirs]
 
     yield top, ds, nds
-    for name in dirs:
+    for name in dirs :
         new_path = name[1]
         new_top = osp.join(top, name[0])
-        for x in hdf5walkimpl(new_path, new_top, names_only):
+        for x in hdf5walkimpl(new_path, new_top, names_only) :
             yield x
 
 
-def hdf5walk(inputfile, top='', names_only=True):
+def hdf5walk(inputfile, top='', names_only=True) :
     ''' Walk an hdf5 like a directory structure '''
-    with h5py.File(inputfile, 'r') as f:
-        for (root, dirs, files) in hdf5walkimpl(f, top, names_only):
+    with h5py.File(inputfile, 'r') as f :
+        for (root, dirs, files) in hdf5walkimpl(f, top, names_only) :
              yield (root, dirs, files)
 
