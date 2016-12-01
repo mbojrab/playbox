@@ -521,32 +521,22 @@ class TrainerSAENetwork (SAENetwork) :
 
             self._endProfile()
 
-            # DEBUG: For debugging pursposes only!
+            '''# DEBUG: For debugging pursposes only!
             from dataset.debugger import saveTiledImage
+            from dataset.shared import getShape
             if layerIndex >= 0 and layerIndex < self.getNumLayers() :
                 reconstructedInput = self._layers[layerIndex].reconstruction(
                     self._trainData.get_value(borrow=True)[0])
                 reconstructedInput = np.resize(
                     reconstructedInput, 
-                    self._layers[layerIndex].getInputSize())
-                tileShape = None
-                if layerIndex == 0 :
-                    imageShape = self._testData.shape.eval()[-2:]
-                    reconstructedInput = np.resize(reconstructedInput,
-                                                   self._testData.shape.eval()[-4:])
-                elif len(self._layers[layerIndex].getInputSize()) > 2 :
-                    imageShape = tuple(self._layers[
-                                       layerIndex].getInputSize()[-2:])
-                else :
-                    imageShape=(1, self._layers[layerIndex].getInputSize()[1])
-                    tileShape=(self._layers[layerIndex].getInputSize()[0], 1)
-
+                    getShape(self._layers[layerIndex].input[0]))
+                imageShape = getShape(self._layers[layerIndex].input[0])[-2:]
                 self.writeWeights(layerIndex, globalEpoch + localEpoch)
                 saveTiledImage(image=reconstructedInput,
                                path=self._layers[layerIndex].layerID +
                                     '_reconstruction_' + 
                                     str(globalEpoch+localEpoch) + '.png',
-                               imageShape=imageShape, tileShape=tileShape,
+                               imageShape=imageShape, 
                                spacing=1, interleave=True)
             else :
                 reconstructedInput = self.reconstruction(
@@ -559,7 +549,7 @@ class TrainerSAENetwork (SAENetwork) :
                                      str(globalEpoch+localEpoch) + '.png',
                                imageShape=imageShape, spacing=1,
                                interleave=True)
-            
+            '''
         return globalEpoch + numEpochs, globCost
 
     def checkReconstructionLoss(self, layerIndex) :
