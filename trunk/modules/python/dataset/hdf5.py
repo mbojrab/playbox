@@ -145,7 +145,10 @@ def readHDF5 (inFile, log=None) :
     return [trainData, trainIndices], [testData, testIndices], labels
 
 def archiveDirToHDF5(outputFile, inDir, flushRate=1024, log=None) :
-    '''Convert a directory to an HDF5 file with matching content.
+    '''Convert a directory to an HDF5 file with matching content. This
+       format is useful while working with distributed filesystems where
+       large quantities of small files perform poorly due to indexing.
+
        NOTE: This stores the imagery into a raw array as returned from 
              dataset.reader.openImage
 
@@ -175,12 +178,13 @@ def archiveDirToHDF5(outputFile, inDir, flushRate=1024, log=None) :
         count = 0
         for root, dirs, files in os.walk(inDir) :
 
-            # reset the lists to be full relative path
-            dirs = [os.path.relpath(
-                    os.path.join(root, dir), inDir) for dir in dirs]
+            # recurse to the proper subgroup
+            group = h5
+            for subGroup in os.path.relpath(root, inDir).split(os.sep) :
+                group = group[subGroup]
 
             # create h5 groups for each relative directory
-            [h5.create_group(dir) for dir in dirs]
+            [group.create_group(dir) for dir in dirs]
 
             # create h5 dataset for each relative image file
             for file in files :
@@ -197,9 +201,7 @@ def archiveDirToHDF5(outputFile, inDir, flushRate=1024, log=None) :
                 # create h5 dataset for each image --
                 # this save the imagery in a three channel format
                 # the image is saved into a relative path under the same name
-                h5.create_dataset(
-                    os.path.relpath(os.path.join(root, file), inDir),
-                    data=image, compression='gzip')
+                group.create_dataset(file, data=image, compression='gzip')
 
                 # flush the data to disk periodically
                 count += 1
@@ -223,9 +225,10 @@ def expandHDF5(hdf5, outDir, log=None) :
        outDir    : The direcotry to place thev archive contents.
        log       : Logger to use
     '''
-    log.info('Expanding [' + hdf5 + '] into [' + outDir + ']')
+    if log is not None :
+        log.info('Expanding [' + hdf5 + '] into [' + outDir + ']')
 
-    def createtree(name, item) :
+    def createTree(name, item) :
         outPath = os.path.join(outDir, name)
 
         # create the directory path
@@ -237,5 +240,5 @@ def expandHDF5(hdf5, outDir, log=None) :
         elif isinstance(item, h5py.Dataset) :
             np.frombuffer(item[:], dtype=item.dtype).tofile(outPath)
 
-    with h5py.File(inputfile, 'r') as h5 :
+    with h5py.File(hdf5, 'r') as h5 :
         h5.visititems(createTree)
