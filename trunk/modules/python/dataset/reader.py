@@ -162,7 +162,7 @@ def openImage(image, log=None) :
     imageLower = image.lower()
     if imageLower.endswith('.sio') :
         ret = openSIO(image, log)
-    if imageLower.endswith('.npy') :
+    elif imageLower.endswith('.npy') :
         ret = openNPY(image, log)
     elif 'sicd' in imageLower :
         ret = openSICD(image, log)[0]
