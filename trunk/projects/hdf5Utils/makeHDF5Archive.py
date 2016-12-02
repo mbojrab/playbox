@@ -9,7 +9,6 @@ if __name__ == '__main__' :
                         help='Specify log output file.')
     parser.add_argument('--level', dest='level', default='INFO', type=str, 
                         help='Log Level.')
-    parser.add_argument('--h5', type=str, help='Override the HDF5 name.')
     parser.add_argument('data', type=str,
                         help='Directory to store in the archive')
     options = parser.parse_args()
@@ -19,9 +18,8 @@ if __name__ == '__main__' :
     log = setupLogging(logName, options.level, options.logfile)
 
     # name the file the same as the directory by default
-    if options.h5 is None :
-        splitPath = os.path.split(options.data)
-        options.h5 = os.path.join(splitPath[0], splitPath[1] + '.hdf5')
+    splitPath = os.path.split(options.data)
+    h5File = os.path.join(splitPath[0], splitPath[1], splitPath[1] + '.hdf5')
 
     # write the HDF5
-    archiveDirToHDF5(options.h5, options.data, log=log)
+    archiveDirToHDF5(h5File, options.data, log=log)
