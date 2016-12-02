@@ -89,6 +89,10 @@ def openSIO(image, log=None) :
     import coda.sio_lite
     return coda.sio_lite.read(image)
 
+def openNPY(image, log=None) :
+    '''Read numpy array written to disk via the numpy API.'''
+    return np.load(image)
+
 def openNITF(image, log=None) :
     '''Read an NITF file and return as np.ndarray'''
     import nitf
@@ -158,6 +162,8 @@ def openImage(image, log=None) :
     imageLower = image.lower()
     if imageLower.endswith('.sio') :
         ret = openSIO(image, log)
+    if imageLower.endswith('.npy') :
+        ret = openNPY(image, log)
     elif 'sicd' in imageLower :
         ret = openSICD(image, log)[0]
     elif 'sidd' in imageLower :

@@ -191,11 +191,12 @@ def archiveDirToHDF5(outputFile, inDir, flushRate=1024, log=None) :
 
                 # try to read the file as an image --
                 # this excludes all files not readable as an image
+                filePath = os.path.join(root, file)
                 try :
-                    image = openImage(os.path.join(root, file), log)
+                    image = openImage(filePath, log)
                 except :
                     log.info('File type is not supported. Excluding file [' +
-                             file + ']')
+                             filePath + ']')
                     continue
 
                 # create h5 dataset for each image --
@@ -213,7 +214,7 @@ def archiveDirToHDF5(outputFile, inDir, flushRate=1024, log=None) :
         h5.flush()
 
 
-def expandHDF5(hdf5, outDir, log=None) :
+def expandHDF5(hdf5, outDir=None, log=None) :
     '''Expand an existing HDF5 to the filesystem. This is mostly for
        debugging and verification purposes. The files will be recreate exactly
        as they are within the HDF5 archive, however the numpy arrays are
@@ -225,6 +226,10 @@ def expandHDF5(hdf5, outDir, log=None) :
        outDir    : The direcotry to place thev archive contents.
        log       : Logger to use
     '''
+    # expand into the same directory if one isn't specified
+    if outDir is None :
+        outDir = os.path.split(hdf5)[0]
+
     if log is not None :
         log.info('Expanding [' + hdf5 + '] into [' + outDir + ']')
 
@@ -238,7 +243,9 @@ def expandHDF5(hdf5, outDir, log=None) :
         # write the image to an npy file --
         # TODO: this incurs an additional copy due to the slice
         elif isinstance(item, h5py.Dataset) :
-            np.frombuffer(item[:], dtype=item.dtype).tofile(outPath)
+            outPath = os.path.splitext(outPath)[0] + '.npy'
+            np.save(outPath, np.reshape(np.frombuffer(item[:], 
+                             dtype=item.dtype), newshape=item.shape))
 
     with h5py.File(hdf5, 'r') as h5 :
         h5.visititems(createTree)
