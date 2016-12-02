@@ -90,7 +90,7 @@ def singleClassify(network, image) :
 
 if __name__ == "__main__" :
     import argparse
-    from datasetUtils import readImage
+    from datasetUtils import preProcImage
     from net import ClassifierNetwork as Network
     from dataset.reader import normalize
 
@@ -105,7 +105,7 @@ if __name__ == "__main__" :
     options = parser.parse_args()
 
     # load everything into memory
-    image = readImage(options.image)
+    image = preProcImage(options.image)
 
     network = Network(options.synapse)
 

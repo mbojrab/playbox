@@ -56,8 +56,8 @@ def _train(network, appName, dataPath, numEpochs=5, stop=1,
                   network.checkReconstructionLoss(layerIndex)
 
         # continue training until the network hits the early stoppage condition
-        layerCount = 0
-        while layerCount < maxEpoch :
+        localEpoch = 0
+        while localEpoch < maxEpoch :
 
             # train the network and log the result
             timer = time()
@@ -92,7 +92,7 @@ def _train(network, appName, dataPath, numEpochs=5, stop=1,
                 # increment the number of lesser performing runs
                 degraded += 1
 
-            layerCount += 1
+            localEpoch += numEpochs
 
             # stopping conditions for early stoppage
             stopCondition = 100. if isSup(network) else 0.
@@ -124,7 +124,7 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=1,
            numEpochs=numEpochs, stop=stop, synapse=synapse, base=base,
            dropout=dropout, learnC=learnC, learnF=learnF, contrF=contrF,
            momentum=momentum, kernel=kernel, neuron=neuron,
-           numLayers=network.getNumLayers(), maxEpoch=maxEpoch, log=log)
+           numLayers=network.getNumLayers()+1, maxEpoch=maxEpoch, log=log)
 
 def trainSupervised (network, appName, dataPath, numEpochs=5, stop=30,
                      synapse=None, base=None, dropout=None,

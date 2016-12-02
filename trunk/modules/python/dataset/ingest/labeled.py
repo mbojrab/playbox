@@ -62,34 +62,67 @@ def checkAvailableMemory(dataMemoryConsumption, shared, log) :
 
     return shared
 
-def readDataset(trainDataH5, train, trainShape, batchSize, threads, log) :
+def __readProcessData(rootpath, image, log=None) :
+    '''This function reads and preprocesss images residing in common
+       image formats or as datasets within HDF5.
+       rootpath : Path to HDF5 file or parent directory
+       image    : Path to image. This is absolute path for imagery on
+                  disk, and relative path when using HDF5.
+       log      : Logger to use
+       
+    '''
+    from dataset.reader import preProcImage
+    if not os.path.isdir(rootpath) :
+        import h5py
+        with h5py.File(rootpath, 'r') as f :
+            group = f
+            for ii in image.split(os.sep) :
+                image = group = group[ii]
+            image = image[:]
+    return preProcImage(image, log)
+
+def readDataset(h5Dataset, rootpath, data, dataShape,
+                batchSize, threads, log) :
+    '''Read and shuffle the data into the preprocessed HDF5 file. This
+       supports reading from the filesystem and HDF5 filesystems natively.
+
+       h5Dataset : HDF5 file handle to populate
+       rootpath  : Parent directory or HDF5 where the files reside
+       data      : List of all imagery paths. These are already sorted.
+       dataShape : All data should be this size, and pad if its smaller
+       batchSize : The size of the batch for the imagery
+       threads   : Number of python threads to use
+       log       : Logger to use
+    '''
     import theano
     from six.moves import queue
     import threading
-    from dataset.reader import padImageData, readImage
+    from dataset.reader import padImageData, preProcImage
 
     # add jobs to the queue --
     # NOTE : h5py.Dataset doesn't implement __setslice__, so we must implement
     #        the copy via __setitem__. This differs from my normal index
     #        formatting, but it gets the job done.
     workQueueData = queue.Queue()
-    for ii in range(trainShape[0]) :
-        workQueueData.put((trainDataH5, np.s_[ii, :], trainShape[1:],
-                           train[ii*batchSize:(ii+1)*batchSize], log))
+    for ii in range(dataShape[0]) :
+        workQueueData.put((h5Dataset, rootpath, np.s_[ii, :], dataShape[1:],
+                           data[ii*batchSize:(ii+1)*batchSize], log))
 
     # stream the imagery into the buffers --
     # we are threading this for efficiency
     def readImagery() :
         while True :
-            dataH5, sliceIndex, batchSize, imageFiles, log = \
+            h5, rootpath, sliceIndex, imSize, imFiles, log = \
                 workQueueData.get()
 
-            # allocate a load the batch locally so our write are coherent
-            tmp = np.ndarray((batchSize), theano.config.floatX)
-            for ii, imageFile in enumerate(imageFiles) :
-                tmp[ii][:] = padImageData(readImage(imageFile[0], log),
-                                          batchSize[-3:])[:]
-            dataH5[sliceIndex] = tmp[:]
+            # load the batch locally so our writes are coherent
+            tmp = np.ndarray((imSize), theano.config.floatX)
+            for ii, imFile in enumerate(imFiles) :
+                tmp[ii][:] = padImageData(
+                    __readProcessData(rootpath, imFile[0], log=log),
+                    imSize[-3:])[:]
+            # write the whole batch at once
+            h5[sliceIndex] = tmp[:]
 
             workQueueData.task_done()
 
@@ -108,13 +141,16 @@ def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
     '''
     from dataset.shuffle import naiveShuffle
     from dataset.reader import mostCommonExt
+    from dataset.hdf5walk import hdf5walk
+
+    walk = lambda x : os.walk(x) if os.path.isdir(x) else hdf5walk(x)
 
     # read the directory structure --
     # each subdirectory becomes a label and the imagery within are examples.
     # Splitting the data per label ensures each category is represented in the
     # holdout set.
     train, test, labels = [], [], []
-    for root, dirs, files in os.walk(path) :
+    for root, dirs, files in walk(path) :
         if root == path :
             continue
         if len(files) == 0 :
@@ -187,10 +223,13 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     from dataset.hdf5 import createHDF5Labeled
 
     rootpath = os.path.abspath(filepath)
-    outputFile = os.path.join(rootpath, os.path.basename(rootpath) + 
-                              '_labeled' + 
-                              '_holdout_' + str(holdoutPercentage) +
-                              '_batch_' + str(batchSize) +'.hdf5')
+    outDir = rootpath if os.path.isdir(rootpath) \
+             else os.path.dirname(rootpath)
+    outputFile = os.path.join(
+        outDir, 
+        os.path.splitext(os.path.basename(rootpath))[0] + 
+        '_labeled_holdout_' + str(holdoutPercentage) +
+        '_batch_' + str(batchSize) + '.hdf5')
     if os.path.exists(outputFile) :
         if log is not None :
             log.info('HDF5 exists for this dataset [' + outputFile +
@@ -206,6 +245,10 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     # use the user provided breakdown of the data and ignore the holdout
     # parameter. Otherwise, we walk the unified directory structure and divide
     # the data according to the holdoutPercentage.
+    h5File = os.path.join(rootpath, os.path.split(rootpath)[1] + '.hdf5')
+    if os.path.exists(h5File) :
+        rootpath = h5File
+
     trainDir = os.path.join(rootpath, 'train')
     testDir = os.path.join(rootpath, 'test')
     if os.path.isdir(trainDir) and os.path.isdir(testDir) :
@@ -237,17 +280,28 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     # data to overflow and ultimately be stored entirely on disk. 
     #
     # Sample the directory for a probable chip size
-    size = mostCommon((t[0] for t in train),
-                      lambda f: os.path.getsize(f),
-                      sampleSize=50)
-    sizedFile = next((t[0] for t in train if os.path.getsize(t[0]) == size))
-    imageShape = list(getImageDims(sizedFile, log))
+    imageShape = list(mostCommon(
+        [t[0] for t in train],
+        lambda f: __readProcessData(rootpath, f, log).shape,
+        sampleSize=50))
 
-    trainShape = [len(train) // batchSize, batchSize] + imageShape
-    # TODO: performs a floor, so if there is less than one batch no
-    #       data will be returned. Add a check for this.
+    # Compute dataset shapes
     trainShape = [len(train) // batchSize, batchSize] + imageShape
     testShape = [len(test) // batchSize, batchSize] + imageShape
+
+    # check for empty datasets before creating the file
+    if len(train) == 0 :
+        raise ValueError('No imagery in training set.')
+    if len(test)  == 0 :
+        raise ValueError('No imagery in testing set.')
+
+    # check if the batch size was too large
+    if len(train) > 0 and trainShape[0] == 0 :
+        raise ValueError('No training batches available. Consider reducing '
+                         'batchSize or adding more examples.')
+    if len(test) > 0 and testShape[0] == 0 :
+        raise ValueError('No testing batches available. Consider reducing '
+                         'batchSize or adding more examples.')
 
     [handleH5, trainDataH5, trainIndicesH5, 
      testDataH5, testIndicesH5, labelsH5] = \
@@ -280,8 +334,10 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
 
     # read the image data
     threads = multiprocessing.cpu_count()
-    readDataset(trainDataH5, train, trainShape, batchSize, threads, log)
-    readDataset(testDataH5, test, testShape, batchSize, threads, log)
+    readDataset(trainDataH5, rootpath, train, trainShape,
+                batchSize, threads, log)
+    readDataset(testDataH5, rootpath, test, testShape, 
+                batchSize, threads, log)
 
     # stream in the label in string form
     labelsH5[:] = labels[:]
@@ -327,15 +383,29 @@ def ingestImagery(filepath, shared=True, log=None, **kwargs) :
     if not os.path.exists(filepath) :
         raise ValueError('The path specified does not exist.')
 
+    def testHDF5Preprocessed(filepath) :
+        # check if this is a HDF5 "preprocessed" file
+        if os.path.isfile(filepath) :
+            fileLower = filepath.lower()
+            if fileLower.endswith('.hdf5') or fileLower.endswith('.h5') :
+                import h5py
+                with h5py.File(filepath, mode='r') as h5 :
+                    if 'train/data' in h5 and 'test/data' in h5 :
+                        return False
+        # otherwise we need to build the file
+        return True
+
     # read the directory structure and pickle it up
-    if os.path.isdir(filepath) :
+    if testHDF5Preprocessed(filepath) :
         filepath = hdf5Dataset(filepath, log=log, **kwargs)
 
     # Load the dataset to memory
     train, test, labels = readHDF5(filepath, log)
 
     # calculate the memory needed by this dataset
-    dt = [4., 4., 4., 4.] if t.config.floatX == 'float32' else [8., 4., 8., 4.]
+    floatsize = float(np.dtype(t.config.floatX).itemsize)
+    intsize = float(np.dtype(np.int32).itemsize)
+    dt = [floatsize, intsize, floatsize, intsize]
     dataMemoryConsumption = \
         np.prod(np.asarray(train[0].shape, dtype=np.float32)) * dt[0] + \
         np.prod(np.asarray(train[1].shape, dtype=np.float32)) * dt[1] + \
