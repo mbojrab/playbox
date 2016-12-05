@@ -434,7 +434,7 @@ class TrainerSAENetwork (SAENetwork) :
         '''
         self._startProfile('Training Batch [' + str(index) +
                            '/' + str(self._numTrainBatches) + ']', 'debug')
-        if not hasattr(self, '_trainGreedy') :
+        if len(self._trainGreedy) == 0 :
             self.finalizeNetwork(self._trainData[0])
         if not isinstance(index, int) :
             raise Exception('Variable index must be an integer value')
