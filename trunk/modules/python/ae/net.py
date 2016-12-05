@@ -498,7 +498,7 @@ class TrainerSAENetwork (SAENetwork) :
                 # reshape for fully-connected layers
                 tileShape = None
                 if len(self._layers[layerIndex].getInputSize()) == 2 and \
-                   layerIndex != 0 :
+                   len(getShape(self._layers[layerIndex].input[0])) == 2 :
                     imageShape=(1, self._layers[layerIndex].getInputSize()[1])
                     tileShape=(self._layers[layerIndex].getInputSize()[0], 1)
 
@@ -529,7 +529,7 @@ class TrainerSAENetwork (SAENetwork) :
            returns the current loss of the layer/network [0:inf].
         '''
         self._startProfile('Checking Reconstruction Loss', 'debug')
-        if not hasattr(self, '_checkGreedy') :
+        if len(self._checkGreedy) == 0 :
             from dataset.shared import toShared
             inp = toShared(self._testData[0], borrow=True) \
                   if not isShared(self._testData) else self._testData[0]
