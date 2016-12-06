@@ -8,12 +8,14 @@ class Network () :
     def __init__ (self, prof=None) :
         self._profiler = prof
         self._layers = []
+
     def __getstate__(self) :
         '''Save network pickle'''
         dict = self.__dict__.copy()
         # remove the profiler as it is not robust to distributed processing
         dict['_profiler'] = None
         return dict
+
     def __setstate__(self, dict) :
         '''Load network pickle'''
         # use the current constructor-supplied profiler --
@@ -21,15 +23,41 @@ class Network () :
         tmp = self._profiler
         self.__dict__.update(dict)
         self._profiler = tmp
+
     def _startProfile(self, message, level) :
+        '''Start a profile if the profiler exists.'''
         if self._profiler is not None :
             self._profiler.startProfile(message, level)
+
     def _endProfile(self) :
+        '''End the last profile.'''
         if self._profiler is not None :
             self._profiler.endProfile()
+
     def _listify(self, data) :
         if data is None : return []
         else : return data if isinstance(data, list) else [data]
+
+    def finalizeNetwork(self, networkInput) :
+        '''Setup the network based on the current network configuration.'''
+        if len(self._layers) == 0 :
+            raise IndexError('Network must have at least one layer' +
+                             'to call finalizeNetwork().')
+
+        self._startProfile('Finalizing Network', 'info')
+
+        # finalize the layers to create the computational graphs
+        networkInput = (networkInput, networkInput) \
+                     if not isinstance(networkInput, tuple) else networkInput
+        layerInput = networkInput
+        for layer in self._layers :
+            self._startProfile('Finalizing Layer [' + layer.layerID + ']',
+                               'debug')
+            layer.finalize(networkInput, layerInput)
+            layerInput = layer.output
+            self._endProfile()
+        self._endProfile()
+
     def save(self, filepath) :
         '''Save the network to disk.
            TODO: This should also support output to Synapse file
@@ -38,6 +66,7 @@ class Network () :
         if '.pkl.gz' in filepath :
             writePickleZip(filepath, self.__getstate__())
         self._endProfile()
+
     def load(self, filepath) :
         '''Load the network from disk.
            TODO: This should also support input from Synapse file
@@ -46,20 +75,42 @@ class Network () :
                            ']', 'info')
         self.__setstate__(readPickleZip(filepath))
         self._endProfile()
+
+    def addLayer(self, layer) :
+        '''Add a Layer to the network.'''
+        if not isinstance(layer, Layer) :
+            raise TypeError('addLayer is expecting a Layer object.')
+        self._startProfile('Adding a layer to the network', 'debug')
+        self._layers.append(layer)
+        self._endProfile()
+
+    def removeLayer(self) :
+        '''Remove the last layer from the network.
+           NOTE: This purposefully does not allow a layer index.
+           NOTE: Use this method for Transfer Learning or SAE network tuning.
+        '''
+        self._startProfile('Removing the last layer from the network', 'debug')
+        del self._layers[-1]
+        self._endProfile()
+
     def getNumLayers(self) :
+        '''Return the total number of layers in the network.'''
         return len(self._layers)
+
     def getNetworkInput(self) :
         '''Return the first layer's input'''
         if len(self._layers) == 0 :
             raise IndexError('Network must have at least one layer ' +
                              'to call getNetworkInput().')
         return self._layers[0].input
+
     def getNetworkInputSize(self) :
         '''Return the first layer's input size'''
         if len(self._layers) == 0 :
             raise IndexError('Network must have at least one layer ' +
                              'to call getNetworkInputSize().')
         return self._layers[0].getInputSize()
+
     def getNetworkOutput(self) :
         '''Return the last layer's output. This should be used as input to
            the next layer.
@@ -68,6 +119,7 @@ class Network () :
             raise IndexError('Network must have at least one layer ' +
                              'to call getNetworkOutput().')
         return self._layers[-1].output
+
     def getNetworkOutputSize(self) :
         '''Return the last layer's output size.'''
         if len(self._layers) == 0 :
@@ -114,38 +166,19 @@ class ClassifierNetwork (Network) :
             delattr(self, '_classifyAndSoftmax')
         Network.__setstate__(self, dict)
 
-    def addLayer(self, layer) :
-        '''Add a Layer to the network.'''
-        if not isinstance(layer, Layer) :
-            raise TypeError('addLayer is expecting a Layer object.')
-        self._startProfile('Adding a layer to the network', 'debug')
-
-        # add it to our layer list
-        self._layers.append(layer)
-        self._endProfile()
-
     def finalizeNetwork(self, networkInput) :
         '''Setup the network based on the current network configuration.
            This is used to create several network-wide functions so they will
            be pre-compiled and optimized when we need them. The only function
            across all network types is classify()
         '''
-        if len(self._layers) == 0 :
-            raise IndexError('Network must have at least one layer' +
-                             'to call finalizeNetwork().')
-
         self._startProfile('Finalizing Network', 'info')
 
-        # finalize the layers to create the computational graphs
-        networkInput = (networkInput, networkInput) \
-                     if not isinstance(networkInput, tuple) else networkInput
-        layerInput = networkInput
-        for layer in self._layers :
-            self._startProfile('Finalizing Layer [' + layer.layerID + ']',
-                               'debug')
-            layer.finalize(networkInput, layerInput)
-            layerInput = layer.output
-            self._endProfile()
+        # disable the profiler temporarily so we don't get a second entry
+        tmp = self._profiler
+        self._profiler = None
+        Network.finalizeNetwork(self, networkInput)
+        self._profiler = tmp
 
         # create one function that activates the entire network --
         # Here we use softmax on the network output to produce a normalized

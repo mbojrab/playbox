@@ -330,9 +330,9 @@ class TrainerSAENetwork (SAENetwork) :
             # layer as the pseudo output layer. --
             # NOTE: this allows each greedy layer training the ability to
             #       additionally minimize the network-wide reconstruction.
-            # NOTE: this cannot be performed within the encoder to keep layers
-            #       agnostic to their surroundings. The additional loss is
-            #       calculated and added here.
+            # NOTE: to keep layers agnostic to their surroundings, this
+            #       cannot be performed within the encoder. The additional
+            #       loss is calculated and added here.
             netInput = self.getNetworkInput()[0]
             if len(netInput.shape.eval()) != len(self.getNetworkInputSize()) :
                 netInput = netInput.flatten(2)
