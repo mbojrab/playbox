@@ -87,6 +87,7 @@ class Network () :
     def removeLayer(self) :
         '''Remove the last layer from the network.
            NOTE: This purposefully does not allow a layer index.
+           NOTE: Use this method for Transfer Learning or SAE network tuning.
         '''
         self._startProfile('Removing the last layer from the network', 'debug')
         del self._layers[-1]
