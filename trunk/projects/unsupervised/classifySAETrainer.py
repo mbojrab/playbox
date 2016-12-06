@@ -49,6 +49,8 @@ def buildTrainerSAENetwork(network, layerInputSize, regType, regValue,
             layerCount, layerInputSize = prepare(network, layerCount)
 
     # update to transition for fully connected layers
+    layerInputSize = network.getNetworkOutputSize() \
+                     if len(network.getNumLayers()) > 0 else layerInputSize
     layerInputSize = (layerInputSize[0], reduce(mul, layerInputSize[1:]))
     for n,l,m,dr,sc in zip(neuronFull, learnFull, momentumFull,
                            dropoutFull, sparseFull) :
