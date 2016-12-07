@@ -49,7 +49,7 @@ def buildTrainerSAENetwork(network, layerInputSize, regType, regValue,
             layerCount, layerInputSize = prepare(network, layerCount)
 
     # add reset in case user uses removeLayer() logic
-    if len(network.getNumLayers()) > 0 :
+    if network.getNumLayers() > 0 :
         layerInputSize = network.getNetworkOutputSize()
 
     # update to transition for fully connected layers
