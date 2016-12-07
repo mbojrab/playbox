@@ -76,7 +76,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
 
         # setup initial values for the hidden thresholds
         if initialVisThresh is None :
-            initialVisThresh = np.zeros((self._inputSize[1],), 
+            initialVisThresh = np.zeros((self._inputSize[1],),
                                         dtype=config.floatX)
         self._thresholdsBack = shared(value=initialVisThresh, borrow=True)
         self._regularization = Regularization(regType, self._contractionRate)
@@ -88,24 +88,26 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         return round(act) if self._forceSparse else act
 
     def __getstate__(self) :
-        '''Save network pickle'''
+        '''Save layer pickle'''
         from dataset.shared import fromShared
         dict = ConvolutionalLayer.__getstate__(self)
         dict['_thresholdsBack'] = fromShared(self._thresholdsBack)
         # remove the functions -- they will be rebuilt JIT
         if 'reconstruction' in dict : del dict['reconstruction']
         if '_costs' in dict : del dict['_costs']
+        if '_costLabels' in dict : del dict['_costLabels']
         if '_updates' in dict : del dict['_updates']
         if 'trainLayer' in dict : del dict['trainLayer']
         return dict
 
     def __setstate__(self, dict) :
-        '''Load network pickle'''
+        '''Load layer pickle'''
         from theano import shared
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
         if hasattr(self, 'reconstruction') : delattr(self, 'reconstruction')
         if hasattr(self, '_costs') : delattr(self, '_costs')
+        if hasattr(self, '_costLabels') : delattr(self, '_costLabels')
         if hasattr(self, '_updates') : delattr(self, '_updates')
         if hasattr(self, 'trainLayer') : delattr(self, 'trainLayer')
         ConvolutionalLayer.__setstate__(self, dict)
@@ -150,6 +152,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         ConvolutionalLayer.finalize(self, networkInput, layerInput)
 
         weightsBack = self._getWeightsBack()
+        self._costs = []
+        self._costLabels = []
 
         # setup the decoder --
         # this take the output of the feedforward process as input and
@@ -160,28 +164,38 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
 
         # DEBUG: For Debugging purposes only
         self.reconstruction = function([networkInput[0]], decodedInput)
-        sparseConstr = calcSparsityConstraint(self.output[0], 
-                                              self.getOutputSize())
+        self._costs.append(calcSparsityConstraint(
+            self.output[0], self.getOutputSize()) / \
+            np.prod(self.getInputSize()[-3:]))
+        self._costLabels.append('Sparsity')
 
-        # compute the jacobian cost of the output --
-        # This works as a sparsity constraint in case the hidden vector is
-        # larger than the input vector.
-        unpooling = self._unpool_2d(self.output[0], self._downsampleFactor)
-        jacobianMat = conv2d(unpooling * (1 - unpooling), weightsBack,
-                             self.getFeatureSize(), weightsBack.shape.eval(), 
-                             border_mode='full')
-        jacobianCost = leastSquares(jacobianMat, self._inputSize[0], 
-                                    self._contractionRate)
+        # contraction is only applicable in the non-binary case 
+        if not self._forceSparse :
+            # compute the jacobian cost of the output --
+            # This works as a sparsity constraint in case the hidden vector is
+            # larger than the input vector.
+            unpooling = self._unpool_2d(self.output[0], self._downsampleFactor)
+            jacobianMat = conv2d(unpooling * (1. - unpooling), weightsBack,
+                                 self.getFeatureSize(), weightsBack.shape.eval(), 
+                                 border_mode='full')
+            self._costs.append(leastSquares(jacobianMat, self._inputSize[0],
+                                            self._contractionRate))
+            self._costLabels.append('Jacob')
 
         # create the negative log likelihood function --
         # this is our cost function with respect to the original input
         # NOTE: The jacobian was computed however takes much longer to process
         #       and does not help convergence or regularization. It was removed
-        cost = calcLoss(self.input[0], decodedInput, self._activation) / \
-               np.prod(self.getInputSize()[-3:])
-        self._costs = [cost, jacobianCost, sparseConstr]
-        self._costs.extend(x for x in [self._regularization.calculate([self])]\
-                           if x is not None)
+        self._costs.append(calcLoss(self.input[0], decodedInput,
+                                    self._activation) / \
+                                    np.prod(self.getInputSize()[-3:]))
+        self._costLabels.append('Local Cost')
+
+        # add regularization if it was user requested
+        regularization = self._regularization.calculate([self])
+        if regularization is not None :
+            self._costs.append(regularization)
+            self._costLabels.append('Regularization')
 
         gradients = t.grad(t.sum(self._costs), self.getWeights())
         self._updates = compileUpdate(self.getWeights(), gradients,
@@ -210,6 +224,10 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
     def getUpdates(self) :
         '''This allows the Stacker to build the layerwise training.'''
         return (self._costs, self._updates)
+
+    def getCostLabels(self) :
+        '''Return the labels associated with the cost functions applied.'''
+        return self._costLabels
 
 
 if __name__ == '__main__' :

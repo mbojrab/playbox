@@ -164,7 +164,7 @@ class ClassifierSAENetwork (SAENetwork) :
         if numTargets < batchSize :
             # add rows of zeros to fill out the rest of the batch
             self._targetData = np.resize(np.append(
-                np.zeros([batchSize-numTargets] +
+                np.zeros([batchSize - numTargets] +
                          list(self._targetData.shape[1:]), 
                          np.float32), self._targetData),
                 [batchSize] + list(self._targetData.shape[1:]))
@@ -188,9 +188,9 @@ class ClassifierSAENetwork (SAENetwork) :
         # reduce the encodings to only check against unique vectors --
         # this is an optimization as many examples could be encoded to
         # the same example vector.
-        def uniqueRows(a):
+        def uniqueRows(a) :
             a = np.ascontiguousarray(a)
-            unique_a = np.unique(a.view([('', a.dtype)]*a.shape[1]))
+            unique_a = np.unique(a.view([('', a.dtype)] * a.shape[1]))
             return unique_a.view(a.dtype).reshape((
                 unique_a.shape[0], a.shape[1]))
         enc = uniqueRows(enc)
@@ -350,7 +350,7 @@ class TrainerSAENetwork (SAENetwork) :
             # in additional to the existing costs.
             costs.append(calcLoss(netInput, decodedInput,
                                   self._layers[0].getActivation()) / \
-                                  self.getNetworkInputSize()[0])
+                                  np.prod(self.getNetworkInputSize()[-3:]))
             gradients = t.grad(t.sum(costs), encoder.getWeights())
             updates = compileUpdate(encoder.getWeights(), gradients,
                                     encoder.getLearningRate(),
@@ -365,12 +365,12 @@ class TrainerSAENetwork (SAENetwork) :
             # This will be used as an early stoppage criteria
             if isShared(self._testData) :
                 checkLoss = theano.function(
-                    [self._indexVar], costs[0],
+                    [self._indexVar], costs[-1],
                     givens={self.getNetworkInput()[0] :
                             self._testData[self._indexVar]})
             else :
                 checkLoss = theano.function(
-                    [self.getNetworkInput()[0]], costs[0])
+                    [self.getNetworkInput()[0]], costs[-1])
             self._checkGreedy.append(checkLoss)
 
             self._endProfile()
@@ -467,17 +467,12 @@ class TrainerSAENetwork (SAENetwork) :
             for ii in range(self._numTrainBatches) :
                 locCost.append(self.train(layerIndex, ii))
 
-            # log the cost
-            locCost = np.mean(locCost, axis=0)
-            costMessage = layerEpochStr + ' Cost: ' + str(locCost[0])
-            if len(locCost) >= 5 :
-                costMessage += ' - ' + str(locCost[4])  
-            if len(locCost) >= 2 :
-                costMessage += ' - Jacob: ' + str(locCost[1])
-            if len(locCost) >= 3 :
-                costMessage += ' - Sparsity: ' + str(locCost[2])
-            if len(locCost) == 4 :
-                costMessage += ' - Regularization: ' + str(locCost[3])
+            # log the costs
+            locCost = np.sum(locCost, axis=0)
+            costMessage = layerEpochStr
+            for ii, l in enumerate(self._layers[layerIndex].getCostLabels()) :
+                costMessage += '|' + l + ': ' + str(locCost[ii])
+            costMessage += '|Network Cost: ' + str(locCost[-1])
             self._startProfile(costMessage, 'info')
             globCost.append(locCost)
             self._endProfile()
@@ -550,6 +545,6 @@ class TrainerSAENetwork (SAENetwork) :
         loss = 0.0
         for ii in range(self._numTestBatches) :
             loss += float(checkGreedy(layerIndex, ii))
-        self._endProfile()
 
-        return loss / float(self.getLayer(layerIndex).getInputSize()[0])
+        self._endProfile()
+        return loss
