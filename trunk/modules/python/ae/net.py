@@ -349,9 +349,9 @@ class TrainerSAENetwork (SAENetwork) :
             # recreate the updates using the greedy network reconstruction
             # in additional to the existing costs.
             costs.append(calcLoss(netInput, decodedInput,
-                                  self._layers[0].getActivation()) / \
-                                  np.prod(self.getNetworkInputSize()[-3:]))
-            gradients = t.grad(t.sum(costs), encoder.getWeights())
+                                  self._layers[0].getActivation()))
+            gradients = t.grad(t.sum(costs) / self.getNetworkInputSize()[0],
+                               encoder.getWeights())
             updates = compileUpdate(encoder.getWeights(), gradients,
                                     encoder.getLearningRate(),
                                     encoder.getMomentumRate())

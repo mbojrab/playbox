@@ -229,9 +229,9 @@ class DistilleryTrainer (TrainerNetwork) :
         # weight/bias are added in reverse order because they will
         # be used back propagation, which runs output to input
         updates = self._compileUpdates(
-            (self._transFactor * deepXEntropy) +
-            (1. - self._transFactor) * hardXEntropy +
-            self._compileRegularization())
+            ((self._transFactor * deepXEntropy) +
+             (1. - self._transFactor) * hardXEntropy +
+             self._compileRegularization()) / self.getNetworkInputSize()[0])
 
         # override the training function
         givens = {self.getNetworkInput()[1]: self._trainData[index],

@@ -164,10 +164,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
 
         # DEBUG: For Debugging purposes only
         self.reconstruction = function([networkInput[0]], decodedInput)
-        self._costs.append(calcSparsityConstraint(
-            self.output[0], self.getOutputSize()) / \
-            np.prod(self.getInputSize()[-3:]))
-        self._costLabels.append('Sparsity')
+
+        # NOTE: Sparsity is not a useful constraint on convolutional layers
 
         # contraction is only applicable in the non-binary case 
         if not self._forceSparse :
@@ -186,9 +184,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # this is our cost function with respect to the original input
         # NOTE: The jacobian was computed however takes much longer to process
         #       and does not help convergence or regularization. It was removed
-        self._costs.append(calcLoss(self.input[0], decodedInput,
-                                    self._activation) / \
-                                    np.prod(self.getInputSize()[-3:]))
+        self._costs.append(calcLoss(self.input[0], decodedInput, 
+                                    self._activation))
         self._costLabels.append('Local Cost')
 
         # add regularization if it was user requested
@@ -197,7 +194,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
             self._costs.append(regularization)
             self._costLabels.append('Regularization')
 
-        gradients = t.grad(t.sum(self._costs), self.getWeights())
+        gradients = t.grad(t.sum(self._costs) / self.getInputSize()[0],
+                           self.getWeights())
         self._updates = compileUpdate(self.getWeights(), gradients,
                                       self._learningRate, self._momentumRate)
 
