@@ -153,6 +153,7 @@ def compileUpdates(layers, loss) :
 
        layers : Layers of the network to compute updates for
        loss   : Total network loss to apply (ie Error Gradient Summation)
+                NOTE: This should be scaled by the batch size
     '''
     import theano.tensor as t
 

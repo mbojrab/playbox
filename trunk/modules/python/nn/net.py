@@ -388,9 +388,10 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         # create the function for back propagation of all layers --
         # weight/bias are added in reverse order because they will
         # be used back propagation, which runs output to input
-        updates = compileUpdates(self._layers,
-                                 xEntropy +
-                                 self._regularization.calculate(self._layers))
+        updates = compileUpdates(
+            self._layers,
+            (xEntropy + self._regularization.calculate(self._layers)) / \
+            self.getNetworkInputSize()[0])
 
         # NOTE: This uses the lamda function as a means to consolidate the
         #       calling scheme. This saves us from later using conditionals in
