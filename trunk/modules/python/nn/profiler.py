@@ -4,22 +4,6 @@ import lxml.etree as et
 import logging
 import atexit
 
-def setupLogging(appName, level, logfile=None) :
-    import logging
-    log = logging.getLogger(appName)
-    log.setLevel(level.upper())
-    formatter = logging.Formatter('%(levelname)s - %(message)s')
-    stream = logging.StreamHandler()
-    stream.setLevel(level.upper())
-    stream.setFormatter(formatter)
-    log.addHandler(stream)
-    if logfile is not None :
-        logFile = logging.FileHandler(logfile)
-        logFile.setLevel(level.upper())
-        logFile.setFormatter(formatter)
-        log.addHandler(logFile)
-    return log
-
 class Profiler () :
     def __init__ (self, log=None, name='ApplicationName',
                   profFile='./ApplicationName-Profile.xml') :
