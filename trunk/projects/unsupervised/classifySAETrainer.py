@@ -41,25 +41,25 @@ if __name__ == '__main__' :
                         default='Application-Profiler.xml',
                         help='Specify profile output file.')
     parser.add_argument('--kernel', dest='kernel', type=int, nargs='+',
-                        default=None,
+                        default=[],
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--kernelSize', dest='kernelSize', type=int, nargs='+',
-                        default=None,
+                        default=[],
                         help='Size of Convolutional Kernels in each Layer.')
     parser.add_argument('--downsample', dest='downsample', type=int, nargs='+',
-                        default=None,
+                        default=[],
                         help='Downsample factor in each Convolutional Layer.')
     parser.add_argument('--learnC', dest='learnC', type=float, nargs='+',
-                        default=None,
+                        default=[],
                         help='Rate of learning on Convolutional Layers.')
     parser.add_argument('--momentumC', dest='momentumC', type=float, nargs='+',
-                        default=None,
+                        default=[],
                         help='Rate of momentum on Convolutional Layers.')
     parser.add_argument('--dropoutC', dest='dropoutC', type=float, nargs='+',
-                        default=None,
+                        default=[],
                         help='Dropout amount on Convolutional Layers.')
     parser.add_argument('--sparseC', dest='sparseC', type=bool, nargs='+',
-                        default=None,
+                        default=[],
                         help='Force the output to be sparse for stronger '
                              'pattern extraction on Convolutional Layers.')
     parser.add_argument('--neuron', dest='neuron', type=int, nargs='+',
@@ -75,7 +75,7 @@ if __name__ == '__main__' :
                         default=[0.5, 0.5, 1],
                         help='Dropout amount for the Fully-Connected Layer.')
     parser.add_argument('--sparseF', dest='sparseF', type=bool, nargs='+',
-                        default=None,
+                        default=[],
                         help='Force the output to be sparse for stronger '
                              'pattern extraction on Fully-Connected Layers.')
     parser.add_argument('--limit', dest='limit', type=int, default=5,
