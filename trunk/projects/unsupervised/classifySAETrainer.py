@@ -2,7 +2,7 @@ import argparse
 from six.moves import reduce
 
 from ae.net import TrainerSAENetwork, ClassifierSAENetwork
-from builder.net import buildSAENetwork
+from builder.sae import buildSAENetwork
 from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainUnsupervised
 from nn.profiler import setupLogging, Profiler
