@@ -1,73 +1,13 @@
 import argparse
-from time import time
 from six.moves import reduce
 
 from ae.net import TrainerSAENetwork, ClassifierSAENetwork
-from ae.contiguousAE import ContiguousAutoEncoder
-from ae.convolutionalAE import ConvolutionalAutoEncoder
+from builder.net import buildSAENetwork
 from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainUnsupervised
 from nn.profiler import setupLogging, Profiler
 from dataset.shared import getShape
 tmpNet = './local.pkl.gz'
-
-def buildTrainerSAENetwork(network, layerInputSize, regType, regValue,
-                           kernelConv, kernelSizeConv, downsampleConv, 
-                           learnConv, momentumConv, dropoutConv, sparseConv,
-                           neuronFull, learnFull, momentumFull, dropoutFull,
-                           sparseFull, prof=None) :
-    '''Build the network in an automated way.'''
-    import theano.tensor as t
-    from operator import mul
-    from numpy.random import RandomState
-    rng = RandomState(int(time()))
-
-    if log is not None :
-        log.info('Initialize the Network')
-
-    # prepare for the next layer
-    def prepare(network, count) :
-        return (count + 1, 
-                network.getNetworkOutputSize())
-
-    layerCount = 1
-    if kernelConv is not None :
-        for k,ks,do,l,m,dr,sc in zip(kernelConv, kernelSizeConv, 
-                                     downsampleConv, learnConv, momentumConv,
-                                     dropoutConv, sparseConv) :
-            # add a convolutional layer as defined
-            network.addLayer(ConvolutionalAutoEncoder(
-                layerID='conv' + str(layerCount), 
-                regType=regType, contractionRate=regValue,
-                inputSize=layerInputSize,
-                kernelSize=(k,layerInputSize[1],ks,ks),
-                downsampleFactor=[do,do], dropout=dr, 
-                learningRate=l, forceSparsity=sc, momentumRate=m,
-                activation=t.nnet.sigmoid, randomNumGen=rng))
-
-            # prepare for the next layer
-            layerCount, layerInputSize = prepare(network, layerCount)
-
-    # add reset in case user uses removeLayer() logic
-    if network.getNumLayers() > 0 :
-        layerInputSize = network.getNetworkOutputSize()
-
-    # update to transition for fully connected layers
-    layerInputSize = (layerInputSize[0], reduce(mul, layerInputSize[1:]))
-    for n,l,m,dr,sc in zip(neuronFull, learnFull, momentumFull,
-                           dropoutFull, sparseFull) :
-        # add a fully-connected layer as defined
-        network.addLayer(ContiguousAutoEncoder(
-            layerID='fully' + str(layerCount),
-            regType=regType, contractionRate=regValue,
-            inputSize=layerInputSize, numNeurons=n, learningRate=l,
-            activation=t.nnet.sigmoid, dropout=dr, forceSparsity=sc,
-            momentumRate=m, randomNumGen=rng))
-
-        # prepare for the next layer
-        layerCount, layerInputSize = prepare(network, layerCount)
-
-    return network
 
 def testCloseness(net, imagery) :
     '''Test the imagery for how close it is to the target data. This also sorts
@@ -173,20 +113,20 @@ if __name__ == '__main__' :
     trainer = TrainerSAENetwork(train, test, regType, regValue,
                                 options.synapse, prof)
     if options.synapse is None :
-        trainer = buildTrainerSAENetwork(trainer, getShape(train[0])[1:],
-                                         regType, regValue, prof=prof,
-                                         kernelConv=options.kernel, 
-                                         kernelSizeConv=options.kernelSize, 
-                                         downsampleConv=options.downsample, 
-                                         learnConv=options.learnC, 
-                                         momentumConv=options.momentumC,
-                                         dropoutConv=options.dropoutC,
-                                         sparseConv=options.sparseC,
-                                         neuronFull=options.neuron, 
-                                         learnFull=options.learnF, 
-                                         momentumFull=options.momentumF,
-                                         dropoutFull=options.dropoutF,
-                                         sparseFull=options.sparseF)
+        trainer = buildSAENetwork(trainer, getShape(train[0])[1:],
+                                  regType, regValue, prof=prof,
+                                  kernelConv=options.kernel, 
+                                  kernelSizeConv=options.kernelSize, 
+                                  downsampleConv=options.downsample, 
+                                  learnConv=options.learnC, 
+                                  momentumConv=options.momentumC,
+                                  dropoutConv=options.dropoutC,
+                                  sparseConv=options.sparseC,
+                                  neuronFull=options.neuron, 
+                                  learnFull=options.learnF, 
+                                  momentumFull=options.momentumF,
+                                  dropoutFull=options.dropoutF,
+                                  sparseFull=options.sparseF)
     # train the SAE
     trainUnsupervised(trainer, __file__, options.data, 
                       numEpochs=options.limit, stop=options.stop, 
