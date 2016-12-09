@@ -5,7 +5,6 @@ from ae.net import TrainerSAENetwork, ClassifierSAENetwork
 from builder.sae import buildSAENetwork
 from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainUnsupervised
-from nn.profiler import setupLogging, Profiler
 from dataset.shared import getShape
 tmpNet = './local.pkl.gz'
 
@@ -31,102 +30,30 @@ def testCloseness(net, imagery) :
 if __name__ == '__main__' :
     '''Build and train an SAE, then test a '''
     import numpy as np
+    from builder.args import addLoggingParams, setupLogging, \
+                             addUnsupDataParams, addUnsupConvolutionalParams, \
+                             addUnsupContiguousParams
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--log', dest='logfile', type=str, default=None,
-                        help='Specify log output file.')
-    parser.add_argument('--level', dest='level', default='INFO', type=str, 
-                        help='Log Level.')
-    parser.add_argument('--prof', dest='profile', type=str, 
-                        default='Application-Profiler.xml',
-                        help='Specify profile output file.')
-    parser.add_argument('--kernel', dest='kernel', type=int, nargs='+',
-                        default=[],
-                        help='Number of Convolutional Kernels in each Layer.')
-    parser.add_argument('--kernelSize', dest='kernelSize', type=int, nargs='+',
-                        default=[],
-                        help='Size of Convolutional Kernels in each Layer.')
-    parser.add_argument('--downsample', dest='downsample', type=int, nargs='+',
-                        default=[],
-                        help='Downsample factor in each Convolutional Layer.')
-    parser.add_argument('--learnC', dest='learnC', type=float, nargs='+',
-                        default=[],
-                        help='Rate of learning on Convolutional Layers.')
-    parser.add_argument('--momentumC', dest='momentumC', type=float, nargs='+',
-                        default=[],
-                        help='Rate of momentum on Convolutional Layers.')
-    parser.add_argument('--dropoutC', dest='dropoutC', type=float, nargs='+',
-                        default=[],
-                        help='Dropout amount on Convolutional Layers.')
-    parser.add_argument('--sparseC', dest='sparseC', type=bool, nargs='+',
-                        default=[],
-                        help='Force the output to be sparse for stronger '
-                             'pattern extraction on Convolutional Layers.')
-    parser.add_argument('--neuron', dest='neuron', type=int, nargs='+',
-                        default=[500, 300, 100],
-                        help='Number of Neurons in Hidden Layer.')
-    parser.add_argument('--learnF', dest='learnF', type=float, nargs='+',
-                        default=[.02, .02, .02],
-                        help='Rate of learning on Fully-Connected Layers.')
-    parser.add_argument('--momentumF', dest='momentumF', type=float, nargs='+',
-                        default=[.2, .2, .2],
-                        help='Rate of momentum on Fully-Connected Layers.')
-    parser.add_argument('--dropoutF', dest='dropoutF', type=float, nargs='+',
-                        default=[0.5, 0.5, 1],
-                        help='Dropout amount for the Fully-Connected Layer.')
-    parser.add_argument('--sparseF', dest='sparseF', type=bool, nargs='+',
-                        default=[],
-                        help='Force the output to be sparse for stronger '
-                             'pattern extraction on Fully-Connected Layers.')
-    parser.add_argument('--limit', dest='limit', type=int, default=5,
-                        help='Number of runs between validation checks.')
-    parser.add_argument('--epoch', dest='epoch', type=float,
-                        default=np.inf,
-                        help='Maximum number of runs per layer')
-    parser.add_argument('--stop', dest='stop', type=int, default=5,
-                        help='Number of inferior validation checks to end.')
-    parser.add_argument('--batch', dest='batchSize', type=int, default=100,
-                        help='Batch size for training and test sets.')
-    parser.add_argument('--base', dest='base', type=str, default='./saeClass',
-                        help='Base name of the network output and temp files.')
-    parser.add_argument('--target', dest='targetDir', type=str, required=True,
-                        help='Directory with target data to match.')
-    parser.add_argument('--syn', dest='synapse', type=str, default=None,
-                        help='Load from a previously saved network.')
-    parser.add_argument('data', help='Directory or pkl.gz file for the ' +
-                                     'training and test sets')
+    addLoggingParams(parser)
+    addUnsupDataParams(parser)
+    addUnsupConvolutionalParams(parser)
+    addUnsupContiguousParams(parser)
     options = parser.parse_args()
 
     # setup the logger
-    logName = 'SAE-Classification Benchmark:  ' + options.data
-    log = setupLogging(logName, options.level, options.logfile)
-    prof = Profiler(log=log, name=logName, profFile=options.profile)
+    log, prof = setupLogging (options, 'SAE-Classification Benchmark')
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
     train, test, labels = ingestImagery(filepath=options.data, shared=True,
                                         batchSize=options.batchSize, log=log)
 
-    regType = 'L2'
-    regValue = .00001
     # create the stacked network
-    trainer = TrainerSAENetwork(train, test, regType, regValue,
-                                options.synapse, prof)
+    trainer = TrainerSAENetwork(train, test, options.synapse, prof)
     if options.synapse is None :
-        trainer = buildSAENetwork(trainer, getShape(train[0])[1:],
-                                  regType, regValue, prof=prof,
-                                  kernelConv=options.kernel, 
-                                  kernelSizeConv=options.kernelSize, 
-                                  downsampleConv=options.downsample, 
-                                  learnConv=options.learnC, 
-                                  momentumConv=options.momentumC,
-                                  dropoutConv=options.dropoutC,
-                                  sparseConv=options.sparseC,
-                                  neuronFull=options.neuron, 
-                                  learnFull=options.learnF, 
-                                  momentumFull=options.momentumF,
-                                  dropoutFull=options.dropoutF,
-                                  sparseFull=options.sparseF)
+        buildSAENetwork(trainer, getShape(train[0])[1:], options, prof=prof)
+
     # train the SAE
     trainUnsupervised(trainer, __file__, options.data, 
                       numEpochs=options.limit, stop=options.stop, 

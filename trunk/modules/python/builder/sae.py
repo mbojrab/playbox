@@ -10,10 +10,8 @@ def __verifyLengths (param, ref, paramName, refName) :
         raise ValueError('Different number of parameters between [' + 
                          paramName + '] and [' + refName + ']')
 
-def addConvolutionalAE (network, inputSize, kernel, kernelSize, downsample, 
-                        learnRate, regType='L2', regValue=.0001,
-                        momentumRate=[], dropout=[], forceSparsity=[],
-                        rng=None, prof=None) :
+def addConvolutionalAE (network, inputSize, options, 
+                        regType='L2', regValue=.0001, rng=None, prof=None) :
     '''Add ConvolutionalAE layers to the network and return it.'''
     from ae.convolutionalAE import ConvolutionalAutoEncoder
 
@@ -26,24 +24,30 @@ def addConvolutionalAE (network, inputSize, kernel, kernelSize, downsample,
         inputSize = network.getNetworkOutputSize()
 
     # perform validation and defaulting
-    __verifyLengths (kernelSize, kernel, 'kernelSize', 'kernel')
-    __verifyLengths (downsample, kernel, 'downsample', 'kernel')
-    __verifyLengths (learnRate, kernel, 'learnRate', 'kernel')
-    momentumRate = __addDefaults(momentumRate, .0, len(kernel))
-    dropout = __addDefaults(dropout, 1., len(kernel))
-    forceSparsity = __addDefaults(forceSparsity, True, len(kernel))
+    __verifyLengths (options.kernelSize, options.kernel,
+                     'kernelSize', 'kernel')
+    __verifyLengths (options.downsample, options.kernel,
+                     'downsample', 'kernel')
+    __verifyLengths (options.learnC, options.kernel,
+                     'learnC', 'kernel')
+    options.momentumC = __addDefaults(options.momentumC, .0, 
+                                      len(options.kernel))
+    options.dropoutC = __addDefaults(options.dropoutC, 1.,
+                                     len(options.kernel))
+    options.sparseC = __addDefaults(options.sparseC, True,
+                                    len(options.kernel))
 
     # add each layer contiguously
-    for k,ks,do,l,m,dr,sc in zip(kernel, kernelSize, downsample,
-                                 learnRate, momentumRate,
-                                 dropout, forceSparsity) :
+    for k,ks,do,l,m,dr,sc in zip(options.kernel, options.kernelSize,
+                                 options.downsample, options.learnC,
+                                 options.momentumC, options.dropoutC,
+                                 options.sparseC) :
 
         # add a convolutional layer as defined
         network.addLayer(ConvolutionalAutoEncoder(
             layerID='conv' + str(network.getNumLayers() + 1), 
-            regType=regType, contractionRate=regValue,
-            inputSize=inputSize,
-            kernelSize=(k,inputSize[1],ks,ks),
+            regType=options.regTypeC, contractionRate=options.regValueC,
+            inputSize=inputSize, kernelSize=(k,inputSize[1],ks,ks),
             downsampleFactor=[do,do], dropout=dr, 
             learningRate=l, forceSparsity=sc, momentumRate=m,
             activation=t.nnet.sigmoid, randomNumGen=rng))
@@ -52,9 +56,8 @@ def addConvolutionalAE (network, inputSize, kernel, kernelSize, downsample,
         inputSize = network.getNetworkOutputSize()
 
 
-def addContiguousAE (network, inputSize, neuron, learnRate, 
-                     regType='L2', regValue=.0001, momentumRate=[],
-                     dropout=[], forceSparsity=[], rng=None, prof=None) :
+def addContiguousAE (network, inputSize, options, 
+                     regType='L2', regValue=.0001, rng=None, prof=None) :
     '''Add ContiguousAE layers to the network and return it.'''
     import numpy as np
     from ae.contiguousAE import ContiguousAutoEncoder
@@ -71,19 +74,22 @@ def addContiguousAE (network, inputSize, neuron, learnRate,
     inputSize = (inputSize[0], np.prod(inputSize[1:]))
 
     # perform validation and defaulting
-    __verifyLengths (learnRate, neuron, 'learnRate', 'neuron')
-    momentumRate = __addDefaults(momentumRate, .0, len(neuron))
-    dropout = __addDefaults(dropout, 1., len(neuron))
-    forceSparsity = __addDefaults(forceSparsity, True, len(neuron))
+    __verifyLengths (options.learnF, options.neuron, 'learnF', 'neuron')
+    options.momentumF = __addDefaults(options.momentumF, .0,
+                                      len(options.neuron))
+    options.dropoutF = __addDefaults(options.dropoutF, 1.,
+                                     len(options.neuron))
+    options.sparseF = __addDefaults(options.sparseF, True,
+                                    len(options.neuron))
 
     # add each layer contiguously
-    for n,l,m,dr,sc in zip(neuron, learnRate, momentumRate,
-                           dropout, forceSparsity) :
+    for n,l,m,dr,sc in zip(options.neuron, options.learnF, options.momentumF,
+                           options.dropoutF, options.sparseF) :
 
         # add a fully-connected layer as defined
         network.addLayer(ContiguousAutoEncoder(
             layerID='fully' + str(network.getNumLayers() + 1),
-            regType=regType, contractionRate=regValue,
+            regType=options.regTypeF, contractionRate=options.regValueF,
             inputSize=inputSize, numNeurons=n, learningRate=l,
             activation=t.nnet.sigmoid, dropout=dr, forceSparsity=sc,
             momentumRate=m, randomNumGen=rng))
@@ -92,11 +98,7 @@ def addContiguousAE (network, inputSize, neuron, learnRate,
         inputSize = network.getNetworkOutputSize()
 
 
-def buildSAENetwork(network, inputSize, regType, regValue,
-                    kernelConv, kernelSizeConv, downsampleConv, 
-                    learnConv, momentumConv, dropoutConv, sparseConv,
-                    neuronFull, learnFull, momentumFull, dropoutFull,
-                    sparseFull, rng=None, prof=None) :
+def buildSAENetwork(network, inputSize, options, rng=None, prof=None) :
     '''Build the Stacked AutoEncoder network in an automated way.'''
     from ae.contiguousAE import ContiguousAutoEncoder
 
@@ -108,15 +110,10 @@ def buildSAENetwork(network, inputSize, regType, regValue,
         prof.startProfile('Initialize the Network', 'info')
 
     # add any user-defined ConvolutionalAE layers first
-    addConvolutionalAE (network, inputSize, kernelConv, kernelSizeConv,
-                        downsampleConv, learnConv, regType, regValue, 
-                        momentumConv, dropoutConv, sparseConv, 
-                        rng=rng, prof=prof)
+    addConvolutionalAE (network, inputSize, options, rng=rng, prof=prof)
 
     # add any user-defined ContiguousAE layers second
-    addContiguousAE (network, inputSize, neuronFull, learnFull, 
-                     regType, regValue, momentumFull, dropoutFull, 
-                     sparseFull, rng=rng, prof=prof)
+    addContiguousAE (network, inputSize, options, rng=rng, prof=prof)
 
     if prof is not None :
         prof.endProfile()
