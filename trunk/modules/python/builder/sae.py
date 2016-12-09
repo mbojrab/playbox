@@ -3,7 +3,7 @@ from numpy.random import RandomState
 from time import time
 
 def __addDefaults (param, default, size) :
-    return [default] * size if param is None or len(param) == 0 else param
+    return [default] * size if len(param) == 0 else param
 
 def __verifyLengths (param, ref, paramName, refName) :
     if len(param) != len(ref) :
@@ -12,7 +12,7 @@ def __verifyLengths (param, ref, paramName, refName) :
 
 def addConvolutionalAE (network, inputSize, kernel, kernelSize, downsample, 
                         learnRate, regType='L2', regValue=.0001,
-                        momentumRate=None, dropout=None, forceSparsity=None,
+                        momentumRate=[], dropout=[], forceSparsity=[],
                         rng=None, prof=None) :
     '''Add ConvolutionalAE layers to the network and return it.'''
     from ae.convolutionalAE import ConvolutionalAutoEncoder
@@ -53,8 +53,8 @@ def addConvolutionalAE (network, inputSize, kernel, kernelSize, downsample,
 
 
 def addContiguousAE (network, inputSize, neuron, learnRate, 
-                     regType='L2', regValue=.0001, momentumRate=None,
-                     dropout=None, forceSparsity=None, rng=None, prof=None) :
+                     regType='L2', regValue=.0001, momentumRate=[],
+                     dropout=[], forceSparsity=[], rng=None, prof=None) :
     '''Add ContiguousAE layers to the network and return it.'''
     import numpy as np
     from ae.contiguousAE import ContiguousAutoEncoder
