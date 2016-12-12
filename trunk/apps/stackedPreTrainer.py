@@ -8,21 +8,15 @@ from ae.convolutionalAE import ConvolutionalAutoEncoder
 from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainUnsupervised
 from nn.profiler import setupLogging, Profiler
+from builder.args import addLoggingParams, setupLogging
 
 '''This is an example Stacked AutoEncoder used for unsupervised pre-training.
    The network topology should match that of the finalize Neural Network
    without having the output layer attached.
 '''
 if __name__ == '__main__' :
-
     parser = argparse.ArgumentParser()
-    parser.add_argument('--log', dest='logfile', type=str, default=None,
-                        help='Specify log output file.')
-    parser.add_argument('--level', dest='level', default='INFO', type=str, 
-                        help='Log Level.')
-    parser.add_argument('--prof', dest='profile', type=str, 
-                        default='Application-Profiler.xml',
-                        help='Specify profile output file.')
+    addLoggingParams(parser)
     parser.add_argument('--learnC', dest='learnC', type=float, default=.0031,
                         help='Rate of learning on Convolutional Layers.')
     parser.add_argument('--learnF', dest='learnF', type=float, default=.0015,
@@ -54,9 +48,7 @@ if __name__ == '__main__' :
     options = parser.parse_args()
 
     # setup the logger
-    logName = 'cnnPreTrainer: ' + options.data
-    log = setupLogging(logName, options.level, options.logfile)
-    prof = Profiler(log=log, name=logName, profFile=options.profile)
+    log, prof = getLogging(options, 'cnnPreTrainer')
 
     # create a random number generator for efficiency
     from numpy.random import RandomState

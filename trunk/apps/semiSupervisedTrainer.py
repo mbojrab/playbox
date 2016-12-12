@@ -8,7 +8,7 @@ from nn.trainUtils import trainUnsupervised, trainSupervised
 from nn.net import TrainerNetwork
 import argparse
 from time import time
-from nn.profiler import setupLogging, Profiler
+from builder.args import addLoggingParams, setupLogging
 
 if __name__ == '__main__' :
     '''This application runs semi-supervised training on a given dataset. The
@@ -20,13 +20,7 @@ if __name__ == '__main__' :
        the weights to classify objects we select as important.
     '''
     parser = argparse.ArgumentParser()
-    parser.add_argument('--log', dest='logfile', type=str, default=None,
-                        help='Specify log output file.')
-    parser.add_argument('--level', dest='level', default='INFO', type=str, 
-                        help='Log Level.')
-    parser.add_argument('--prof', dest='profile', type=str, 
-                        default='Application-Profiler.xml',
-                        help='Specify profile output file.')
+    addLoggingParams(parser)
     parser.add_argument('--learnC', dest='learnC', type=float, default=.0031,
                         help='Rate of learning on Convolutional Layers.')
     parser.add_argument('--learnF', dest='learnF', type=float, default=.0015,
@@ -67,9 +61,7 @@ if __name__ == '__main__' :
     options = parser.parse_args()
 
     # setup the logger
-    logName = 'semiSupervisedTrainer: ' + options.data
-    log = setupLogging(logName, options.level, options.logfile)
-    prof = Profiler(log=log, name=logName, profFile=options.profile)
+    log, prof = setupLogging(options, 'semiSupervisedTrainer')
 
     # create a random number generator for efficiency
     from numpy.random import RandomState

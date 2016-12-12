@@ -6,8 +6,8 @@ from nn.net import TrainerNetwork as Net
 from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer
 from dataset.ingest.labeled import ingestImagery
+from builder.args import addLoggingParams, setupLogging
 from nn.trainUtils import trainSupervised
-from nn.profiler import setupLogging, Profiler
 from dataset.shared import getShape
 
 '''This is a simple network in the topology of leNet5 the well-known
@@ -17,13 +17,7 @@ from dataset.shared import getShape
 if __name__ == '__main__' :
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--log', dest='logfile', type=str, default=None,
-                        help='Specify log output file.')
-    parser.add_argument('--level', dest='level', default='INFO', type=str, 
-                        help='Log Level.')
-    parser.add_argument('--prof', dest='profile', type=str, 
-                        default='Application-Profiler.xml',
-                        help='Specify profile output file.')
+    addLoggingParams(parser)
     parser.add_argument('--learnC', dest='learnC', type=float, default=.031,
                         help='Rate of learning on Convolutional Layers.')
     parser.add_argument('--learnF', dest='learnF', type=float, default=.015,
@@ -56,9 +50,7 @@ if __name__ == '__main__' :
     options = parser.parse_args()
 
     # setup the logger
-    logName = 'cnnTrainer: ' + options.data
-    log = setupLogging(logName, options.level, options.logfile)
-    prof = Profiler(log=log, name=logName, profFile=options.profile)
+    log, prof = setupLogging(options, 'cnnTrainer')
 
     # create a random number generator for efficiency
     import theano.tensor as t
