@@ -1,6 +1,5 @@
 import theano.tensor as t
 from numpy.random import RandomState
-from time import time
 
 def addLoggingParams (parser) :
     '''Setup common logging and profiler options.'''
@@ -12,27 +11,26 @@ def addLoggingParams (parser) :
                         default='Application-Profiler.xml',
                         help='Specify profile output file.')
 
-def addSupDataParams (parser) :
+def addSupDataParams (parser, base) :
     '''Setup common dataset parameters for supervised learning.'''
-    parser.add_argument('--limit', dest='limit', type=int, default=5,
+    parser.add_argument('--limit', dest='limit', type=int, default=2,
                         help='Number of runs between validation checks.')
     parser.add_argument('--stop', dest='stop', type=int, default=5,
                         help='Number of inferior validation checks to end.')
     parser.add_argument('--batch', dest='batchSize', type=int, default=100,
                         help='Batch size for training and test sets.')
-    parser.add_argument('--base', dest='base', type=str, default='./saeClass',
+    parser.add_argument('--base', dest='base', type=str, default='./' + base,
                         help='Base name of the network output and temp files.')
     parser.add_argument('--syn', dest='synapse', type=str, default=None,
                         help='Load from a previously saved network.')
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
                                      'training and test sets')
 
-def addUnsupDataParams (parser) :
+def addUnsupDataParams (parser, base) :
     '''Setup common dataset parameters for unsupervised learning.'''
     import numpy as np
-    addSupDataParams(parser)
-    parser.add_argument('--epoch', dest='epoch', type=float,
-                        default=np.inf,
+    addSupDataParams(parser, base)
+    parser.add_argument('--epoch', dest='epoch', type=float, default=np.inf,
                         help='Maximum number of runs per layer')
     parser.add_argument('--target', dest='targetDir', type=str, required=True,
                         help='Directory with target data to match.')
@@ -87,11 +85,11 @@ def addSupContiguousParams(parser) :
                         default=[0.5, 0.5, 1],
                         help='Dropout amount for the Fully-Connected Layer.')
     parser.add_argument('--regTypeF', dest='regTypeF', type=str, 
-                        default='L2',
-                        help='Type of regularization on Fully-Connected Layers.')
+                        default='L2', help='Type of regularization on ' \
+                                           'Fully-Connected Layers.')
     parser.add_argument('--regValueF', dest='regValueF', type=float, 
-                        default=.00001,
-                        help='Rate of regularization on Fully-Connected Layers.')
+                        default=.00001, help='Rate of regularization on ' \
+                                             'Fully-Connected Layers.')
 
 def addUnsupContiguousParams(parser) :
     '''Setup common ContiguousAE options.'''
