@@ -125,5 +125,3 @@ def setupLogging (options, appName) :
     prof = Profiler(log=log, name=logName, profFile=options.profile)
 
     return log, prof
-
-
