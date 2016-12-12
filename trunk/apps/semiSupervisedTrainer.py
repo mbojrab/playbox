@@ -1,4 +1,8 @@
-from six.moves import reduce
+import numpy as np
+import argparse
+from time import time
+from builder.args import addLoggingParams, setupLogging
+
 from ae.net import TrainerSAENetwork
 from ae.contiguousAE import ContiguousAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
@@ -6,9 +10,6 @@ from dataset.ingest.labeled import ingestImagery
 from nn.contiguousLayer import ContiguousLayer
 from nn.trainUtils import trainUnsupervised, trainSupervised
 from nn.net import TrainerNetwork
-import argparse
-from time import time
-from builder.args import addLoggingParams, setupLogging
 
 if __name__ == '__main__' :
     '''This application runs semi-supervised training on a given dataset. The
@@ -65,7 +66,6 @@ if __name__ == '__main__' :
 
     # create a random number generator for efficiency
     from numpy.random import RandomState
-    from operator import mul
     rng = RandomState(int(time()))
 
     # NOTE: The pickleDataset will silently use previously created pickles if
@@ -107,7 +107,7 @@ if __name__ == '__main__' :
         network.addLayer(ContiguousAutoEncoder(
             layerID='f3', 
             inputSize=(network.getNetworkOutputSize()[0], 
-                       reduce(mul, network.getNetworkOutputSize()[1:])),
+                       np.prod(network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, learningRate=options.learnF,
             dropout=.5 if options.dropout else 1.,
             randomNumGen=rng))

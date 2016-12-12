@@ -1,6 +1,6 @@
 import argparse
 from time import time
-from six.moves import reduce
+import numpy as np
 
 from ae.net import TrainerSAENetwork as Net
 from ae.contiguousAE import ContiguousAutoEncoder
@@ -52,7 +52,6 @@ if __name__ == '__main__' :
 
     # create a random number generator for efficiency
     from numpy.random import RandomState
-    from operator import mul
     rng = RandomState(int(time()))
 
     # NOTE: The pickleDataset will silently use previously created pickles if
@@ -75,14 +74,14 @@ if __name__ == '__main__' :
         import theano.tensor as t
         network.addLayer(ContiguousAutoEncoder(
             layerID='f1',
-            inputSize=(trainShape[1], reduce(mul, trainShape[2:])),
+            inputSize=(trainShape[1], np.prod(trainShape[2:])),
             numNeurons=options.neuron, learningRate=options.learnF,
             dropout=1.,#.8 if options.dropout else 1.,
             activation=t.nnet.sigmoid, randomNumGen=rng))
         network.addLayer(ContiguousAutoEncoder(
             layerID='f2',
             inputSize=(network.getNetworkOutputSize()[0], 
-                       reduce(mul, network.getNetworkOutputSize()[1:])),
+                       np.prod(network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, learningRate=options.learnF,
             dropout=1.,
             activation=t.nnet.sigmoid, randomNumGen=rng))
@@ -107,7 +106,7 @@ if __name__ == '__main__' :
         network.addLayer(ContiguousAutoEncoder(
             layerID='f3',
             inputSize=(network.getNetworkOutputSize()[0], 
-                       reduce(mul, network.getNetworkOutputSize()[1:])),
+                       np.prod(network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, learningRate=options.learnF,
             randomNumGen=rng))
         '''

@@ -1,6 +1,6 @@
 import argparse
 from time import time
-from six.moves import reduce
+import numpy as np
 
 from nn.net import TrainerNetwork as Net
 from nn.contiguousLayer import ContiguousLayer
@@ -55,7 +55,6 @@ if __name__ == '__main__' :
     # create a random number generator for efficiency
     import theano.tensor as t
     from numpy.random import RandomState
-    from operator import mul
     rng = RandomState(int(time()))
 
     # NOTE: The pickleDataset will silently use previously created pickles if
@@ -102,7 +101,7 @@ if __name__ == '__main__' :
         network.addLayer(ContiguousLayer(
             layerID='f3', 
             inputSize=(network.getNetworkOutputSize()[0], 
-                       reduce(mul, network.getNetworkOutputSize()[1:])),
+                       np.prod(network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, 
             learningRate=options.learnF, momentumRate=options.momentum,
             dropout=.5 if options.dropout else 1.,
