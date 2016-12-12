@@ -1,14 +1,25 @@
 import theano.tensor as t
 from numpy.random import RandomState
 from time import time
+from builder.dnn import __addDefaults, __verifyLengths
 
-def __addDefaults (param, default, size) :
-    return [default] * size if len(param) == 0 else param
+def setupCommandLine (base='saeNetwork') :
+    '''Create a argparser with the proper SAE command line parameters,
+       and return the options class.
+    '''
+    import argparse
+    from builder.args import addLoggingParams, \
+                             addUnsupDataParams, \
+                             addUnsupConvolutionalParams, \
+                             addUnsupContiguousParams
 
-def __verifyLengths (param, ref, paramName, refName) :
-    if len(param) != len(ref) :
-        raise ValueError('Different number of parameters between [' + 
-                         paramName + '] and [' + refName + ']')
+    parser = argparse.ArgumentParser()
+    addLoggingParams(parser)
+    addUnsupDataParams(parser, base)
+    addUnsupConvolutionalParams(parser)
+    addUnsupContiguousParams(parser)
+
+    return parser.parse_args()
 
 def addConvolutionalAE (network, inputSize, options, 
                         regType='L2', regValue=.0001, rng=None, prof=None) :
@@ -98,9 +109,8 @@ def addContiguousAE (network, inputSize, options,
         inputSize = network.getNetworkOutputSize()
 
 
-def buildSAENetwork(network, inputSize, options, rng=None, prof=None) :
+def buildNetwork(network, inputSize, options, rng=None, prof=None) :
     '''Build the Stacked AutoEncoder network in an automated way.'''
-    from ae.contiguousAE import ContiguousAutoEncoder
 
     # use the same random number generator across all layers for efficiency
     if rng is None :

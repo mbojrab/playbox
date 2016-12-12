@@ -1,11 +1,10 @@
-import argparse
-from six.moves import reduce
-
 from ae.net import TrainerSAENetwork, ClassifierSAENetwork
-from builder.sae import buildSAENetwork
+from builder.args import setupLogging
+from builder.sae import setupCommandLine, buildNetwork
 from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainUnsupervised
 from dataset.shared import getShape
+
 tmpNet = './local.pkl.gz'
 
 def testCloseness(net, imagery) :
@@ -30,16 +29,7 @@ def testCloseness(net, imagery) :
 if __name__ == '__main__' :
     '''Build and train an SAE, then test a '''
     import numpy as np
-    from builder.args import addLoggingParams, setupLogging, \
-                             addUnsupDataParams, addUnsupConvolutionalParams, \
-                             addUnsupContiguousParams
-
-    parser = argparse.ArgumentParser()
-    addLoggingParams(parser)
-    addUnsupDataParams(parser)
-    addUnsupConvolutionalParams(parser)
-    addUnsupContiguousParams(parser)
-    options = parser.parse_args()
+    options = setupCommandLine()
 
     # setup the logger
     log, prof = setupLogging (options, 'SAE-Classification Benchmark')
@@ -52,7 +42,7 @@ if __name__ == '__main__' :
     # create the stacked network
     trainer = TrainerSAENetwork(train, test, options.synapse, prof)
     if options.synapse is None :
-        buildSAENetwork(trainer, getShape(train[0])[1:], options, prof=prof)
+        buildNetwork(trainer, getShape(train[0])[1:], options, prof=prof)
 
     # train the SAE
     trainUnsupervised(trainer, __file__, options.data, 
