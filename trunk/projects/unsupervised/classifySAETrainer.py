@@ -46,7 +46,7 @@ if __name__ == '__main__' :
 
     # train the SAE
     trainUnsupervised(trainer, __file__, options.data, 
-                      numEpochs=options.limit, stop=options.stop, 
+                      numEpochs=options.limit, stop=options.stop,
                       synapse=options.synapse, base=options.base,
                       dropout=(options.dropoutC is not None and \
                                len(options.dropoutC) > 0),

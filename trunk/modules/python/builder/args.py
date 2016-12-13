@@ -115,6 +115,7 @@ def setupLogging (options, appName) :
     stream.setFormatter(formatter)
     log.addHandler(stream)
 
+    # attach it to a file -- if requested
     if options.logfile is not None :
         logFile = logging.FileHandler(options.logfile)
         logFile.setLevel(options.level.upper())

@@ -13,12 +13,14 @@ def setupCommandLine (base='saeNetwork') :
                              addUnsupConvolutionalParams, \
                              addUnsupContiguousParams
 
+    # setup the common command line options
     parser = argparse.ArgumentParser()
     addLoggingParams(parser)
     addUnsupDataParams(parser, base)
     addUnsupConvolutionalParams(parser)
     addUnsupContiguousParams(parser)
 
+    # parse the user-provided options
     return parser.parse_args()
 
 def addConvolutionalAE (network, inputSize, options, 

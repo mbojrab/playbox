@@ -20,12 +20,14 @@ def setupCommandLine (base='cnn') :
                              addSupContiguousParams, \
                              addSupConvolutionalParams
 
+    # setup the common command line options
     parser = argparse.ArgumentParser()
     addLoggingParams(parser)
     addSupDataParams(parser, base)
     addSupConvolutionalParams(parser)
     addSupContiguousParams(parser)
 
+    # parse the user-provided options
     return parser.parse_args()
 
 def addConvolutionalNN (network, inputSize, options, rng=None, prof=None) :
