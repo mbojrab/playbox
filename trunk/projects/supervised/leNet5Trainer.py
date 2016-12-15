@@ -1,12 +1,14 @@
 import argparse
-from time import time
 import numpy as np
+import theano.tensor as t
+from time import time
+from numpy.random import RandomState
 
 from nn.net import TrainerNetwork as Net
 from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer
 from dataset.ingest.labeled import ingestImagery
-from builder.args import addLoggingParams, setupLogging
+from builder.args import addLoggingParams, addSupDataParams, setupLogging
 from nn.trainUtils import trainSupervised
 from dataset.shared import getShape
 
@@ -33,28 +35,13 @@ if __name__ == '__main__' :
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
                         help='Number of Neurons in Hidden Layer.')
-    parser.add_argument('--limit', dest='limit', type=int, default=5,
-                        help='Number of runs between validation checks.')
-    parser.add_argument('--stop', dest='stop', type=int, default=5,
-                        help='Number of inferior validation checks to end.')
-    parser.add_argument('--holdout', dest='holdout', type=float, default=.05,
-                        help='Percent of data to be held out for testing.')
-    parser.add_argument('--batch', dest='batchSize', type=int, default=5,
-                        help='Batch size for training and test sets.')
-    parser.add_argument('--base', dest='base', type=str, default='./leNet5',
-                        help='Base name of the network output and temp files.')
-    parser.add_argument('--syn', dest='synapse', type=str, default=None,
-                        help='Load from a previously saved network.')
-    parser.add_argument('data', help='Directory or pkl.gz file for the ' +
-                                     'training and test sets')
+    addSupDataParams(parser, 'leNet5')
     options = parser.parse_args()
 
     # setup the logger
     log, prof = setupLogging(options, 'cnnTrainer')
 
     # create a random number generator for efficiency
-    import theano.tensor as t
-    from numpy.random import RandomState
     rng = RandomState(int(time()))
 
     # NOTE: The pickleDataset will silently use previously created pickles if

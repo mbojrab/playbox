@@ -19,6 +19,8 @@ def addSupDataParams (parser, base) :
                         help='Number of inferior validation checks to end.')
     parser.add_argument('--batch', dest='batchSize', type=int, default=100,
                         help='Batch size for training and test sets.')
+    parser.add_argument('--holdout', dest='holdout', type=float, default=.05,
+                        help='Percent of data to be held out for testing.')
     parser.add_argument('--base', dest='base', type=str, default='./' + base,
                         help='Base name of the network output and temp files.')
     parser.add_argument('--syn', dest='synapse', type=str, default=None,
