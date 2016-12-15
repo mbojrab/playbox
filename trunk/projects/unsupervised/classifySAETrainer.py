@@ -37,7 +37,9 @@ if __name__ == '__main__' :
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
     train, test, labels = ingestImagery(filepath=options.data, shared=True,
-                                        batchSize=options.batchSize, log=log)
+                                        batchSize=options.batchSize, 
+                                        holdoutPercentage=options.holdout,
+                                        log=log)
 
     # create the stacked network
     trainer = TrainerSAENetwork(train, test, options.synapse, prof)
