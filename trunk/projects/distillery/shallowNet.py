@@ -1,6 +1,6 @@
 import argparse
 from time import time
-from six.moves import reduce
+import numpy as np
 
 from nn.net import ClassifierNetwork as Net
 from nn.contiguousLayer import ContiguousLayer
@@ -29,7 +29,7 @@ def createNetwork(inputSize, numKernels, numNeurons, numLabels) :
     network.addLayer(ContiguousLayer(
         layerID='f2', 
         inputSize=(network.getNetworkOutputSize()[0],
-                   reduce(mul, network.getNetworkOutputSize()[1:])),
+                   np.prod(network.getNetworkOutputSize()[1:])),
         numNeurons=numNeurons, randomNumGen=rng,
         learningRate=.03, momentumRate=.7))
     network.addLayer(ContiguousLayer(

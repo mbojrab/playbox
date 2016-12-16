@@ -1,4 +1,5 @@
 ﻿import argparse, os
+import numpy as np
 
 from nn.net import TrainerNetwork
 from nn.contiguousLayer import ContiguousLayer
@@ -12,7 +13,6 @@ from builder.profiler import setupLogging
 
 def createNetwork(inputSize, numKernels, numNeurons, numLabels) :
     from nn.net import ClassifierNetwork
-    from six.moves import reduce
 
     localPath = './local.pkl.gz'
     network = ClassifierNetwork()
@@ -30,7 +30,7 @@ def createNetwork(inputSize, numKernels, numNeurons, numLabels) :
     network.addLayer(ContiguousLayer(
         layerID='f2', 
         inputSize=(network.getNetworkOutputSize()[0],
-                   reduce(mul, network.getNetworkOutputSize()[1:])),
+                   np.prod(network.getNetworkOutputSize()[1:])),
         numNeurons=numNeurons, randomNumGen=rng,
         learningRate=lr[1], momentumRate=mr[1]))
     network.addLayer(ContiguousLayer(
