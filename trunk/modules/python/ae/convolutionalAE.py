@@ -1,4 +1,4 @@
-import numpy as np
+﻿import numpy as np
 from theano import config, shared, function
 import theano.tensor as t
 from ae.encoder import AutoEncoder
@@ -226,56 +226,3 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
     def getCostLabels(self) :
         '''Return the labels associated with the cost functions applied.'''
         return self._costLabels
-
-
-if __name__ == '__main__' :
-    import argparse, logging, time
-    from dataset.reader import ingestImagery, pickleDataset
-    from dataset.debugger import saveTiledImage
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--log', dest='logfile', type=str, default=None,
-                        help='Specify log output file.')
-    parser.add_argument('--level', dest='level', default='INFO', type=str, 
-                        help='Log Level.')
-    parser.add_argument('--contraction', dest='contraction', default=0.1, 
-                        type=float, help='Rate of contraction.')
-    parser.add_argument('--learn', dest='learn', type=float, default=0.01,
-                        help='Rate of learning on AutoEncoder.')
-    parser.add_argument('--kernel', dest='kernel', type=int, default=6,
-                        help='Number of kernels in Convolutional Layer.')
-    parser.add_argument('data', help='Directory or pkl.gz file for the ' +
-                                     'training and test sets')
-    options = parser.parse_args()
-
-    # setup the logger
-    log = logging.getLogger('CAE: ' + options.data)
-    log.setLevel(options.level.upper())
-    formatter = logging.Formatter('%(levelname)s - %(message)s')
-    stream = logging.StreamHandler()
-    stream.setLevel(options.level.upper())
-    stream.setFormatter(formatter)
-    log.addHandler(stream)
-
-    # NOTE: The pickleDataset will silently use previously created pickles if
-    #       one exists (for efficiency). So watch out for stale pickles!
-    train, test, labels = ingestImagery(pickleDataset(
-            options.data, batchSize=100, 
-            holdoutPercentage=0, log=log), shared=False, log=log)
-
-    input = t.ftensor4()
-    ae = ConvolutionalAutoEncoder('cae', input, train[0].shape[1:], 
-                                  (options.kernel,train[0].shape[2],5,5), 
-                                  (2,2))
-    ae.writeWeights(0)
-    for ii in range(100) :
-        start = time.time()
-        for jj in range(len(train[0])) :
-            ae.train(train[0][jj])
-        ae.writeWeights(ii+1)
-
-        saveTiledImage(
-            image=ae.reconstruction(train[0][0]),
-            path=ae.layerID + '_cae_filters_reconstructed_' +
-                 str(ii+1) + '.png', imageShape=(28, 28), spacing=1,
-            interleave=True)

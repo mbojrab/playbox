@@ -282,18 +282,11 @@ class TrainerSAENetwork (SAENetwork) :
                   (numBatches, batchSize, numChannels, rows, cols)
        test     : theano.shared dataset used for network test reconstruction --
                   (numBatches, batchSize, numChannels, rows, cols)
-       regType  : type of regularization term to use
-                  default None : perform no additional regularization
-                  L1           : Least Absolute Deviation
-                  L2           : Least Squares
-       regSF    : regularization scale factor
-                  NOTE: a good value is 1. / numTotalNeurons
        filepath : Path to an already trained network on disk 
                   'None' creates randomized weighting
        prof     : Profiler to use
     '''
-    def __init__ (self, train, test, regType='L2', regScaleFactor=0.,
-                  filepath=None, prof=None) :
+    def __init__ (self, train, test, filepath=None, prof=None) :
         from nn.reg import Regularization
         SAENetwork.__init__ (self, filepath, prof)
         self._indexVar = t.lscalar('index')
@@ -309,7 +302,6 @@ class TrainerSAENetwork (SAENetwork) :
         self._numTestBatches = getShape(self._testData)[0]
         self._numTestSize = self._numTestBatches * \
                             getShape(self._testData)[1]
-        self._regularization = Regularization(regType, regScaleFactor)
 
     def __buildGreedy(self) :
         '''Build the layer-wise training and reconstruction methods -- 

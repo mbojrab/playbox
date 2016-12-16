@@ -1,4 +1,9 @@
-from six.moves import reduce
+﻿import numpy as np
+import argparse
+from time import time
+from builder.args import addLoggingParams, addEarlyStop, addSupDataParams
+from builder.profiler import setupLogging
+
 from ae.net import TrainerSAENetwork
 from ae.contiguousAE import ContiguousAutoEncoder
 from ae.convolutionalAE import ConvolutionalAutoEncoder
@@ -6,9 +11,6 @@ from dataset.ingest.labeled import ingestImagery
 from nn.contiguousLayer import ContiguousLayer
 from nn.trainUtils import trainUnsupervised, trainSupervised
 from nn.net import TrainerNetwork
-import argparse
-from time import time
-from nn.profiler import setupLogging, Profiler
 
 if __name__ == '__main__' :
     '''This application runs semi-supervised training on a given dataset. The
@@ -20,13 +22,7 @@ if __name__ == '__main__' :
        the weights to classify objects we select as important.
     '''
     parser = argparse.ArgumentParser()
-    parser.add_argument('--log', dest='logfile', type=str, default=None,
-                        help='Specify log output file.')
-    parser.add_argument('--level', dest='level', default='INFO', type=str, 
-                        help='Log Level.')
-    parser.add_argument('--prof', dest='profile', type=str, 
-                        default='Application-Profiler.xml',
-                        help='Specify profile output file.')
+    addLoggingParams(parser)
     parser.add_argument('--learnC', dest='learnC', type=float, default=.0031,
                         help='Rate of learning on Convolutional Layers.')
     parser.add_argument('--learnF', dest='learnF', type=float, default=.0015,
@@ -45,35 +41,15 @@ if __name__ == '__main__' :
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
                         help='Number of Neurons in Hidden Layer.')
-    parser.add_argument('--epoch', dest='numEpochs', type=int, default=15,
-                        help='Number of epochs to run per layer during ' +
-                             'unsupervised pre-training.')
-    parser.add_argument('--limit', dest='limit', type=int, default=5,
-                        help='Number of runs between validation checks ' +
-                             'during supervised learning.')
-    parser.add_argument('--stop', dest='stop', type=int, default=5,
-                        help='Number of inferior validation checks to end ' +
-                             'the supervised learning session.')
-    parser.add_argument('--holdout', dest='holdout', type=float, default=.05,
-                        help='Percent of data to be held out for testing.')
-    parser.add_argument('--batch', dest='batchSize', type=int, default=5,
-                        help='Batch size for training and test sets.')
-    parser.add_argument('--base', dest='base', type=str, default='./leNet5',
-                        help='Base name of the network output and temp files.')
-    parser.add_argument('--syn', dest='synapse', type=str, default=None,
-                        help='Load from a previously saved network.')
-    parser.add_argument('data', help='Directory or pkl.gz file for the ' +
-                                     'training and test sets')
+    addEarlyStop(parser)
+    addSupDataParams(parser, 'leNet5')
     options = parser.parse_args()
 
     # setup the logger
-    logName = 'semiSupervisedTrainer: ' + options.data
-    log = setupLogging(logName, options.level, options.logfile)
-    prof = Profiler(log=log, name=logName, profFile=options.profile)
+    log, prof = setupLogging(options, 'semiSupervisedTrainer')
 
     # create a random number generator for efficiency
     from numpy.random import RandomState
-    from operator import mul
     rng = RandomState(int(time()))
 
     # NOTE: The pickleDataset will silently use previously created pickles if
@@ -115,7 +91,7 @@ if __name__ == '__main__' :
         network.addLayer(ContiguousAutoEncoder(
             layerID='f3', 
             inputSize=(network.getNetworkOutputSize()[0], 
-                       reduce(mul, network.getNetworkOutputSize()[1:])),
+                       np.prod(network.getNetworkOutputSize()[1:])),
             numNeurons=options.neuron, learningRate=options.learnF,
             dropout=.5 if options.dropout else 1.,
             randomNumGen=rng))

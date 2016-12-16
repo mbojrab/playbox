@@ -1,73 +1,11 @@
-import argparse
-from time import time
-from six.moves import reduce
-
 from ae.net import TrainerSAENetwork, ClassifierSAENetwork
-from ae.contiguousAE import ContiguousAutoEncoder
-from ae.convolutionalAE import ConvolutionalAutoEncoder
+from builder.profiler import setupLogging
+from builder.sae import setupCommandLine, buildNetwork
 from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainUnsupervised
-from nn.profiler import setupLogging, Profiler
 from dataset.shared import getShape
+
 tmpNet = './local.pkl.gz'
-
-def buildTrainerSAENetwork(network, layerInputSize, regType, regValue,
-                           kernelConv, kernelSizeConv, downsampleConv, 
-                           learnConv, momentumConv, dropoutConv, sparseConv,
-                           neuronFull, learnFull, momentumFull, dropoutFull,
-                           sparseFull, prof=None) :
-    '''Build the network in an automated way.'''
-    import theano.tensor as t
-    from operator import mul
-    from numpy.random import RandomState
-    rng = RandomState(int(time()))
-
-    if log is not None :
-        log.info('Initialize the Network')
-
-    # prepare for the next layer
-    def prepare(network, count) :
-        return (count + 1, 
-                network.getNetworkOutputSize())
-
-    layerCount = 1
-    if kernelConv is not None :
-        for k,ks,do,l,m,dr,sc in zip(kernelConv, kernelSizeConv, 
-                                     downsampleConv, learnConv, momentumConv,
-                                     dropoutConv, sparseConv) :
-            # add a convolutional layer as defined
-            network.addLayer(ConvolutionalAutoEncoder(
-                layerID='conv' + str(layerCount), 
-                regType=regType, contractionRate=regValue,
-                inputSize=layerInputSize,
-                kernelSize=(k,layerInputSize[1],ks,ks),
-                downsampleFactor=[do,do], dropout=dr, 
-                learningRate=l, forceSparsity=sc, momentumRate=m,
-                activation=t.nnet.sigmoid, randomNumGen=rng))
-
-            # prepare for the next layer
-            layerCount, layerInputSize = prepare(network, layerCount)
-
-    # add reset in case user uses removeLayer() logic
-    if network.getNumLayers() > 0 :
-        layerInputSize = network.getNetworkOutputSize()
-
-    # update to transition for fully connected layers
-    layerInputSize = (layerInputSize[0], reduce(mul, layerInputSize[1:]))
-    for n,l,m,dr,sc in zip(neuronFull, learnFull, momentumFull,
-                           dropoutFull, sparseFull) :
-        # add a fully-connected layer as defined
-        network.addLayer(ContiguousAutoEncoder(
-            layerID='fully' + str(layerCount),
-            regType=regType, contractionRate=regValue,
-            inputSize=layerInputSize, numNeurons=n, learningRate=l,
-            activation=t.nnet.sigmoid, dropout=dr, forceSparsity=sc,
-            momentumRate=m, randomNumGen=rng))
-
-        # prepare for the next layer
-        layerCount, layerInputSize = prepare(network, layerCount)
-
-    return network
 
 def testCloseness(net, imagery) :
     '''Test the imagery for how close it is to the target data. This also sorts
@@ -91,105 +29,26 @@ def testCloseness(net, imagery) :
 if __name__ == '__main__' :
     '''Build and train an SAE, then test a '''
     import numpy as np
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--log', dest='logfile', type=str, default=None,
-                        help='Specify log output file.')
-    parser.add_argument('--level', dest='level', default='INFO', type=str, 
-                        help='Log Level.')
-    parser.add_argument('--prof', dest='profile', type=str, 
-                        default='Application-Profiler.xml',
-                        help='Specify profile output file.')
-    parser.add_argument('--kernel', dest='kernel', type=int, nargs='+',
-                        default=None,
-                        help='Number of Convolutional Kernels in each Layer.')
-    parser.add_argument('--kernelSize', dest='kernelSize', type=int, nargs='+',
-                        default=None,
-                        help='Size of Convolutional Kernels in each Layer.')
-    parser.add_argument('--downsample', dest='downsample', type=int, nargs='+',
-                        default=None,
-                        help='Downsample factor in each Convolutional Layer.')
-    parser.add_argument('--learnC', dest='learnC', type=float, nargs='+',
-                        default=None,
-                        help='Rate of learning on Convolutional Layers.')
-    parser.add_argument('--momentumC', dest='momentumC', type=float, nargs='+',
-                        default=None,
-                        help='Rate of momentum on Convolutional Layers.')
-    parser.add_argument('--dropoutC', dest='dropoutC', type=float, nargs='+',
-                        default=None,
-                        help='Dropout amount on Convolutional Layers.')
-    parser.add_argument('--sparseC', dest='sparseC', type=bool, nargs='+',
-                        default=None,
-                        help='Force the output to be sparse for stronger '
-                             'pattern extraction on Convolutional Layers.')
-    parser.add_argument('--neuron', dest='neuron', type=int, nargs='+',
-                        default=[500, 300, 100],
-                        help='Number of Neurons in Hidden Layer.')
-    parser.add_argument('--learnF', dest='learnF', type=float, nargs='+',
-                        default=[.02, .02, .02],
-                        help='Rate of learning on Fully-Connected Layers.')
-    parser.add_argument('--momentumF', dest='momentumF', type=float, nargs='+',
-                        default=[.2, .2, .2],
-                        help='Rate of momentum on Fully-Connected Layers.')
-    parser.add_argument('--dropoutF', dest='dropoutF', type=float, nargs='+',
-                        default=[0.5, 0.5, 1],
-                        help='Dropout amount for the Fully-Connected Layer.')
-    parser.add_argument('--sparseF', dest='sparseF', type=bool, nargs='+',
-                        default=None,
-                        help='Force the output to be sparse for stronger '
-                             'pattern extraction on Fully-Connected Layers.')
-    parser.add_argument('--limit', dest='limit', type=int, default=5,
-                        help='Number of runs between validation checks.')
-    parser.add_argument('--epoch', dest='epoch', type=float,
-                        default=np.inf,
-                        help='Maximum number of runs per layer')
-    parser.add_argument('--stop', dest='stop', type=int, default=5,
-                        help='Number of inferior validation checks to end.')
-    parser.add_argument('--batch', dest='batchSize', type=int, default=100,
-                        help='Batch size for training and test sets.')
-    parser.add_argument('--base', dest='base', type=str, default='./saeClass',
-                        help='Base name of the network output and temp files.')
-    parser.add_argument('--target', dest='targetDir', type=str, required=True,
-                        help='Directory with target data to match.')
-    parser.add_argument('--syn', dest='synapse', type=str, default=None,
-                        help='Load from a previously saved network.')
-    parser.add_argument('data', help='Directory or pkl.gz file for the ' +
-                                     'training and test sets')
-    options = parser.parse_args()
+    options = setupCommandLine()
 
     # setup the logger
-    logName = 'SAE-Classification Benchmark:  ' + options.data
-    log = setupLogging(logName, options.level, options.logfile)
-    prof = Profiler(log=log, name=logName, profFile=options.profile)
+    log, prof = setupLogging (options, 'SAE-Classification Benchmark')
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
     train, test, labels = ingestImagery(filepath=options.data, shared=True,
-                                        batchSize=options.batchSize, log=log)
+                                        batchSize=options.batchSize, 
+                                        holdoutPercentage=options.holdout,
+                                        log=log)
 
-    regType = 'L2'
-    regValue = .00001
     # create the stacked network
-    trainer = TrainerSAENetwork(train, test, regType, regValue,
-                                options.synapse, prof)
+    trainer = TrainerSAENetwork(train, test, options.synapse, prof)
     if options.synapse is None :
-        trainer = buildTrainerSAENetwork(trainer, getShape(train[0])[1:],
-                                         regType, regValue, prof=prof,
-                                         kernelConv=options.kernel, 
-                                         kernelSizeConv=options.kernelSize, 
-                                         downsampleConv=options.downsample, 
-                                         learnConv=options.learnC, 
-                                         momentumConv=options.momentumC,
-                                         dropoutConv=options.dropoutC,
-                                         sparseConv=options.sparseC,
-                                         neuronFull=options.neuron, 
-                                         learnFull=options.learnF, 
-                                         momentumFull=options.momentumF,
-                                         dropoutFull=options.dropoutF,
-                                         sparseFull=options.sparseF)
+        buildNetwork(trainer, getShape(train[0])[1:], options, prof=prof)
+
     # train the SAE
     trainUnsupervised(trainer, __file__, options.data, 
-                      numEpochs=options.limit, stop=options.stop, 
+                      numEpochs=options.limit, stop=options.stop,
                       synapse=options.synapse, base=options.base,
                       dropout=(options.dropoutC is not None and \
                                len(options.dropoutC) > 0),
