@@ -9,7 +9,7 @@ from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer
 from dataset.ingest.labeled import ingestImagery
 from builder.args import addLoggingParams, addSupDataParams, \
-                         addEarlyStoppage, setupLogging
+                         addEarlyStop, setupLogging
 from nn.trainUtils import trainSupervised
 from dataset.shared import getShape
 
@@ -36,7 +36,7 @@ if __name__ == '__main__' :
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
                         help='Number of Neurons in Hidden Layer.')
-    addEarlyStoppage(parser)
+    addEarlyStop(parser)
     addSupDataParams(parser, 'leNet5')
     options = parser.parse_args()
 
