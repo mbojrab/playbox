@@ -1,4 +1,4 @@
-import argparse
+﻿import argparse
 import numpy as np
 import theano.tensor as t
 from time import time
@@ -8,7 +8,8 @@ from nn.net import TrainerNetwork as Net
 from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer
 from dataset.ingest.labeled import ingestImagery
-from builder.args import addLoggingParams, addSupDataParams, setupLogging
+from builder.args import addLoggingParams, addSupDataParams, \
+                         addEarlyStoppage, setupLogging
 from nn.trainUtils import trainSupervised
 from dataset.shared import getShape
 
@@ -35,6 +36,7 @@ if __name__ == '__main__' :
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
                         help='Number of Neurons in Hidden Layer.')
+    addEarlyStoppage(parser)
     addSupDataParams(parser, 'leNet5')
     options = parser.parse_args()
 
@@ -105,4 +107,4 @@ if __name__ == '__main__' :
                     dropout=options.dropout, learnC=options.learnC, 
                     learnF=options.learnF, momentum=options.momentum, 
                     kernel=options.kernel, neuron=options.neuron, 
-                    log=log)
+                    maxEpoch=options.epoch, log=log)

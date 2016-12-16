@@ -1,4 +1,4 @@
-import theano.tensor as t
+﻿import theano.tensor as t
 from numpy.random import RandomState
 from time import time
 
@@ -16,6 +16,7 @@ def setupCommandLine (base='cnn') :
     '''
     import argparse
     from builder.args import addLoggingParams, \
+                             addEarlyStop, \
                              addSupDataParams, \
                              addSupContiguousParams, \
                              addSupConvolutionalParams
@@ -23,6 +24,7 @@ def setupCommandLine (base='cnn') :
     # setup the common command line options
     parser = argparse.ArgumentParser()
     addLoggingParams(parser)
+    addEarlyStop(parser)
     addSupDataParams(parser, base)
     addSupConvolutionalParams(parser)
     addSupContiguousParams(parser)

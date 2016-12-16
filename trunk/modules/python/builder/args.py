@@ -1,4 +1,4 @@
-import theano.tensor as t
+﻿import theano.tensor as t
 from numpy.random import RandomState
 
 def addLoggingParams (parser) :
@@ -11,12 +11,17 @@ def addLoggingParams (parser) :
                         default='Application-Profiler.xml',
                         help='Specify profile output file.')
 
-def addSupDataParams (parser, base) :
-    '''Setup common dataset parameters for supervised learning.'''
+def addEarlyStop (parser) :
+    '''Setup common early stoppage parameters.'''
     parser.add_argument('--limit', dest='limit', type=int, default=2,
                         help='Number of runs between validation checks.')
     parser.add_argument('--stop', dest='stop', type=int, default=5,
                         help='Number of inferior validation checks to end.')
+    parser.add_argument('--epoch', dest='epoch', type=float, default=np.inf,
+                        help='Maximum number of runs per layer')
+
+def addSupDataParams (parser, base) :
+    '''Setup common dataset parameters for supervised learning.'''
     parser.add_argument('--batch', dest='batchSize', type=int, default=100,
                         help='Batch size for training and test sets.')
     parser.add_argument('--holdout', dest='holdout', type=float, default=.05,
@@ -32,8 +37,6 @@ def addUnsupDataParams (parser, base) :
     '''Setup common dataset parameters for unsupervised learning.'''
     import numpy as np
     addSupDataParams(parser, base)
-    parser.add_argument('--epoch', dest='epoch', type=float, default=np.inf,
-                        help='Maximum number of runs per layer')
     parser.add_argument('--target', dest='targetDir', type=str, required=True,
                         help='Directory with target data to match.')
 

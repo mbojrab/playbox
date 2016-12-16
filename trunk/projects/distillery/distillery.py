@@ -1,7 +1,7 @@
-import argparse, os
+﻿import argparse, os
 import numpy as np
 from builder.args import addLoggingParams, setupLogging, \
-                         addSupDataParams
+                         addEarlyStop, addSupDataParams
 
 from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer
@@ -9,7 +9,6 @@ from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainSupervised
 
 from distill.net import DistilleryTrainer
-from nn.profiler import setupLogging, Profiler
 
 def createNetwork(inputSize, numKernels, numNeurons, numLabels) :
     from nn.net import ClassifierNetwork
@@ -48,6 +47,7 @@ def createNetwork(inputSize, numKernels, numNeurons, numLabels) :
 if __name__ == '__main__' :
 
     parser = argparse.ArgumentParser()
+    addEarlyStop(parser)
     addLoggingParams(parser)
     parser.add_argument('--kernel', dest='kernel', type=int, default=6,
                         help='Number of Convolutional Kernels in each Layer.')

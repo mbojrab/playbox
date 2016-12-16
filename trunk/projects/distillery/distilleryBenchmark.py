@@ -1,4 +1,4 @@
-import argparse, os
+﻿import argparse, os
 
 from nn.net import TrainerNetwork
 from nn.contiguousLayer import ContiguousLayer
@@ -7,7 +7,8 @@ from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainSupervised
 
 from distill.net import DistilleryTrainer
-from nn.profiler import setupLogging, Profiler
+from builder.args import addLoggingParams, addSupDataParams, \
+                         addEarlyStop, setupLogging
 
 def createNetwork(inputSize, numKernels, numNeurons, numLabels) :
     from nn.net import ClassifierNetwork
@@ -50,45 +51,24 @@ def createNetwork(inputSize, numKernels, numNeurons, numLabels) :
 if __name__ == '__main__' :
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--log', dest='logfile', type=str, default=None,
-                        help='Specify log output file.')
-    parser.add_argument('--level', dest='level', default='INFO', type=str, 
-                        help='Log Level.')
-    parser.add_argument('--prof', dest='profile', type=str, 
-                        default='Application-Profiler.xml',
-                        help='Specify profile output file.')
+    addEarlyStop(parser)
+    addLoggingParams(parser)
     parser.add_argument('--kernel', dest='kernel', type=int, default=6,
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
                         help='Number of Neurons in Hidden Layer.')
-    parser.add_argument('--limit', dest='limit', type=int, default=5,
-                        help='Number of runs between validation checks.')
-    parser.add_argument('--stop', dest='stop', type=int, default=5,
-                        help='Number of inferior validation checks to end.')
     parser.add_argument('--softness', dest='softness', type=float, default=4.0,
                         help='Softness factor in softmax function.')
     parser.add_argument('--factor', dest='factor', type=float, default=0.8,
                         help='Factor of error coming from deep transfer.')
-    parser.add_argument('--holdout', dest='holdout', type=float, default=.05,
-                        help='Percent of data to be held out for testing.')
-    parser.add_argument('--batch', dest='batchSize', type=int, default=50,
-                        help='Batch size for training and test sets.')
-    parser.add_argument('--base', dest='base', type=str, default='./distillery',
-                        help='Base name of the network output and temp files.')
     parser.add_argument('--deep', dest='deep', type=str, default=None,
                         help='Synapse for the deep network to distill. This ' +
                         'network should be trained and ready.')
-    parser.add_argument('--syn', dest='synapse', type=str, default=None,
-                        help='Load from a previously saved network.')
-    parser.add_argument('data', help='Directory or pkl.gz file for the ' +
-                                     'training and test sets. This can be ' + 
-                                     'the location of a dark pickle.')
+    addSupDataParams(parserdistillery, 'distillery')
     options = parser.parse_args()
 
     # setup the logger
-    logName = 'distillery: ' + options.data
-    log = setupLogging(logName, options.level, options.logfile)
-    prof = Profiler(log=log, name=logName, profFile=options.profile)
+    log, prof = setupLogging(options, 'distillery')
 
     # create a random number generator for efficiency
     from numpy.random import RandomState
