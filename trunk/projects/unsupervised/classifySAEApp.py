@@ -71,9 +71,7 @@ if __name__ == '__main__' :
     options = parser.parse_args()
 
     # setup the logger
-    logName = 'SAE-Classification Benchmark:  ' + options.data
-    log = setupLogging(logName, options.level, options.logfile)
-    prof = Profiler(log=log, name=logName, profFile=options.profile)
+    log, prof = setupLogging(options, 'SAE-Classification Benchmark')
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
