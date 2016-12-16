@@ -1,4 +1,4 @@
-import argparse
+﻿import argparse
 from dataset.ingest.labeled import ingestImagery
 from nn.profiler import setupLogging, Profiler
 
@@ -38,7 +38,7 @@ def sortDataset(netList, imagery, percentile=.95, debug=False) :
 
     # dump the ranked result as a series of batches
     if debug :
-        newNumBatch = math.ceil(numImages / batchSize)
+        newNumBatch = int(math.ceil(numImages / batchSize))
         newFlatShape = [newNumBatch * batchSize] + list(imagery.shape[-3:])
         newBatchShape = [newNumBatch, batchSize] + list(imagery.shape[-3:])
         dimdiff = tuple([(0, a - b) for a, b in zip(newFlatShape,
