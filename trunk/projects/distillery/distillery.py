@@ -1,7 +1,7 @@
 ﻿import argparse, os
 import numpy as np
-from builder.args import addLoggingParams, setupLogging, \
-                         addEarlyStop, addSupDataParams
+from builder.args import addLoggingParams, addEarlyStop, addSupDataParams
+from builder.profiler import setupLogging
 
 from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer

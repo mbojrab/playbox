@@ -1,6 +1,7 @@
 ﻿import os
 import argparse
-from builder.args import addLoggingParams, setupLogging
+from builder.args import addLoggingParams
+from builder.profiler import setupLogging
 from dataset.hdf5 import archiveDirToHDF5
 
 if __name__ == '__main__' :

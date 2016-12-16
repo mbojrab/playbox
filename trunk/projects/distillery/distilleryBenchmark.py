@@ -7,8 +7,8 @@ from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainSupervised
 
 from distill.net import DistilleryTrainer
-from builder.args import addLoggingParams, addSupDataParams, \
-                         addEarlyStop, setupLogging
+from builder.args import addLoggingParams, addSupDataParams, addEarlyStop
+from builder.profiler import setupLogging
 
 def createNetwork(inputSize, numKernels, numNeurons, numLabels) :
     from nn.net import ClassifierNetwork
@@ -64,7 +64,7 @@ if __name__ == '__main__' :
     parser.add_argument('--deep', dest='deep', type=str, default=None,
                         help='Synapse for the deep network to distill. This ' +
                         'network should be trained and ready.')
-    addSupDataParams(parserdistillery, 'distillery')
+    addSupDataParams(parser, 'distillery')
     options = parser.parse_args()
 
     # setup the logger

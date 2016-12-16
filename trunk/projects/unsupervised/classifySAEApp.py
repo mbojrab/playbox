@@ -1,6 +1,7 @@
 ﻿import argparse
 from dataset.ingest.labeled import ingestImagery
-from builder.args import addLoggingParams, addUnsupDataParams, setupLogging
+from builder.args import addLoggingParams, addUnsupDataParams
+from builder.profiler import setupLogging
 
 def createNetworks(target, netFiles, prof) :
     '''Read and create each network initialized with the target dataset.'''

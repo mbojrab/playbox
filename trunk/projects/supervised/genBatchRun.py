@@ -1,7 +1,7 @@
 ﻿import sys
 import argparse
-from builder.args import addLoggingParams, addEarlyStop, \
-                         addSupDataParams, setupLogging
+from builder.args import addLoggingParams, addEarlyStop, addSupDataParams
+from builder.profiler import setupLogging
 import numpy as np
 
 '''This is a simple batch generator for lenet5Trainer.py. All tweak-able values

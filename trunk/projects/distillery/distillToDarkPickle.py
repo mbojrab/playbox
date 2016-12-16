@@ -9,7 +9,8 @@ from dataset.ingest.distill import distillKnowledge
 '''
 if __name__ == '__main__' :
     import argparse
-    from builder.args import addLoggingParams, addSupDataParams, setupLogging
+    from builder.args import addLoggingParams, addSupDataParams
+    from builder.profiler import setupLogging
 
     parser = argparse.ArgumentParser()
     addLoggingParams(parser)

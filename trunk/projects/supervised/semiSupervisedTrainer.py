@@ -1,8 +1,8 @@
 ﻿import numpy as np
 import argparse
 from time import time
-from builder.args import addLoggingParams, setupLogging, addEarlyStop, \
-                         addSupDataParams
+from builder.args import addLoggingParams, addEarlyStop, addSupDataParams
+from builder.profiler import setupLogging
 
 from ae.net import TrainerSAENetwork
 from ae.contiguousAE import ContiguousAutoEncoder

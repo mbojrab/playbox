@@ -1,5 +1,5 @@
 from ae.net import TrainerSAENetwork, ClassifierSAENetwork
-from builder.args import setupLogging
+from builder.profiler import setupLogging
 from builder.sae import setupCommandLine, buildNetwork
 from dataset.ingest.labeled import ingestImagery
 from nn.trainUtils import trainUnsupervised

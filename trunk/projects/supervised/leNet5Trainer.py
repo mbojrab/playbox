@@ -8,8 +8,8 @@ from nn.net import TrainerNetwork as Net
 from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer
 from dataset.ingest.labeled import ingestImagery
-from builder.args import addLoggingParams, addSupDataParams, \
-                         addEarlyStop, setupLogging
+from builder.args import addLoggingParams, addSupDataParams, addEarlyStop
+from builder.profiler import setupLogging
 from nn.trainUtils import trainSupervised
 from dataset.shared import getShape
 

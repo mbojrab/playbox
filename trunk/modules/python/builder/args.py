@@ -103,31 +103,3 @@ def addUnsupContiguousParams(parser) :
                         default=[],
                         help='Force the output to be sparse for stronger '
                              'pattern extraction on Fully-Connected Layers.')
-
-def setupLogging (options, appName) :
-    '''Grab the logger and parser from the options.'''
-    import logging
-    from builder.profiler import Profiler
-
-    logName = appName + ': ' + options.data
-
-    # setup the logger
-    log = logging.getLogger(logName)
-    log.setLevel(options.level.upper())
-    formatter = logging.Formatter('%(levelname)s - %(message)s')
-    stream = logging.StreamHandler()
-    stream.setLevel(options.level.upper())
-    stream.setFormatter(formatter)
-    log.addHandler(stream)
-
-    # attach it to a file -- if requested
-    if options.logfile is not None :
-        logFile = logging.FileHandler(options.logfile)
-        logFile.setLevel(options.level.upper())
-        logFile.setFormatter(formatter)
-        log.addHandler(logFile)
-
-    # setup the profiler
-    prof = Profiler(log=log, name=logName, profFile=options.profile)
-
-    return log, prof
