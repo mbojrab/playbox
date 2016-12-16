@@ -12,6 +12,9 @@ class AutoEncoder () :
     def getUpdates(self) :
         raise NotImplementedError('Implement the getUpdates() method')
 
+    def getCostLabels() :
+        raise NotImplementedError('Implement the getCostLabels() method')
+
     # DEBUG: For Debugging purposes only
     def saveReconstruction(self, image, ii) :
         from dataset.debugger import saveNormalizedImage
