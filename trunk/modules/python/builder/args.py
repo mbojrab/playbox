@@ -107,7 +107,7 @@ def addUnsupContiguousParams(parser) :
 def setupLogging (options, appName) :
     '''Grab the logger and parser from the options.'''
     import logging
-    from nn.profiler import Profiler
+    from builder.profiler import Profiler
 
     logName = appName + ': ' + options.data
 
