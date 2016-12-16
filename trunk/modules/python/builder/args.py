@@ -13,12 +13,13 @@ def addLoggingParams (parser) :
 
 def addEarlyStop (parser) :
     '''Setup common early stoppage parameters.'''
+    import numpy as np
     parser.add_argument('--limit', dest='limit', type=int, default=2,
                         help='Number of runs between validation checks.')
     parser.add_argument('--stop', dest='stop', type=int, default=5,
                         help='Number of inferior validation checks to end.')
     parser.add_argument('--epoch', dest='epoch', type=float, default=np.inf,
-                        help='Maximum number of runs per layer')
+                        help='Maximum number of runs per Layer/Network.')
 
 def addSupDataParams (parser, base) :
     '''Setup common dataset parameters for supervised learning.'''
@@ -31,11 +32,10 @@ def addSupDataParams (parser, base) :
     parser.add_argument('--syn', dest='synapse', type=str, default=None,
                         help='Load from a previously saved network.')
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
-                                     'training and test sets')
+                                     'training and test sets.')
 
 def addUnsupDataParams (parser, base) :
     '''Setup common dataset parameters for unsupervised learning.'''
-    import numpy as np
     addSupDataParams(parser, base)
     parser.add_argument('--target', dest='targetDir', type=str, required=True,
                         help='Directory with target data to match.')
@@ -44,13 +44,13 @@ def addSupConvolutionalParams(parser) :
     '''Setup common ConvolutionalLayer options.'''
     parser.add_argument('--kernel', dest='kernel', type=int, nargs='+',
                         default=[],
-                        help='Number of Convolutional Kernels in each Layer.')
+                        help='Number of kernels on Convolutional Layers.')
     parser.add_argument('--kernelSize', dest='kernelSize', type=int, nargs='+',
                         default=[],
-                        help='Size of Convolutional Kernels in each Layer.')
+                        help='Size of kernels on Convolutional Layers.')
     parser.add_argument('--downsample', dest='downsample', type=int, nargs='+',
                         default=[],
-                        help='Downsample factor in each Convolutional Layer.')
+                        help='Downsample factor on Convolutional Layers.')
     parser.add_argument('--learnC', dest='learnC', type=float, nargs='+',
                         default=[],
                         help='Rate of learning on Convolutional Layers.')
@@ -79,7 +79,7 @@ def addSupContiguousParams(parser) :
     '''Setup common ContiguousLayer options.'''
     parser.add_argument('--neuron', dest='neuron', type=int, nargs='+',
                         default=[500, 300, 100],
-                        help='Number of Neurons in Hidden Layer.')
+                        help='Number of neurons on Fully-Connected Layers.')
     parser.add_argument('--learnF', dest='learnF', type=float, nargs='+',
                         default=[.02, .02, .02],
                         help='Rate of learning on Fully-Connected Layers.')
@@ -88,7 +88,7 @@ def addSupContiguousParams(parser) :
                         help='Rate of momentum on Fully-Connected Layers.')
     parser.add_argument('--dropoutF', dest='dropoutF', type=float, nargs='+',
                         default=[0.5, 0.5, 1],
-                        help='Dropout amount for the Fully-Connected Layer.')
+                        help='Dropout amount on Fully-Connected Layer.')
     parser.add_argument('--regTypeF', dest='regTypeF', type=str, 
                         default='L2', help='Type of regularization on ' \
                                            'Fully-Connected Layers.')
