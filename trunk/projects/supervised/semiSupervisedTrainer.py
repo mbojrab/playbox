@@ -1,7 +1,8 @@
-import numpy as np
+﻿import numpy as np
 import argparse
 from time import time
-from builder.args import addLoggingParams, setupLogging
+from builder.args import addLoggingParams, setupLogging, addEarlyStop, \
+                         addSupDataParams
 
 from ae.net import TrainerSAENetwork
 from ae.contiguousAE import ContiguousAutoEncoder
@@ -40,25 +41,8 @@ if __name__ == '__main__' :
                         help='Number of Convolutional Kernels in each Layer.')
     parser.add_argument('--neuron', dest='neuron', type=int, default=120,
                         help='Number of Neurons in Hidden Layer.')
-    parser.add_argument('--epoch', dest='numEpochs', type=int, default=15,
-                        help='Number of epochs to run per layer during ' +
-                             'unsupervised pre-training.')
-    parser.add_argument('--limit', dest='limit', type=int, default=5,
-                        help='Number of runs between validation checks ' +
-                             'during supervised learning.')
-    parser.add_argument('--stop', dest='stop', type=int, default=5,
-                        help='Number of inferior validation checks to end ' +
-                             'the supervised learning session.')
-    parser.add_argument('--holdout', dest='holdout', type=float, default=.05,
-                        help='Percent of data to be held out for testing.')
-    parser.add_argument('--batch', dest='batchSize', type=int, default=5,
-                        help='Batch size for training and test sets.')
-    parser.add_argument('--base', dest='base', type=str, default='./leNet5',
-                        help='Base name of the network output and temp files.')
-    parser.add_argument('--syn', dest='synapse', type=str, default=None,
-                        help='Load from a previously saved network.')
-    parser.add_argument('data', help='Directory or pkl.gz file for the ' +
-                                     'training and test sets')
+    addEarlyStop(parser)
+    addSupDataParams(parser, 'leNet5')
     options = parser.parse_args()
 
     # setup the logger

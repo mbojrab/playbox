@@ -1,6 +1,6 @@
-import argparse
+﻿import argparse
 from dataset.ingest.labeled import ingestImagery
-from nn.profiler import setupLogging, Profiler
+from builder.args import addLoggingParams, addUnsupDataParams, setupLogging
 
 def createNetworks(target, netFiles, prof) :
     '''Read and create each network initialized with the target dataset.'''
@@ -61,27 +61,13 @@ if __name__ == '__main__' :
        reorders the chips according to the most likeness to the target set.
     '''
     parser = argparse.ArgumentParser()
-    parser.add_argument('--log', dest='logfile', type=str, default=None,
-                        help='Specify log output file.')
-    parser.add_argument('--level', dest='level', default='INFO', type=str, 
-                        help='Log Level.')
-    parser.add_argument('--prof', dest='profile', type=str, 
-                        default='Application-Profiler.xml',
-                        help='Specify profile output file.')
-    parser.add_argument('--batch', dest='batchSize', type=int, default=100,
-                        help='Batch size for training and test sets.')
-    parser.add_argument('--base', dest='base', type=str, default='./saeClass',
-                        help='Base name of the network output and temp files.')
-    parser.add_argument('--target', dest='targetDir', type=str, required=True,
-                        help='Directory with target data to match.')
+    addLoggingParams(parser)
+    addUnsupDataParams(parser, 'saeClass')
     parser.add_argument('--percentile', dest='percentile', type=float,
                         default=.95, help='Keep the top percentile of ' +
                         'information corresponding to the most likely matches')
-    parser.add_argument('--syn', dest='synapse', type=str, nargs='+',
-                        help='Load from a previously saved network.')
     parser.add_argument('--debug', dest='debug', type=bool, required=False,
                         help='Drop debugging information about the runs.')
-    parser.add_argument('data', help='Directory of input imagery.')
     options = parser.parse_args()
 
     # setup the logger
@@ -92,7 +78,9 @@ if __name__ == '__main__' :
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
     train, test, labels = ingestImagery(filepath=options.data, shared=True,
-                                        batchSize=options.batchSize, log=log)
+                                        batchSize=options.batchSize,
+                                        holdoutPercentage=options.holdout,
+                                        log=log)
 
     # load all networks initialized to the target imagery
     nets = createNetworks(options.targetDir, options.synapse, prof)

@@ -1,6 +1,7 @@
-import sys
+﻿import sys
 import argparse
-from nn.profiler import setupLogging
+from builder.args import addLoggingParams, addEarlyStop, \
+                         addSupDataParams, setupLogging
 import numpy as np
 
 '''This is a simple batch generator for lenet5Trainer.py. All tweak-able values
@@ -9,10 +10,7 @@ import numpy as np
 '''
 if __name__ == '__main__' :
     parser = argparse.ArgumentParser()
-    parser.add_argument('--log', dest='logfile', type=str, default=None,
-                        help='Specify log output file.')
-    parser.add_argument('--level', dest='level', default='INFO', type=str, 
-                        help='Log Level.')
+    addLoggingParams(parser)
     parser.add_argument('--learnC', dest='learnC', type=float, nargs='+', 
                         default=[.1,1,.25],
                         help='Rate of learning on Convolutional Layers.')
@@ -34,25 +32,12 @@ if __name__ == '__main__' :
     parser.add_argument('--neuron', dest='neuron', type=int, nargs='+', 
                         default=[200,500,150],
                         help='Number of Neurons in Hidden Layer.')
-    parser.add_argument('--limit', dest='limit', type=int, nargs='+', 
-                        default=[2],
-                        help='Number of runs between validation checks.')
-    parser.add_argument('--stop', dest='stop', type=int, nargs='+', 
-                        default=[20],
-                        help='Number of inferior validation checks to end.')
-    parser.add_argument('--batch', dest='batchSize', type=int, nargs='+', 
-                        default=[10,60,20],
-                        help='Batch size for training and test sets.')
-    parser.add_argument('--syn', dest='synapse', type=str, default=None,
-                        help='Load from a previously saved network.')
-    parser.add_argument('--data', type=str, default=None,
-                        help='Directory or pkl.gz file for the training ' + \
-                             'and test sets')
+    addEarlyStop(parser)
+    addSupDataParams(parser, 'batchGen')
     options = parser.parse_args()
 
     # setup the logger
-    logName = 'batchGen: ' + str(options.data)
-    log = setupLogging(logName, options.level, options.logfile)
+    log, prof = setupLogging(options, 'batchGen')
 
     def genSteps(args) :
         '''Generate the range specified by the user.'''
