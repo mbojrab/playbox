@@ -1,4 +1,4 @@
-import os
+﻿import os
 import numpy as np
 import theano.tensor as t
 
@@ -135,7 +135,8 @@ def readDataset(h5Dataset, rootpath, data, dataShape,
     # join the threads and complete
     workQueueData.join()
 
-def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
+def readAndDivideData(path, holdoutPercentage,
+                      minTest=5, saveLabels=True, log=None) :
     '''This walks the directory structure and divides the data according to the
        user specified holdout over two "train" and "test" sets.
     '''
@@ -151,7 +152,7 @@ def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
     # holdout set.
     train, test, labels = [], [], []
     for root, dirs, files in walk(path) :
-        if root == path :
+        if saveLabels and root == path :
             continue
         if len(files) == 0 :
             if log is not None :
@@ -180,9 +181,10 @@ def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
         suffix = mostCommonExt(files, samplesize=50)
 
         # prepare the data
+        package = lambda p, ii : (p, ii) if saveLabels else p
         items = np.asarray(
-            [(os.path.join(root, file), indx) for file in files
-                if file.endswith(suffix)],
+            [package(os.path.join(root, file), indx) for file in files
+                     if file.endswith(suffix)],
             dtype=np.object)
         naiveShuffle(items)
 
@@ -204,7 +206,7 @@ def readAndDivideData(path, holdoutPercentage, minTest=5, log=None) :
     return train, test, labels
 
 def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
-                batchSize=1, log=None) :
+                batchSize=1, saveLabels=True, log=None) :
     '''Create a hdf5 file out of a directory structure. The directory structure
        is assumed to be a series of directories, each contains imagery assigned
        the label of the directory name.
@@ -220,16 +222,17 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     import multiprocessing
     from six.moves import queue
     from dataset.reader import getImageDims, mostCommon
-    from dataset.hdf5 import createHDF5Labeled
+    from dataset.hdf5 import createHDF5Labeled, createHDF5Unlabeled
 
     rootpath = os.path.abspath(filepath)
     outDir = rootpath if os.path.isdir(rootpath) \
              else os.path.dirname(rootpath)
+    unlabeledStr = '' if saveLabels else 'un'
     outputFile = os.path.join(
         outDir, 
         os.path.splitext(os.path.basename(rootpath))[0] + 
-        '_labeled_holdout_' + str(holdoutPercentage) +
-        '_batch_' + str(batchSize) + '.hdf5')
+        '_' + unlabeledStr + 'labeled_holdout_' +
+        str(holdoutPercentage) + '_batch_' + str(batchSize) + '.hdf5')
     if os.path.exists(outputFile) :
         if log is not None :
             log.info('HDF5 exists for this dataset [' + outputFile +
@@ -254,8 +257,10 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     if os.path.isdir(trainDir) and os.path.isdir(testDir) :
 
         # run each directory to grab the imagery
-        trainSet = readAndDivideData(trainDir, 0., 0, log)
-        testSet = readAndDivideData(testDir, 1., 0, log)
+        trainSet = readAndDivideData(trainDir, 0., minTest=0,
+                                     saveLabels=saveLabels, log=log)
+        testSet = readAndDivideData(testDir, 1., minTest=0,
+                                    saveLabels=saveLabels, log=log)
 
         # verify the labels overlap
         for label in testSet[-1] :
@@ -268,8 +273,9 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
 
     else :
         # split the data according to the user-provided holdout
-        train, test, labels = readAndDivideData(rootpath, holdoutPercentage,
-                                                minTest, log)
+        train, test, labels = readAndDivideData(
+                rootpath, holdoutPercentage, minTest=minTest,
+                saveLabels=saveLabels, log=log)
 
     if len(train) == 0 :
         raise ValueError('No training examples found [' + filepath + ']')
@@ -282,7 +288,7 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     # Sample the directory for a probable chip size
     imageShape = list(mostCommon(
         [t[0] for t in train],
-        lambda f: __readProcessData(rootpath, f, log).shape,
+        lambda f : __readProcessData(rootpath, f, log).shape,
         sampleSize=50))
 
     # Compute dataset shapes
@@ -303,34 +309,44 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
         raise ValueError('No testing batches available. Consider reducing '
                          'batchSize or adding more examples.')
 
-    [handleH5, trainDataH5, trainIndicesH5, 
-     testDataH5, testIndicesH5, labelsH5] = \
-        createHDF5Labeled (outputFile, 
-                           trainShape, theano.config.floatX, np.int32,
-                           testShape, theano.config.floatX, np.int32,
-                           len(labels), log)
-
     if log is not None :
         log.info('Writing data to HDF5')
 
-    # populate the indice buffers
-    workQueueIndices = queue.Queue()
-    workQueueIndices.put((trainIndicesH5, trainIndicesH5, train))
-    workQueueIndices.put((testIndicesH5, testIndicesH5, test))
+    if saveLabels :
+        [handleH5, trainDataH5, trainIndicesH5, 
+         testDataH5, testIndicesH5, labelsH5] = \
+            createHDF5Labeled (outputFile, 
+                               trainShape, theano.config.floatX, np.int32,
+                               testShape, theano.config.floatX, np.int32,
+                               len(labels), log)
 
-    # stream the indices into the buffers --
-    # we are threading this for efficiency
-    def copyIndices() :
-        while True :
-            dataH5, indicesH5, data = workQueueIndices.get()
-            dataH5[:] = np.resize(np.asarray(data).flatten()[1::2],
-                                  indicesH5.shape).astype(np.int32)[:]
-            workQueueIndices.task_done()
-    for ii in range(2) :
-        thread = threading.Thread(target=copyIndices)
-        thread.daemon = True
-        thread.start()
-    workQueueIndices.join()
+        # populate the indice buffers
+        workQueueIndices = queue.Queue()
+        workQueueIndices.put((trainIndicesH5, trainIndicesH5, train))
+        workQueueIndices.put((testIndicesH5, testIndicesH5, test))
+
+        # stream the indices into the buffers --
+        # we are threading this for efficiency
+        def copyIndices() :
+            while True :
+                dataH5, indicesH5, data = workQueueIndices.get()
+                dataH5[:] = np.resize(np.asarray(data).flatten()[1::2],
+                                      indicesH5.shape).astype(np.int32)[:]
+                workQueueIndices.task_done()
+        for ii in range(2) :
+            thread = threading.Thread(target=copyIndices)
+            thread.daemon = True
+            thread.start()
+        workQueueIndices.join()
+
+        # stream in the label in string form
+        labelsH5[:] = labels[:]
+
+    else :
+        [handleH5, trainDataH5, testDataH5] = \
+            createHDF5Unlabeled (outputFile, 
+                                 trainShape, theano.config.floatX, 
+                                 testShape, theano.config.floatX, log)
 
     # read the image data
     threads = multiprocessing.cpu_count()
@@ -338,9 +354,6 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
                 batchSize, threads, log)
     readDataset(testDataH5, rootpath, test, testShape, 
                 batchSize, threads, log)
-
-    # stream in the label in string form
-    labelsH5[:] = labels[:]
 
     if log is not None :
         log.info('Flushing to disk')
