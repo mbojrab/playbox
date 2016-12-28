@@ -1,8 +1,9 @@
-import os
+﻿import os
 import h5py
 import numpy as np
 
 def createHDF5Unlabeled (outputFile, trainDataShape, trainDataDtype,
+                         testDataShape, testDataDtype, 
                          trainMaxShape=None, log=None) :
     '''Utility to create the HDF5 file and return the handles. This allows
        users to fill out the buffers in a memory conscious manner.
@@ -11,6 +12,8 @@ def createHDF5Unlabeled (outputFile, trainDataShape, trainDataDtype,
                            either .h5 or .hdf5
        trainDataShape    : Training data dimensions 
        trainDataDtype    : Training data dtype
+       testDataShape     : Testing data dimensions 
+       testDataDtype     : Testing data dtype
        trainMaxShape     : Optionally specify a maxshape for the training set
        log               : Logger to use
     '''
@@ -24,12 +27,14 @@ def createHDF5Unlabeled (outputFile, trainDataShape, trainDataDtype,
     trainData = hdf5.create_dataset('train/data', shape=trainDataShape,
                                     dtype=trainDataDtype,
                                     maxshape=trainMaxShape)
+    testData = hdf5.create_dataset('test/data', shape=testDataShape,
+                                   dtype=testDataDtype)
 
     # TODO: Should we additionally have a test/data set to allow early
     #       stoppage? This will test the ability to reconstruct data 
     #       never before encountered. It's likely a better way to perform
     #       training instead of naive number of epochs.
-    return [hdf5, trainData]
+    return [hdf5, trainData, testData]
 
 
 def createHDF5Labeled (outputFile,
@@ -50,8 +55,9 @@ def createHDF5Labeled (outputFile,
        labelsShape       : Labels shape associated with indices
        log               : Logger to use
     '''
-    hdf5, trainData = createHDF5Unlabeled(outputFile, trainDataShape,
-                                          trainDataDtype, log=log)
+    hdf5, trainData, testData = createHDF5Unlabeled(
+        outputFile, trainDataShape, trainDataDtype,
+        testDataShape, testDataDtype, log=log)
 
     # supervised learning will have indices associated with the training data
     trainIndices = hdf5.create_dataset('train/indices',
@@ -59,8 +65,6 @@ def createHDF5Labeled (outputFile,
                                        dtype=trainIndicesDtype)
 
     # add testing data and indices
-    testData = hdf5.create_dataset('test/data', shape=testDataShape,
-                                   dtype=testDataDtype)
     testIndices = hdf5.create_dataset('test/indices',
                                       shape=tuple(testDataShape[:2]),
                                       dtype=testIndicesDtype)

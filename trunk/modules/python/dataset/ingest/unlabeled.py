@@ -1,4 +1,4 @@
-import os
+﻿import os
 import numpy as np
 
 def hdf5Dataset(filepaths, batchSize=1, log=None, chipFunc=None, **kwargs) :
@@ -50,7 +50,7 @@ def hdf5Dataset(filepaths, batchSize=1, log=None, chipFunc=None, **kwargs) :
     # HDF5 has the ability to be dynamically scaled. In this particular case
     # we don't know the number of files yet, especially if chipFunc was
     # specified, so this allows the file to scale to the appropriate size.
-    [handleH5, trainDataH5] = createHDF5Unlabeled(
+    [handleH5, trainDataH5, testDataH5] = createHDF5Unlabeled(
         outputFile, imageShape, np.float32, 
         tuple([None, None] + list(chipSize)), log)
 
