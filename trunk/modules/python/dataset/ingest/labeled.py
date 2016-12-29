@@ -215,6 +215,7 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
        holdoutPercentage : Percentage of the data to holdout for testing
        minTest           : Hard minimum on holdout if percentage is low
        batchSize         : Size of a mini-batch
+       saveLabels        : Specify that labels should be stored
        log               : Logger to use
     '''
     import theano
@@ -365,19 +366,25 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
     # return the output filename
     return outputFile
 
-def ingestImagery(filepath, shared=True, log=None, **kwargs) :
+def ingestImagery(filepath, shared=True, holdoutPercentage=.05, minTest=5,
+                  batchSize=1, saveLabels=True, log=None) :
     '''Load the labeled dataset into memory. This is formatted such that the
        directory structure becomes the labels, and all imagery within the 
        directory will be assigned this label. All images in any directory is
        required to have the same dimensions.
 
-       filepath : This can be a cPickle, a path to the directory structure.
-       shared   : Load data into shared variables for training --
-                  NOTE: this is only a user suggestion. However the size of the
-                        data will ultimately determine how its loaded.
-       log      : Logger for tracking the progress
-       kwargs   : Any parameters needed to override defaults in hdf5Dataset
-       return   :
+       filepath          : This can be a cPickle, a path to the directory
+                           structure.
+       shared            : Load data into shared variables for training --
+                           NOTE: this is only a user suggestion. However the
+                                 size of the data will ultimately determine
+                                 how its loaded.
+       holdoutPercentage : Percentage of the data to holdout for testing
+       minTest           : Hard minimum on holdout if percentage is low
+       batchSize         : Size of a mini-batch
+       saveLabels        : Specify that labels should be stored
+       log               : Logger for tracking the progress
+       return :
            Format -- 
            (trainData, trainLabel), (testData, testLabel), labels
 
@@ -410,7 +417,12 @@ def ingestImagery(filepath, shared=True, log=None, **kwargs) :
 
     # read the directory structure and pickle it up
     if testHDF5Preprocessed(filepath) :
-        filepath = hdf5Dataset(filepath, log=log, **kwargs)
+        filepath = hdf5Dataset(filepath=filepath, 
+                               holdoutPercentage=holdoutPercentage,
+                               minTest=minTest,
+                               batchSize=batchSize,
+                               saveLabels=saveLabels,
+                               log=log)
 
     # Load the dataset to memory
     train, test, labels = readHDF5(filepath, log)
