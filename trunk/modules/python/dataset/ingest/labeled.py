@@ -62,9 +62,13 @@ def checkAvailableMemory(dataMemoryConsumption, shared, log) :
 
     return shared
 
-def __readProcessData(rootpath, image, log=None) :
-    '''This function reads and preprocesss images residing in common
+def preprocessData(rootpath, image, log=None) :
+    '''This function reads and preprocesses images residing in common
        image formats or as datasets within HDF5.
+
+       NOTE: This handles both ingest from a file on disk or within
+             an HDF5 file representing the filesystem.
+
        rootpath : Path to HDF5 file or parent directory
        image    : Path to image. This is absolute path for imagery on
                   disk, and relative path when using HDF5.
@@ -81,10 +85,11 @@ def __readProcessData(rootpath, image, log=None) :
             image = image[:]
     return preProcImage(image, log)
 
-def readDataset(h5Dataset, rootpath, data, dataShape,
-                batchSize, threads, log) :
-    '''Read and shuffle the data into the preprocessed HDF5 file. This
-       supports reading from the filesystem and HDF5 filesystems natively.
+def populateDataHDF5(h5Dataset, rootpath, data, dataShape,
+                     batchSize, threads, log) :
+    '''Read and preprocess the data for use in network training.
+       This streams the data into the appropriate location of an
+       HDF5 file, such that it can be reused later.
 
        h5Dataset : HDF5 file handle to populate
        rootpath  : Parent directory or HDF5 where the files reside
@@ -119,7 +124,7 @@ def readDataset(h5Dataset, rootpath, data, dataShape,
             tmp = np.ndarray((imSize), theano.config.floatX)
             for ii, imFile in enumerate(imFiles) :
                 tmp[ii][:] = padImageData(
-                    __readProcessData(rootpath, imFile[0], log=log),
+                    preprocessData(rootpath, imFile[0], log=log),
                     imSize[-3:])[:]
             # write the whole batch at once
             h5[sliceIndex] = tmp[:]
@@ -139,6 +144,8 @@ def readAndDivideData(path, holdoutPercentage,
                       minTest=5, saveLabels=True, log=None) :
     '''This walks the directory structure and divides the data according to the
        user specified holdout over two "train" and "test" sets.
+
+       NOTE: For optimization this only stores the absolute path to the imagery
     '''
     from dataset.shuffle import naiveShuffle
     from dataset.reader import mostCommonExt
@@ -205,11 +212,13 @@ def readAndDivideData(path, holdoutPercentage,
 
     return train, test, labels
 
-def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
-                batchSize=1, saveLabels=True, log=None) :
-    '''Create a hdf5 file out of a directory structure. The directory structure
-       is assumed to be a series of directories, each contains imagery assigned
-       the label of the directory name.
+def writePreprocessedHDF5(filepath, holdoutPercentage=.05, minTest=5,
+                          batchSize=1, saveLabels=True, log=None) :
+    '''Divide the directory structure over training and testing sets. This
+       optionally stores the directory names at the labels and indices for
+       the dataset.
+
+       NOTE: This supports reading from a filesystem or HDF5
 
        filepath          : Top-level directory containing the label directories
        holdoutPercentage : Percentage of the data to holdout for testing
@@ -351,10 +360,10 @@ def hdf5Dataset(filepath, holdoutPercentage=.05, minTest=5,
 
     # read the image data
     threads = multiprocessing.cpu_count()
-    readDataset(trainDataH5, rootpath, train, trainShape,
-                batchSize, threads, log)
-    readDataset(testDataH5, rootpath, test, testShape, 
-                batchSize, threads, log)
+    populateDataHDF5(trainDataH5, rootpath, train, trainShape,
+                     batchSize, threads, log)
+    populateDataHDF5(testDataH5, rootpath, test, testShape, 
+                     batchSize, threads, log)
 
     if log is not None :
         log.info('Flushing to disk')
@@ -417,12 +426,12 @@ def ingestImagery(filepath, shared=True, holdoutPercentage=.05, minTest=5,
 
     # read the directory structure and pickle it up
     if testHDF5Preprocessed(filepath) :
-        filepath = hdf5Dataset(filepath=filepath, 
-                               holdoutPercentage=holdoutPercentage,
-                               minTest=minTest,
-                               batchSize=batchSize,
-                               saveLabels=saveLabels,
-                               log=log)
+        filepath = writePreprocessedHDF5(filepath=filepath, 
+                                         holdoutPercentage=holdoutPercentage,
+                                         minTest=minTest,
+                                         batchSize=batchSize,
+                                         saveLabels=saveLabels,
+                                         log=log)
 
     # Load the dataset to memory
     train, test, labels = readHDF5(filepath, log)
