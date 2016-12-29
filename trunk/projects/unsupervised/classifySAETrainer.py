@@ -1,7 +1,7 @@
-from ae.net import TrainerSAENetwork, ClassifierSAENetwork
+﻿from ae.net import TrainerSAENetwork, ClassifierSAENetwork
 from builder.profiler import setupLogging
 from builder.sae import setupCommandLine, buildNetwork
-from dataset.ingest.labeled import ingestImagery
+from dataset.ingest.unlabeled import ingestImagery
 from nn.trainUtils import trainUnsupervised
 from dataset.shared import getShape
 
@@ -27,7 +27,7 @@ def testCloseness(net, imagery) :
         saveTiledImage(sortedBatch, str(ii) + '_sorted.tif', imgDims)
 
 if __name__ == '__main__' :
-    '''Build and train an SAE, then test a '''
+    '''Build and train an SAE, then test against a target example.'''
     import numpy as np
     options = setupCommandLine()
 
@@ -36,15 +36,15 @@ if __name__ == '__main__' :
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
-    train, test, labels = ingestImagery(filepath=options.data, shared=True,
-                                        batchSize=options.batchSize, 
-                                        holdoutPercentage=options.holdout,
-                                        log=log)
+    train, test = ingestImagery(filepath=options.data, shared=True,
+                                batchSize=options.batchSize, 
+                                holdoutPercentage=options.holdout,
+                                log=log)
 
     # create the stacked network
     trainer = TrainerSAENetwork(train, test, options.synapse, prof)
     if options.synapse is None :
-        buildNetwork(trainer, getShape(train[0])[1:], options, prof=prof)
+        buildNetwork(trainer, getShape(train)[1:], options, prof=prof)
 
     # train the SAE
     trainUnsupervised(trainer, __file__, options.data, 
@@ -62,5 +62,5 @@ if __name__ == '__main__' :
     net = ClassifierSAENetwork(options.targetDir, options.synapse, prof)
 
     # test the training data for similarity to the target
-    testCloseness(net, test[0].get_value(borrow=True))
+    testCloseness(net, test.get_value(borrow=True))
 
