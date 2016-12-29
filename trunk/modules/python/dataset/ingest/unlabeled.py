@@ -24,13 +24,14 @@ def ingestImagery(filepath, shared=True, holdoutPercentage=.05, minTest=5,
     from dataset.shared import toShared
 
     # Load the dataset to memory
-    train, test = reuseableIngest(filepath=filepath,
-                                  shared=shared,
-                                  holdoutPercentage=holdoutPercentage,
-                                  minTest=minTest,
-                                  batchSize=batchSize,
-                                  saveLabels=False,
-                                  log=log)
+    train, test, labels = reuseableIngest(filepath=filepath,
+                                          shared=shared,
+                                          holdoutPercentage=holdoutPercentage,
+                                          minTest=minTest,
+                                          batchSize=batchSize,
+                                          saveLabels=False,
+                                          log=log)
+    train, test = train[0], test[0]
 
     # calculate the memory needed by this dataset
     floatsize = float(np.dtype(t.config.floatX).itemsize)
