@@ -1,5 +1,5 @@
 ﻿import argparse
-from dataset.ingest.labeled import ingestImagery
+from dataset.ingest.unlabeled import ingestImagery
 from builder.args import addLoggingParams, addUnsupDataParams
 from builder.profiler import setupLogging
 
@@ -76,14 +76,14 @@ if __name__ == '__main__' :
 
     # NOTE: The pickleDataset will silently use previously created pickles if
     #       one exists (for efficiency). So watch out for stale pickles!
-    train, test, labels = ingestImagery(filepath=options.data, shared=True,
-                                        batchSize=options.batchSize,
-                                        holdoutPercentage=options.holdout,
-                                        log=log)
+    train, test = ingestImagery(filepath=options.data, shared=True,
+                                batchSize=options.batchSize,
+                                holdoutPercentage=options.holdout,
+                                log=log)
 
     # load all networks initialized to the target imagery
     nets = createNetworks(options.targetDir, options.synapse, prof)
 
     # test the training data for similarity to the target
-    sortDataset(nets, test[0].get_value(borrow=True), 
+    sortDataset(nets, test.get_value(borrow=True), 
                 options.percentile, options.debug)
