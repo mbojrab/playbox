@@ -30,17 +30,22 @@ def ingestImagery(filepath, shared=True, holdoutPercentage=.05, minTest=5,
            TODO: Consider returning these as objects for more intuitive
                  indexing. For now numpy indexing is sufficient.
     '''
-    from dataset.ingest.preprocHDF5 import reuseableIngest
+    from dataset.ingest.preprocHDF5 import reuseableIngest, \
+                                           checkAvailableMemory
     from dataset.shared import splitToShared
 
     # Load the dataset to memory
     train, test, labels = reuseableIngest(filepath=filepath,
-                                          shared=shared,
                                           holdoutPercentage=holdoutPercentage,
                                           minTest=minTest,
                                           batchSize=batchSize,
                                           saveLabels=True,
                                           log=log)
+
+    # verify it has labels
+    if train[1] is None or test[1] is None or labels is None :
+        raise ValueError('Unlabeled HDF5 cannot be use for labeled ' +
+                         'processing [' + filepath + ']')
 
     # calculate the memory needed by this dataset
     floatsize = float(np.dtype(t.config.floatX).itemsize)

@@ -20,12 +20,12 @@ def ingestImagery(filepath, shared=True, holdoutPercentage=.05, minTest=5,
        log               : Logger for tracking the progress
        return : (trainData, testData)
     '''
-    from dataset.ingest.preprocHDF5 import reuseableIngest
+    from dataset.ingest.preprocHDF5 import reuseableIngest, \
+                                           checkAvailableMemory
     from dataset.shared import toShared
 
     # Load the dataset to memory
     train, test, labels = reuseableIngest(filepath=filepath,
-                                          shared=shared,
                                           holdoutPercentage=holdoutPercentage,
                                           minTest=minTest,
                                           batchSize=batchSize,
