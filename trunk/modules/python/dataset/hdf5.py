@@ -131,13 +131,11 @@ def readHDF5 (inFile, log=None) :
     hdf5 = h5py.File(inFile, mode='r')
 
     # read the available information
-    trainData = hdf5.get("train/data")
+    trainData = hdf5.get('train/data')
+    testData = hdf5.get('test/data')
     trainIndices = None
     if 'train/indices' in hdf5 :
         trainIndices = hdf5.get('train/indices')
-    testData = None
-    if 'test/data' in hdf5 :
-        testData = hdf5.get('test/data')
     testIndices = None
     if 'test/indices' in hdf5 :
         testIndices = hdf5.get('test/indices')
