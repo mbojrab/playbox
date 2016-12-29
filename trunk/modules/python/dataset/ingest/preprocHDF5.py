@@ -140,6 +140,12 @@ def populateDataHDF5(h5Dataset, rootpath, data, dataShape,
     # join the threads and complete
     workQueueData.join()
 
+
+def filterImagery (files) :
+    '''Only keep relavant files to the ingest.'''
+    return [x for x in files if '.hdf5' not in x and \
+                                '.pkl.gz' not in x]
+
 def readAndDivideData(path, holdoutPercentage,
                       minTest=5, saveLabels=True, log=None) :
     '''This walks the directory structure and divides the data according to the
@@ -159,8 +165,12 @@ def readAndDivideData(path, holdoutPercentage,
     # holdout set.
     train, test, labels = [], [], []
     for root, dirs, files in walk(path) :
+        # only in unsupervised learning do we inspect the top-level directory
         if saveLabels and root == path :
             continue
+
+        # filter out support files and check if there is ingestible imagery
+        files = filterImagery (files)
         if len(files) == 0 :
             if log is not None :
                 log.debug('No files found in [' + root + ']')
@@ -188,9 +198,8 @@ def readAndDivideData(path, holdoutPercentage,
         suffix = mostCommonExt(files, samplesize=50)
 
         # prepare the data
-        package = lambda p, ii : (p, ii) if saveLabels else p
         items = np.asarray(
-            [package(os.path.join(root, file), indx) for file in files
+            [(os.path.join(root, file), indx) for file in files
                      if file.endswith(suffix)],
             dtype=np.object)
         naiveShuffle(items)
@@ -298,7 +307,7 @@ def writePreprocessedHDF5(filepath, holdoutPercentage=.05, minTest=5,
     # Sample the directory for a probable chip size
     imageShape = list(mostCommon(
         [t[0] for t in train],
-        lambda f : __readProcessData(rootpath, f, log).shape,
+        lambda f : preprocessData(rootpath, f, log).shape,
         sampleSize=50))
 
     # Compute dataset shapes
@@ -356,7 +365,7 @@ def writePreprocessedHDF5(filepath, holdoutPercentage=.05, minTest=5,
         [handleH5, trainDataH5, testDataH5] = \
             createHDF5Unlabeled (outputFile, 
                                  trainShape, theano.config.floatX, 
-                                 testShape, theano.config.floatX, log)
+                                 testShape, theano.config.floatX, log=log)
 
     # read the image data
     threads = multiprocessing.cpu_count()
@@ -375,7 +384,7 @@ def writePreprocessedHDF5(filepath, holdoutPercentage=.05, minTest=5,
     # return the output filename
     return outputFile
 
-def reuseableIngest(filepath, shared=True, holdoutPercentage=.05, minTest=5,
+def reuseableIngest(filepath, holdoutPercentage=.05, minTest=5,
                     batchSize=1, saveLabels=True, log=None) :
     '''Load the labeled dataset into memory. This is formatted such that the
        directory structure becomes the labels, and all imagery within the 
