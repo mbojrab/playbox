@@ -375,8 +375,8 @@ def writePreprocessedHDF5(filepath, holdoutPercentage=.05, minTest=5,
     # return the output filename
     return outputFile
 
-def ingestImagery(filepath, shared=True, holdoutPercentage=.05, minTest=5,
-                  batchSize=1, saveLabels=True, log=None) :
+def reuseableIngest(filepath, shared=True, holdoutPercentage=.05, minTest=5,
+                    batchSize=1, saveLabels=True, log=None) :
     '''Load the labeled dataset into memory. This is formatted such that the
        directory structure becomes the labels, and all imagery within the 
        directory will be assigned this label. All images in any directory is
@@ -434,30 +434,4 @@ def ingestImagery(filepath, shared=True, holdoutPercentage=.05, minTest=5,
                                          log=log)
 
     # Load the dataset to memory
-    train, test, labels = readHDF5(filepath, log)
-
-    # calculate the memory needed by this dataset
-    floatsize = float(np.dtype(t.config.floatX).itemsize)
-    intsize = float(np.dtype(np.int32).itemsize)
-    dt = [floatsize, intsize, floatsize, intsize]
-    dataMemoryConsumption = \
-        np.prod(np.asarray(train[0].shape, dtype=np.float32)) * dt[0] + \
-        np.prod(np.asarray(train[1].shape, dtype=np.float32)) * dt[1] + \
-        np.prod(np.asarray(test[0].shape,  dtype=np.float32)) * dt[2] + \
-        np.prod(np.asarray(test[1].shape,  dtype=np.float32)) * dt[3]
-
-    # check physical memory constraints
-    shared = checkAvailableMemory(dataMemoryConsumption, shared, log)
-
-    # load each into shared variables -- 
-    # this avoids having to copy the data to the GPU between each call
-    if shared is True :
-        if log is not None :
-            log.debug('Transfer the memory into shared variables')
-        try :
-            tr = splitToShared(train)
-            te = splitToShared(test)
-            return tr, te, labels
-        except :
-            pass
-    return train, test, labels
+    return readHDF5(filepath, log)
