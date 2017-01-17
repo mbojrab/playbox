@@ -20,9 +20,6 @@ def load_data(label_mode='fine'):
     fpath = os.path.join(dirname, 'test')
     X_test, y_test = load_batch(fpath, label_key=label_mode+'_labels')
 
-    #y_train = np.reshape(y_train, (len(y_train), 1))
-    #y_test = np.reshape(y_test, (len(y_test), 1))
-
     labelNames = []
     fpath = os.path.join(dirname, 'meta')
     with open(fpath, 'rb') as f :
