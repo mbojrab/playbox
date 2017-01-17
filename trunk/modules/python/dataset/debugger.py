@@ -73,7 +73,7 @@ def saveTiledImage(image, path, imageShape, spacing=2,
 
     # write the image to disk
     if interleave :
-        Image.merge("RGB", (Image.fromarray(output[0]),
+        Image.merge('RGB', (Image.fromarray(output[0]),
                             Image.fromarray(output[1]),
                             Image.fromarray(output[2]))).save(path)
     else :
