@@ -50,11 +50,9 @@ if __name__ == '__main__' :
     trainUnsupervised(trainer, __file__, options.data, 
                       numEpochs=options.limit, stop=options.stop,
                       synapse=options.synapse, base=options.base,
-                      dropout=(options.dropoutC is not None and \
-                               len(options.dropoutC) > 0),
+                      kernel=options.kernel, neuron=options.neuron, 
                       learnC=options.learnC, learnF=options.learnF,
-                      contrF=None, kernel=options.kernel,
-                      neuron=options.neuron, maxEpoch=options.epoch, log=log)
+                      maxEpoch=options.epoch, log=log)
     trainer.save(tmpNet)
     options.synapse = tmpNet
 

@@ -1,8 +1,8 @@
-import os
+﻿import os
 import numpy as np
 from time import time
 from dataset.writer import buildPickleInterim, buildPickleFinal, \
-                           resumeEpoch, resumeLayer
+                           resumeEpoch, resumeLayer, resumeData
 from nn.net import TrainerNetwork
 
 def renameBestNetwork(lastSave, bestNetwork, log=None) :
@@ -16,9 +16,8 @@ def renameBestNetwork(lastSave, bestNetwork, log=None) :
     return bestNetwork
 
 def _train(network, appName, dataPath, numEpochs=5, stop=1,
-           synapse=None, base=None, dropout=None,
-           learnC=None, learnF=None, contrF=None, momentum=None,
-           kernel=None, neuron=None, numLayers=1, maxEpoch=np.inf,
+           synapse=None, base=None, kernel=None, neuron=None,
+           learnC=None, learnF=None, numLayers=1, maxEpoch=np.inf,
            log=None) :
     '''This trains a stacked autoencoder in a greedy layer-wise manner. This
        starts by train each layer in sequence for the specified number of
@@ -35,10 +34,12 @@ def _train(network, appName, dataPath, numEpochs=5, stop=1,
 
     globalEpoch = lastBest = resumeEpoch(synapse)
     resetLayer = resumeLayer(synapse)
+    if synapse is not None :
+        kernel, neuron, learnC, learnF = resumeData(synapse)
     lastSave = buildPickleInterim(
-        base=base, epoch=lastBest, dropout=dropout,
-        learnC=learnC, learnF=learnF, contrF=contrF,
-        momentum=momentum, kernel=kernel, neuron=neuron,
+        base=base, epoch=lastBest, 
+        kernel=kernel, neuron=neuron,
+        learnC=learnC, learnF=learnF, 
         layer=getLayer(resetLayer, network))
     if synapse is None :
         network.save(lastSave)
@@ -83,9 +84,9 @@ def _train(network, appName, dataPath, numEpochs=5, stop=1,
                 running = current
                 lastBest = globalEpoch
                 lastSave = buildPickleInterim(
-                    base=base, epoch=lastBest, dropout=dropout,
-                    learnC=learnC, learnF=learnF, contrF=contrF,
-                    momentum=momentum, kernel=kernel, neuron=neuron,
+                    base=base, epoch=lastBest, 
+                    kernel=kernel, neuron=neuron,
+                    learnC=learnC, learnF=learnF, 
                     layer=getLayer(layerIndex, network))
                 network.save(lastSave)
             else :
@@ -107,10 +108,8 @@ def _train(network, appName, dataPath, numEpochs=5, stop=1,
 
 
 def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=1,
-                      synapse=None, base=None, dropout=None,
-                      learnC=None, learnF=None, contrF=None, momentum=None,
-                      kernel=None, neuron=None, maxEpoch=np.inf,
-                      log=None) :
+                      synapse=None, base=None, kernel=None, neuron=None, 
+                      learnC=None, learnF=None, maxEpoch=np.inf, log=None) :
     '''This trains a stacked autoencoder in a greedy layer-wise manner. This
        starts by train each layer in sequence for the specified number of
        epochs, then returns the network. This can be used to initialize a
@@ -122,15 +121,12 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=1,
     '''
     _train(network=network, appName=appName, dataPath=dataPath,
            numEpochs=numEpochs, stop=stop, synapse=synapse, base=base,
-           dropout=dropout, learnC=learnC, learnF=learnF, contrF=contrF,
-           momentum=momentum, kernel=kernel, neuron=neuron,
+           kernel=kernel, neuron=neuron, learnC=learnC, learnF=learnF, 
            numLayers=network.getNumLayers(), maxEpoch=maxEpoch, log=log)
 
 def trainSupervised (network, appName, dataPath, numEpochs=5, stop=30,
-                     synapse=None, base=None, dropout=None,
-                     learnC=None, learnF=None, momentum=None,
-                     kernel=None, neuron=None, maxEpoch=np.inf,
-                     log=None) :
+                     synapse=None, base=None, kernel=None, neuron=None, 
+                     learnC=None, learnF=None, maxEpoch=np.inf, log=None) :
     '''This trains a Neural Network with early stoppage.
 
        network : StackedAENetwork to used for training
@@ -139,6 +135,5 @@ def trainSupervised (network, appName, dataPath, numEpochs=5, stop=30,
     '''
     _train(network=network, appName=appName, dataPath=dataPath,
            numEpochs=numEpochs, stop=stop, synapse=synapse, base=base,
-           dropout=dropout, learnC=learnC, learnF=learnF,
-           momentum=momentum, kernel=kernel, neuron=neuron,
+           kernel=kernel, neuron=neuron, learnC=learnC, learnF=learnF,
            maxEpoch=maxEpoch, log=log)

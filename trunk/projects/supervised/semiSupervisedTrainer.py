@@ -129,6 +129,5 @@ if __name__ == '__main__' :
     trainSupervised(network, __file__, options.data, 
                     numEpochs=options.limit, stop=options.stop, 
                     synapse=options.synapse, base=options.base, 
-                    dropout=options.dropout, learnC=options.learnC, 
-                    learnF=options.learnF, momentum=options.momentum, 
-                    kernel=options.kernel, neuron=options.neuron, log=log)
+                    kernel=options.kernel, neuron=options.neuron, 
+                    learnC=options.learnC, learnF=options.learnF, log=log)
