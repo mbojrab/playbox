@@ -105,13 +105,11 @@ if __name__ == '__main__' :
     bestNetwork = trainUnsupervised(network, __file__, options.data, 
                                     numEpochs=options.limit, stop=options.stop, 
                                     synapse=options.synapse, base=options.base, 
-                                    dropout=options.dropout, 
+                                    kernel=options.kernel, 
+                                    neuron=options.neuron, 
                                     learnC=options.learnC,
                                     learnF=options.learnF, 
-                                    contrF=options.contrF, 
-                                    momentum=options.momentum, 
-                                    kernel=options.kernel, 
-                                    neuron=options.neuron, log=log)
+                                    log=log)
 
     # translate into a neural network --
     # this transfers our unsupervised pre-training into a decent
