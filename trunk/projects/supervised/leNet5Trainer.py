@@ -1,4 +1,4 @@
-﻿import argparse
+import argparse
 import numpy as np
 import theano.tensor as t
 from time import time
