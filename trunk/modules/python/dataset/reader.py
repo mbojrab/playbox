@@ -2,7 +2,7 @@ import os
 import numpy as np
 import theano as t
 
-def mostCommon(arr, func, sampleSize=None) :
+def mostCommon (arr, func, sampleSize=None) :
     '''Identify the most common element of the series.'''
     from numpy.random import choice
     from collections import Counter
@@ -16,11 +16,11 @@ def mostCommon(arr, func, sampleSize=None) :
     counter = Counter([func(s) for s in arr])
     return counter.most_common()[0][0]
 
-def mostCommonExt(files, samplesize=None) :
+def mostCommonExt (files, samplesize=None) :
     '''Returns the most common extension in the set of names.'''
     return mostCommon(files, lambda f: os.path.splitext(f)[1], samplesize)
 
-def atleastND(imgData, nd) :
+def atleastND (imgData, nd) :
     '''Convert input to an n-d numpy array'''
     # NOTE: np.atleast_3d does not provide enough control,
     # so this is performed manually.

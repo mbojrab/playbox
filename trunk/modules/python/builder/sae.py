@@ -9,6 +9,7 @@ def setupCommandLine (base='saeNetwork') :
     '''
     import argparse
     from builder.args import addLoggingParams, \
+                             addDebuggingParams, \
                              addEarlyStop, \
                              addUnsupDataParams, \
                              addUnsupConvolutionalParams, \
@@ -17,6 +18,7 @@ def setupCommandLine (base='saeNetwork') :
     # setup the common command line options
     parser = argparse.ArgumentParser()
     addLoggingParams(parser)
+    addDebuggingParams(parser)
     addEarlyStop(parser)
     addUnsupDataParams(parser, base)
     addUnsupConvolutionalParams(parser)

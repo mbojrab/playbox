@@ -3,10 +3,10 @@ from dataset.ingest.labeled import ingestImagery
 from builder.args import addLoggingParams, addUnsupDataParams
 from builder.profiler import setupLogging
 
-def createNetworks(target, netFiles, prof) :
+def createNetworks(target, netFiles, prof, debug) :
     '''Read and create each network initialized with the target dataset.'''
     from ae.net import ClassifierSAENetwork
-    return [ClassifierSAENetwork(target, syn, prof) for syn in netFiles]
+    return [ClassifierSAENetwork(target, syn, prof, debug) for syn in netFiles]
 
 def sortDataset(netList, imagery, percentile=.95, debug=False) :
     '''Test the imagery for how close it is to the target data. This also sorts
@@ -82,7 +82,8 @@ if __name__ == '__main__' :
                                         log=log)
 
     # load all networks initialized to the target imagery
-    nets = createNetworks(options.targetDir, options.synapse, prof)
+    nets = createNetworks(options.targetDir, options.synapse, prof,
+                          options.debug)
 
     # test the training data for similarity to the target
     sortDataset(nets, test[0].get_value(borrow=True), 

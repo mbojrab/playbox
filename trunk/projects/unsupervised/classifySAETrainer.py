@@ -42,7 +42,9 @@ if __name__ == '__main__' :
                                         log=log)
 
     # create the stacked network
-    trainer = TrainerSAENetwork(train, test, options.synapse, prof)
+    print(options.debug)
+    trainer = TrainerSAENetwork(train, test, options.synapse, prof,
+                                options.debug)
     if options.synapse is None :
         buildNetwork(trainer, getShape(train[0])[1:], options, prof=prof)
 
@@ -59,7 +61,8 @@ if __name__ == '__main__' :
     options.synapse = tmpNet
 
     # train the SAE
-    net = ClassifierSAENetwork(options.targetDir, options.synapse, prof)
+    net = ClassifierSAENetwork(options.targetDir, options.synapse, prof,
+                               options.debug)
 
     # test the training data for similarity to the target
     testCloseness(net, test[0].get_value(borrow=True))
