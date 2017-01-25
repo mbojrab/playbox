@@ -1,7 +1,8 @@
 ﻿import numpy as np
 import argparse
 from time import time
-from builder.args import addLoggingParams, addEarlyStop, addSupDataParams
+from builder.args import addLoggingParams, addDebuggingParams, \
+                         addEarlyStop, addSupDataParams
 from builder.profiler import setupLogging
 
 from ae.net import TrainerSAENetwork
@@ -22,6 +23,7 @@ if __name__ == '__main__' :
        the weights to classify objects we select as important.
     '''
     parser = argparse.ArgumentParser()
+    addDebuggingParams(parser)
     addLoggingParams(parser)
     parser.add_argument('--learnC', dest='learnC', type=float, default=.0031,
                         help='Rate of learning on Convolutional Layers.')
@@ -61,7 +63,7 @@ if __name__ == '__main__' :
     trainShape = train[0].shape.eval()
 
     # create the stacked network -- LeNet-5 (minus the output layer)
-    network = TrainerSAENetwork(train, prof=prof)
+    network = TrainerSAENetwork(train, prof=prof, debug=options.debug)
 
     if options.synapse is not None :
         # load a previously saved network
@@ -114,8 +116,8 @@ if __name__ == '__main__' :
     # translate into a neural network --
     # this transfers our unsupervised pre-training into a decent
     # starting condition for our supervised learning
-    network = TrainerNetwork(train, test, labels,
-                             filepath=bestNetwork, prof=prof)
+    network = TrainerNetwork(train, test, labels, filepath=bestNetwork,
+                             prof=prof, debug=options.debug)
 
     # add the classification layer
     network.addLayer(ContiguousLayer(
