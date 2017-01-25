@@ -42,7 +42,6 @@ if __name__ == '__main__' :
                                 log=log)
 
     # create the stacked network
-    print(options.debug)
     trainer = TrainerSAENetwork(train, test, options.synapse, prof,
                                 options.debug)
     if options.synapse is None :
