@@ -5,11 +5,17 @@ def addLoggingParams (parser) :
     '''Setup common logging and profiler options.'''
     parser.add_argument('--log', dest='logfile', type=str, default=None,
                         help='Specify log output file.')
-    parser.add_argument('--level', dest='level', default='INFO', type=str, 
+    parser.add_argument('--level', dest='level', default='INFO', type=str,
                         help='Log Level.')
-    parser.add_argument('--prof', dest='profile', type=str, 
+    parser.add_argument('--prof', dest='profile', type=str,
                         default='Application-Profiler.xml',
                         help='Specify profile output file.')
+
+def addDebuggingParams (parser) :
+    '''Setup common debugging options.'''
+    parser.add_argument('--debug', dest='debug', default=False,
+                        action='store_true',
+                        help='Dump debugging information while processing.')
 
 def addEarlyStop (parser) :
     '''Setup common early stoppage parameters.'''

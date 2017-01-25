@@ -5,24 +5,28 @@ from dataset.pickle import writePickleZip, readPickleZip
 from dataset.shared import isShared, getShape
 
 class Network () :
-    def __init__ (self, prof=None) :
+    def __init__ (self, prof=None, debug=False) :
         self._profiler = prof
         self._layers = []
+        self._debug = debug
 
     def __getstate__(self) :
         '''Save network pickle'''
         dict = self.__dict__.copy()
         # remove the profiler as it is not robust to distributed processing
         dict['_profiler'] = None
+        dict['_debug'] = None
         return dict
 
     def __setstate__(self, dict) :
         '''Load network pickle'''
-        # use the current constructor-supplied profiler --
-        # this ensures the profiler is setup for the current system
-        tmp = self._profiler
+        # use the current constructor-supplied parameters --
+        # this ensures the network is setup for the current system
+        tmpProf = self._profiler
+        tmpDebug = self._debug
         self.__dict__.update(dict)
-        self._profiler = tmp
+        self._profiler = tmpProf
+        self._debug = tmpDebug
 
     def _startProfile(self, message, level) :
         '''Start a profile if the profiler exists.'''
@@ -137,9 +141,10 @@ class ClassifierNetwork (Network) :
        filepath    : Path to an already trained network on disk
                      'None' creates randomized weighting
        prof        : Profiler to use
+       debug       : Turn on debugging information
     '''
-    def __init__ (self, filepath=None, prof=None) :
-        Network.__init__(self, prof)
+    def __init__ (self, filepath=None, prof=None, debug=False) :
+        Network.__init__(self, prof, debug)
 
         # NOTE: this must be the last thing performed in init
         if filepath is not None :
@@ -240,9 +245,10 @@ class LabeledClassifierNetwork (ClassifierNetwork) :
        filepath    : Path to an already trained network on disk
                      'None' creates randomized weighting
        prof        : Profiler to use
+       debug       : Turn on debugging information
     '''
-    def __init__ (self, labels=None, filepath=None, prof=None) :
-        ClassifierNetwork.__init__(self, filepath, prof)
+    def __init__ (self, labels=None, filepath=None, prof=None, debug=False) :
+        ClassifierNetwork.__init__(self, filepath, prof, debug)
 
         # if we loaded a synapse use the labels from the pickle
         if filepath is None :
@@ -298,12 +304,13 @@ class TrainerNetwork (LabeledClassifierNetwork) :
        filepath : Path to an already trained network on disk
                   'None' creates randomized weighting
        prof     : Profiler to use
+       debug    : Turn on debugging information
     '''
     def __init__ (self, train, test, labels, regType='L2', regScaleFactor=0.,
-                  filepath=None, prof=None) :
+                  filepath=None, prof=None, debug=False) :
         from nn.reg import Regularization
         LabeledClassifierNetwork.__init__(self, labels, filepath=filepath,
-                                          prof=prof)
+                                          prof=prof, debug=debug)
         self._trainData, self._trainLabels = train
         self._testData, self._testLabels = test
 

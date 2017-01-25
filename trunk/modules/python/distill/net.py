@@ -15,9 +15,11 @@ class DistilleryClassifier(ClassifierNetwork) :
                      the output from softmax. A value of 1.0 return a standard
                      softmax result.
        prof        : Profiler to use
+       debug       : Turn on debugging information
     '''
-    def __init__ (self, filepath=None, softmaxTemp=4., prof=None) :
-        ClassifierNetwork.__init__(self, filepath, prof)
+    def __init__ (self, filepath=None, softmaxTemp=4., prof=None,
+                  debug=False) :
+        ClassifierNetwork.__init__(self, filepath, prof, debug)
         self._softmaxTemp = softmaxTemp
 
     def __getstate__(self) :
@@ -121,11 +123,13 @@ class DistilleryTrainer (TrainerNetwork) :
                      softmax result.
 
        prof     : Profiler to use
+       debug    : Turn on debugging information
     '''
     def __init__ (self, train, test, labels, regType='L2', regScaleFactor=0.,
-                  filepath=None, softmaxTemp=4., transFactor=0.8, prof=None) :
+                  filepath=None, softmaxTemp=4., transFactor=0.8, prof=None,
+                  debug=False) :
         TrainerNetwork.__init__(self, train[:2], test, labels, regType, 
-                                regScaleFactor, filepath, prof)
+                                regScaleFactor, filepath, prof, debug)
         self._trainKnowledge = train[2] if len(train) > 2 else None
         self._softmaxTemp = softmaxTemp
         self._transFactor = transFactor

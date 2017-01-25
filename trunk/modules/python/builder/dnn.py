@@ -16,6 +16,7 @@ def setupCommandLine (base='cnn') :
     '''
     import argparse
     from builder.args import addLoggingParams, \
+                             addDebuggingParams, \
                              addEarlyStop, \
                              addSupDataParams, \
                              addSupContiguousParams, \
@@ -24,6 +25,7 @@ def setupCommandLine (base='cnn') :
     # setup the common command line options
     parser = argparse.ArgumentParser()
     addLoggingParams(parser)
+    addDebuggingParams(parser)
     addEarlyStop(parser)
     addSupDataParams(parser, base)
     addSupConvolutionalParams(parser)
