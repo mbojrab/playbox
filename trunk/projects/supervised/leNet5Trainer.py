@@ -1,4 +1,4 @@
-﻿import argparse
+import argparse
 import numpy as np
 import theano.tensor as t
 from time import time
@@ -8,7 +8,8 @@ from nn.net import TrainerNetwork as Net
 from nn.contiguousLayer import ContiguousLayer
 from nn.convolutionalLayer import ConvolutionalLayer
 from dataset.ingest.labeled import ingestImagery
-from builder.args import addLoggingParams, addSupDataParams, addEarlyStop
+from builder.args import addLoggingParams, addDebuggingParams, \
+                         addSupDataParams, addEarlyStop
 from builder.profiler import setupLogging
 from nn.trainUtils import trainSupervised
 from dataset.shared import getShape
@@ -21,6 +22,7 @@ if __name__ == '__main__' :
 
     parser = argparse.ArgumentParser()
     addLoggingParams(parser)
+    addDebuggingParams(parser)
     parser.add_argument('--learnC', dest='learnC', type=float, default=.031,
                         help='Rate of learning on Convolutional Layers.')
     parser.add_argument('--learnF', dest='learnF', type=float, default=.015,
@@ -58,7 +60,7 @@ if __name__ == '__main__' :
     network = Net(train, test, labels, regType='L2', 
                   regScaleFactor=1. / (2 * options.kernel * 5 * 5 + 
                                        options.neuron + labels.shape[0]),
-                  prof=prof)
+                  prof=prof, debug=options.debug)
 
     if options.synapse is not None :
         # load a previously saved network
