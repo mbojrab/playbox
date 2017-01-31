@@ -474,45 +474,45 @@ class TrainerSAENetwork (SAENetwork) :
 
             self._endProfile()
 
-            # optionally dump debugging images
-            if self._debug :
-                from dataset.debugger import saveTiledImage
-                from dataset.shared import getShape
+        # optionally dump debugging images
+        if self._debug :
+            from dataset.debugger import saveTiledImage
+            from dataset.shared import getShape
 
-                # write the layer's reconstruction
-                reconstructedInput = self._layers[layerIndex].reconstruction(
-                    self._trainData.get_value(borrow=True)[0])
-                reconstructedInput = np.resize(
-                    reconstructedInput,
-                    getShape(self._layers[layerIndex].input[0]))
-                imageShape = getShape(self._layers[layerIndex].input[0])[-2:]
+            # write the layer's reconstruction
+            reconstructedInput = self._layers[layerIndex].reconstruction(
+                self._trainData.get_value(borrow=True)[0])
+            reconstructedInput = np.resize(
+                reconstructedInput,
+                getShape(self._layers[layerIndex].input[0]))
+            imageShape = getShape(self._layers[layerIndex].input[0])[-2:]
 
-                # reshape for fully-connected layers
-                tileShape = None
-                if len(self._layers[layerIndex].getInputSize()) == 2 and \
-                    len(getShape(self._layers[layerIndex].input[0])) == 2 :
-                    imageShape=(1, self._layers[layerIndex].getInputSize()[1])
-                    tileShape=(self._layers[layerIndex].getInputSize()[0], 1)
+            # reshape for fully-connected layers
+            tileShape = None
+            if len(self._layers[layerIndex].getInputSize()) == 2 and \
+                len(getShape(self._layers[layerIndex].input[0])) == 2 :
+                imageShape=(1, self._layers[layerIndex].getInputSize()[1])
+                tileShape=(self._layers[layerIndex].getInputSize()[0], 1)
 
-                self.writeWeights(layerIndex, globalEpoch + localEpoch)
-                saveTiledImage(image=reconstructedInput,
-                                path=self._layers[layerIndex].layerID +
-                                    '_reconstruction_' +
+            self.writeWeights(layerIndex, globalEpoch + localEpoch)
+            saveTiledImage(image=reconstructedInput,
+                            path=self._layers[layerIndex].layerID +
+                                '_reconstruction_' +
+                                str(globalEpoch+localEpoch) + '.png',
+                            imageShape=imageShape, tileShape=tileShape,
+                            spacing=1, interleave=True)
+
+            # write the sub-network's reconstruction
+            reconstructedInput = self.reconstruction[layerIndex](
+                self._trainData.get_value(borrow=True)[0])
+            imageShape = self._testData.shape.eval()[-2:]
+            reconstructedInput = np.resize(
+                reconstructedInput, self._testData.shape.eval()[-4:])
+            saveTiledImage(image=reconstructedInput,
+                            path='network_reconstruction_' +
                                     str(globalEpoch+localEpoch) + '.png',
-                                imageShape=imageShape, tileShape=tileShape,
-                                spacing=1, interleave=True)
-
-                # write the sub-network's reconstruction
-                reconstructedInput = self.reconstruction[layerIndex](
-                    self._trainData.get_value(borrow=True)[0])
-                imageShape = self._testData.shape.eval()[-2:]
-                reconstructedInput = np.resize(
-                    reconstructedInput, self._testData.shape.eval()[-4:])
-                saveTiledImage(image=reconstructedInput,
-                                path='network_reconstruction_' +
-                                        str(globalEpoch+localEpoch) + '.png',
-                                imageShape=imageShape, spacing=1,
-                                interleave=True)
+                            imageShape=imageShape, spacing=1,
+                            interleave=True)
 
         return globalEpoch + numEpochs, globCost
 
