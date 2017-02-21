@@ -35,8 +35,8 @@ def addSupDataParams (parser, base) :
                         help='Percent of data to be held out for testing.')
     parser.add_argument('--base', dest='base', type=str, default='./' + base,
                         help='Base name of the network output and temp files.')
-    parser.add_argument('--syn', dest='synapse', type=str, default=None,
-                        help='Load from a previously saved network.')
+    parser.add_argument('--syn', dest='synapse', type=str, default=None, 
+                        nargs='*',help='Load from a previously saved network.')
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
                                      'training and test sets.')
 
