@@ -27,8 +27,7 @@ def setupCommandLine (base='saeNetwork') :
     # parse the user-provided options
     return parser.parse_args()
 
-def addConvolutionalAE (network, inputSize, options, 
-                        regType='L2', regValue=.0001, rng=None, prof=None) :
+def addConvolutionalAE (network, inputSize, options, rng=None, prof=None) :
     '''Add ConvolutionalAE layers to the network and return it.'''
     from ae.convolutionalAE import ConvolutionalAutoEncoder
 
@@ -73,8 +72,7 @@ def addConvolutionalAE (network, inputSize, options,
         inputSize = network.getNetworkOutputSize()
 
 
-def addContiguousAE (network, inputSize, options, 
-                     regType='L2', regValue=.0001, rng=None, prof=None) :
+def addContiguousAE (network, inputSize, options, rng=None, prof=None) :
     '''Add ContiguousAE layers to the network and return it.'''
     import numpy as np
     from ae.contiguousAE import ContiguousAutoEncoder
