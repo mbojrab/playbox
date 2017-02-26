@@ -20,7 +20,7 @@ def setupCommandLine (base='saeNetwork', multiLoad=False) :
     addLoggingParams(parser)
     addDebuggingParams(parser)
     addEarlyStop(parser)
-    addUnsupDataParams(parser, base, multiLoad)
+    addUnsupDataParams(parser, base, multiLoad=multiLoad)
     addUnsupConvolutionalParams(parser)
     addUnsupContiguousParams(parser)
 
