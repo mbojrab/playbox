@@ -27,7 +27,7 @@ def addEarlyStop (parser) :
     parser.add_argument('--epoch', dest='epoch', type=float, default=np.inf,
                         help='Maximum number of runs per Layer/Network.')
 
-def addSupDataParams (parser, base) :
+def addSupDataParams (parser, base, multiLoad=False) :
     '''Setup common dataset parameters for supervised learning.'''
     parser.add_argument('--batch', dest='batchSize', type=int, default=100,
                         help='Batch size for training and test sets.')
@@ -35,14 +35,18 @@ def addSupDataParams (parser, base) :
                         help='Percent of data to be held out for testing.')
     parser.add_argument('--base', dest='base', type=str, default='./' + base,
                         help='Base name of the network output and temp files.')
-    parser.add_argument('--syn', dest='synapse', type=str, default=None, 
-                        nargs='*',help='Load from a previously saved network.')
+    if not multiLoad :
+        parser.add_argument('--syn', dest='synapse', type=str, default=None,
+                            help='Load from a previously saved network.')
+    else :
+        parser.add_argument('--syn', dest='synapse', type=str, default=[],
+                            nargs='*', help='Load one or more saved networks.')
     parser.add_argument('data', help='Directory or pkl.gz file for the ' +
                                      'training and test sets.')
 
-def addUnsupDataParams (parser, base) :
+def addUnsupDataParams (parser, base, multiLoad=False) :
     '''Setup common dataset parameters for unsupervised learning.'''
-    addSupDataParams(parser, base)
+    addSupDataParams(parser, base, multiLoad)
     parser.add_argument('--target', dest='targetDir', type=str, required=True,
                         help='Directory with target data to match.')
 

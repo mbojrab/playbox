@@ -31,10 +31,6 @@ if __name__ == '__main__' :
     import numpy as np
     options = setupCommandLine()
 
-    if isinstance(options, list) and len(options.synapse) > 1 :
-        raise ValueError('User cannot train starting with more ' +
-                         'than one synapse.')
-
     # setup the logger
     log, prof = setupLogging (options, 'SAE-Classification Benchmark')
 
@@ -54,7 +50,7 @@ if __name__ == '__main__' :
     # train the SAE
     trainUnsupervised(trainer, __file__, options.data, 
                       numEpochs=options.limit, stop=options.stop,
-                      synapse=options.synapse[0], base=options.base,
+                      synapse=options.synapse, base=options.base,
                       kernel=options.kernel, neuron=options.neuron, 
                       learnC=options.learnC, learnF=options.learnF,
                       maxEpoch=options.epoch, log=log)

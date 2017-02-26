@@ -3,7 +3,7 @@ from numpy.random import RandomState
 from time import time
 from builder.dnn import __addDefaults, __verifyLengths
 
-def setupCommandLine (base='saeNetwork') :
+def setupCommandLine (base='saeNetwork', multiLoad=False) :
     '''Create a argparser with the proper SAE command line parameters,
        and return the options class.
     '''
@@ -20,7 +20,7 @@ def setupCommandLine (base='saeNetwork') :
     addLoggingParams(parser)
     addDebuggingParams(parser)
     addEarlyStop(parser)
-    addUnsupDataParams(parser, base)
+    addUnsupDataParams(parser, base, multiLoad)
     addUnsupConvolutionalParams(parser)
     addUnsupContiguousParams(parser)
 
@@ -46,7 +46,7 @@ def addConvolutionalAE (network, inputSize, options, rng=None, prof=None) :
                      'downsample', 'kernel')
     __verifyLengths (options.learnC, options.kernel,
                      'learnC', 'kernel')
-    options.momentumC = __addDefaults(options.momentumC, .0, 
+    options.momentumC = __addDefaults(options.momentumC, .0,
                                       len(options.kernel))
     options.dropoutC = __addDefaults(options.dropoutC, 1.,
                                      len(options.kernel))
@@ -61,10 +61,10 @@ def addConvolutionalAE (network, inputSize, options, rng=None, prof=None) :
 
         # add a convolutional layer as defined
         network.addLayer(ConvolutionalAutoEncoder(
-            layerID='conv' + str(network.getNumLayers() + 1), 
+            layerID='conv' + str(network.getNumLayers() + 1),
             regType=options.regTypeC, contractionRate=options.regValueC,
             inputSize=inputSize, kernelSize=(k,inputSize[1],ks,ks),
-            downsampleFactor=[do,do], dropout=dr, 
+            downsampleFactor=[do,do], dropout=dr,
             learningRate=l, forceSparsity=sc, momentumRate=m,
             activation=t.nnet.sigmoid, randomNumGen=rng))
 

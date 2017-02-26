@@ -63,7 +63,7 @@ if __name__ == '__main__' :
     '''
     parser = argparse.ArgumentParser()
     addLoggingParams(parser)
-    addUnsupDataParams(parser, 'saeClass')
+    addUnsupDataParams(parser, 'saeClass', multiLoad=True)
     parser.add_argument('--percentile', dest='percentile', type=float,
                         default=.95, help='Keep the top percentile of ' +
                         'information corresponding to the most likely matches')
