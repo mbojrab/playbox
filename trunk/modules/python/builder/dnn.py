@@ -10,7 +10,7 @@ def __verifyLengths (param, ref, paramName, refName) :
         raise ValueError('Different number of parameters between [' + 
                          paramName + '] and [' + refName + ']')
 
-def setupCommandLine (base='cnn') :
+def setupCommandLine (base='cnn', multiLoad=False) :
     '''Create a argparser with the proper CNN command line parameters,
        and return the options class.
     '''
@@ -27,7 +27,7 @@ def setupCommandLine (base='cnn') :
     addLoggingParams(parser)
     addDebuggingParams(parser)
     addEarlyStop(parser)
-    addSupDataParams(parser, base)
+    addSupDataParams(parser, base, multiLoad=multiLoad)
     addSupConvolutionalParams(parser)
     addSupContiguousParams(parser)
 
