@@ -36,6 +36,8 @@ def checkAvailableMemory(dataMemoryConsumption, shared, log) :
         if log is not None :
             log.warn('Dataset is too large for CPU memory. Dataset will ' +
                      'be memory mapped and backed by disk IO.')
+            log.warn('Dataset is [' + str(dataMemoryConsumption * convertToGB) +
+                     'GBs but CPU only supports [' + str(availableCPUMem * convertToGB) + '] GBs')
         shared = False
 
     # if the user wants to use the GPU check if the dataset can be loaded 
@@ -56,8 +58,10 @@ def checkAvailableMemory(dataMemoryConsumption, shared, log) :
                           '] GBs available.')
         else :
             if log is not None :
-                log.warn('Dataset is too large for GPU memory. Dataset will ' + 
+                log.warn('Dataset is too large for GPU memory. Dataset will ' +
                          'be transferred over PCIe just-in-time. ')
+                log.warn('Dataset is [' + str(dataMemoryConsumption * convertToGB) +
+                         'GBs but GPU only supports [' + str(availableGPUMem * convertToGB) + '] GBs')
             shared = False
 
     return shared
