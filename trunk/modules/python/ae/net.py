@@ -87,23 +87,13 @@ class ClassifierSAENetwork (SAENetwork) :
        example input(s), which the network then uses to determine similities
        between the feature data and the provided input.
 
-       target   : Target data for network. This is the way to provide the 
-                  unsupervised learning algorithm with a means to perform
-                  classification.
-                  NOTE: This can either be an numpy.ndarray or a path to a
-                        directory of target images.
        filepath : Path to an already trained network on disk 
                   'None' creates randomized weighting
        prof     : Profiler to use
        debug    : Turn on debugging information
     '''
-    def __init__ (self, targetData, filepath=None, prof=None, debug=False) :
+    def __init__ (self, filepath=None, prof=None, debug=False) :
         SAENetwork.__init__(self, filepath, prof, debug)
-
-        # check if the data is currently in memory, if not read it
-        self._targetData = self.__readTargetData(targetData) \
-                           if isinstance(targetData, str) else \
-                           targetData
 
     def __getstate__(self) :
         '''Save network pickle'''
@@ -128,8 +118,14 @@ class ClassifierSAENetwork (SAENetwork) :
         if hasattr(self, '_targetData') : 
             self._targetData = tmp
 
-    def __readTargetData(self, targetpath) :
-        '''Read a directory of data to use as a feature matrix.'''
+    def __readTargetData(self, targetpath, maxTargets=-1) :
+        '''Read a directory of data to use as a feature matrix.
+
+           targetpath : Path to the target directory
+           maxTargets : Limit the number of targets loaded into the Feature
+                        Matrix. If -1 load the entire directory, else randomize
+                        the data loaded from the directory.
+        '''
         import os
         from dataset.minibatch import makeContiguous
         from dataset.reader import preProcImage
@@ -139,29 +135,26 @@ class ClassifierSAENetwork (SAENetwork) :
         return np.resize(targets, 
                          [targets.shape[0]] + list(targets.shape[-3:]))
 
-    def finalizeNetwork(self, networkInput) :
-        '''Setup the network based on the current network configuration.
-           This creates several network-wide functions so they will be
-           pre-compiled and optimized when we need them.
+    def updateFeatureMatrix(self, target, maxTargets=-1) :
+        '''Load new target imagery into the Feature Matrix.
+           target   : Target data for network. This is the way to provide the
+                      unsupervised learning algorithm with a means to perform
+                      classification.
+                      NOTE: This can either be an numpy.ndarray or a path to a
+                            directory of target images.
+           maxTargets : Limit the number of targets loaded into the Feature
+                        Matrix. If -1 load the entire directory, else randomize
+                        the data loaded from the directory.
         '''
-        from theano import dot, function
-        from dataset.shared import toShared
-        import numpy as np
+        from dataset.shared import toShared, getShape
 
-        if len(self._layers) == 0 :
-            raise IndexError('Network must have at least one layer' +
-                             'to call getNetworkInput().')
-
-        self._startProfile('Finalizing Network', 'info')
-
-        # disable the profiler temporarily so we don't get a second entry
-        tmp = self._profiler
-        self._profiler = None
-        SAENetwork.finalizeNetwork(self, networkInput)
-        self._profiler = tmp
+        # check if the data is currently in memory, if not read it
+        self._targetData = self.__readTargetData(target, maxTargets) \
+                           if isinstance(target, str) else \
+                           target
 
         # ensure targetData is at least one batchSize, otherwise enlarge
-        batchSize = networkInput.shape.eval()[0]
+        batchSize = getShape(networkInput)[0]
         numTargets = self._targetData.shape[0]
         if numTargets < batchSize :
             # add rows of zeros to fill out the rest of the batch
@@ -199,6 +192,26 @@ class ClassifierSAENetwork (SAENetwork) :
 
         # NOTE: this is the transpose to orient for matrix multiplication
         self._targetEncodings = toShared(enc, borrow=True).T
+
+    def finalizeNetwork(self, networkInput) :
+        '''Setup the network based on the current network configuration.
+           This creates several network-wide functions so they will be
+           pre-compiled and optimized when we need them.
+        '''
+        from theano import dot, function
+        import numpy as np
+
+        if len(self._layers) == 0 :
+            raise IndexError('Network must have at least one layer' +
+                             'to call getNetworkInput().')
+
+        self._startProfile('Finalizing Network', 'info')
+
+        # disable the profiler temporarily so we don't get a second entry
+        tmp = self._profiler
+        self._profiler = None
+        SAENetwork.finalizeNetwork(self, networkInput)
+        self._profiler = tmp
 
         # TODO: Check if this should be the raw logit from the output layer or
         #       the softmax return of the output layer.
