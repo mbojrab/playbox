@@ -1,4 +1,4 @@
-import theano.tensor as t
+﻿import theano.tensor as t
 import theano
 from nn.net import TrainerNetwork, ClassifierNetwork
 from dataset.shared import isShared
@@ -235,7 +235,7 @@ class DistilleryTrainer (TrainerNetwork) :
         updates = self._compileUpdates(
             ((self._transFactor * deepXEntropy) +
              (1. - self._transFactor) * hardXEntropy +
-             self._compileRegularization()) / self.getNetworkInputSize()[0])
+             self._compileRegularization()))
 
         # override the training function
         givens = {self.getNetworkInput()[1]: self._trainData[index],

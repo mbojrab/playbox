@@ -1,4 +1,4 @@
-import theano.tensor as t
+﻿import theano.tensor as t
 
 def cropExtremes(x) :
     # protect the loss function against producing NaNs/Inf
@@ -65,29 +65,23 @@ def calcSparsityConstraint(output, outShape, crop=True) :
                   (1. - sparseCon) * \
                   t.log((1. - sparseCon) / (1. - avgActivation)))
 
-def leastAbsoluteDeviation(a, batchSize=None, scaleFactor=1.) :
+def leastAbsoluteDeviation(a, scaleFactor=1.) :
     '''L1-norm provides 'Least Absolute Deviation' --
        built for sparse outputs and is resistent to outliers
 
        a           : input matrix
-       batchSize   : number of inputs in the batchs
        scaleFactor : scale factor for the regularization
     '''
     if not isinstance(a, list) :
         a = [a]
     absSum = sum([t.sum(t.abs_(arr)) for arr in a])
+    return t.mean(absSum) * scaleFactor
 
-    if batchSize is not None :
-        return t.mean(absSum // batchSize) * scaleFactor
-    else :
-        return absSum * scaleFactor
-
-def leastSquares(a, batchSize=None, scaleFactor=1.) :
+def leastSquares(a, scaleFactor=1.) :
     '''L2-norm provides 'Least Squares' --
        built for dense outputs and is computationally stable at small errors
 
        a           : input matrix
-       batchSize   : number of inputs in the batchs
        scaleFactor : scale factor for the regularization
 
        NOTE: a decent scale factor may be the 1. / numNeurons
@@ -95,11 +89,7 @@ def leastSquares(a, batchSize=None, scaleFactor=1.) :
     if not isinstance(a, list) :
         a = [a]
     sqSum = sum([t.sum(arr ** 2) for arr in a])
-
-    if batchSize is not None :
-        return t.mean(sqSum // batchSize) * scaleFactor
-    else :
-        return sqSum * scaleFactor
+    return t.mean(sqSum) * scaleFactor
 
 def computeJacobian(a, wrt, batchSize, inputSize, numNeurons) :
     '''Compute a jacobian for the matrix 'out' with respect to 'wrt'.

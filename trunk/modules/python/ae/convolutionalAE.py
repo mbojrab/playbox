@@ -120,7 +120,9 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
            the sparse upsample.
         '''
         if input.ndim < len(self.getOutputSize()) :
-            input = t.reshape(input, self.getOutputSize())
+            from dataset.shared import getShape
+            input = input.reshape([getShape(input)[0]] +
+                                  list(self.getOutputSize()[1:]))
         return input.repeat(upsampleFactor[0], axis=2).repeat(
                             upsampleFactor[1], axis=3) \
                if upsampleFactor[0] > 1 else input
@@ -174,10 +176,9 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
             # larger than the input vector.
             unpooling = self._unpool_2d(self.output[0], self._downsampleFactor)
             jacobianMat = conv2d(unpooling * (1. - unpooling), weightsBack,
-                                 self.getFeatureSize(), weightsBack.shape.eval(), 
+                                 self.getFeatureSize(), weightsBack.shape.eval(),
                                  border_mode='full')
-            self._costs.append(leastSquares(jacobianMat, self._inputSize[0],
-                                            self._contractionRate))
+            self._costs.append(leastSquares(jacobianMat, self._contractionRate))
             self._costLabels.append('Jacob')
 
         # create the negative log likelihood function --
@@ -194,8 +195,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
             self._costs.append(regularization)
             self._costLabels.append('Regularization')
 
-        gradients = t.grad(t.sum(self._costs) / self.getInputSize()[0],
-                           self.getWeights())
+        gradients = t.grad(t.sum(self._costs), self.getWeights())
         self._updates = compileUpdate(self.getWeights(), gradients,
                                       self._learningRate, self._momentumRate)
 

@@ -1,4 +1,4 @@
-from nn.layer import Layer
+﻿from nn.layer import Layer
 import numpy as np
 from theano.tensor import tanh
 
@@ -42,7 +42,7 @@ class ConvolutionalLayer(Layer) :
                              'Number of Channels must match in ' +
                              'inputSize and kernelSize')
 
-        self._inputSize = inputSize
+        self._inputSize = [None] + list(inputSize[1:])
         self._kernelSize = kernelSize
         self._downsampleFactor = downsampleFactor
 

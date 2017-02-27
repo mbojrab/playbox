@@ -150,8 +150,8 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
             self._costs.append(leastSquares(
                 computeJacobian(self.output[0], self._weights,
                                 self._inputSize[0], self._inputSize[1],
-                                self._numNeurons), 
-                self._inputSize[0], self._contractionRate))
+                                self._numNeurons),
+                self._contractionRate))
             self._costLabels.append('Jacob')
 
         # create the negative log likelihood function --
@@ -166,8 +166,7 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
             self._costs.append(regularization)
             self._costLabels.append('Regularization')
 
-        gradients = t.grad(t.sum(self._costs) / self.getInputSize()[0],
-                           self.getWeights())
+        gradients = t.grad(t.sum(self._costs), self.getWeights())
         self._updates = compileUpdate(self.getWeights(), gradients,
                                       self._learningRate, self._momentumRate)
 

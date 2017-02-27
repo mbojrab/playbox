@@ -1,4 +1,4 @@
-class Regularization :
+﻿class Regularization :
     '''Object to save regularization constraints inside a network.
 
        regType     : Type of regularization ('L1' or 'L2')
@@ -23,13 +23,13 @@ class Regularization :
         if self._type == 'L1' :
             reg = leastAbsoluteDeviation(
                 [layer.getWeights()[0] for layer in layers],
-                batchSize=None, scaleFactor=self._scale)
+                scaleFactor=self._scale)
 
         # L2-norm provides 'Least Squares' --
         # built for dense outputs and is computationally stable at small errors
         elif self._type == 'L2' :
             reg = leastSquares(
                 [layer.getWeights()[0] for layer in layers],
-                batchSize=None, scaleFactor=self._scale)
+                scaleFactor=self._scale)
 
         return reg

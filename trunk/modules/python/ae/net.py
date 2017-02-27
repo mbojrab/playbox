@@ -345,8 +345,7 @@ class TrainerSAENetwork (SAENetwork) :
             # in additional to the existing costs.
             costs.append(calcLoss(netInput, decodedInput,
                                   self._layers[0].getActivation()))
-            gradients = t.grad(t.sum(costs) / self.getNetworkInputSize()[0],
-                               encoder.getWeights())
+            gradients = t.grad(t.sum(costs), encoder.getWeights())
             updates = compileUpdate(encoder.getWeights(), gradients,
                                     encoder.getLearningRate(),
                                     encoder.getMomentumRate())
@@ -492,7 +491,7 @@ class TrainerSAENetwork (SAENetwork) :
             if len(self._layers[layerIndex].getInputSize()) == 2 and \
                 len(getShape(self._layers[layerIndex].input[0])) == 2 :
                 imageShape=(1, self._layers[layerIndex].getInputSize()[1])
-                tileShape=(self._layers[layerIndex].getInputSize()[0], 1)
+                tileShape=(getShape(self._layers[layerIndex].input[0])[0], 1)
 
             self.writeWeights(layerIndex, globalEpoch + localEpoch)
             saveTiledImage(image=reconstructedInput,
