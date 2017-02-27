@@ -1,4 +1,4 @@
-from nn.layer import Layer
+﻿from nn.layer import Layer
 import theano.tensor as t
 import theano
 from dataset.pickle import writePickleZip, readPickleZip
@@ -397,8 +397,7 @@ class TrainerNetwork (LabeledClassifierNetwork) :
         # be used back propagation, which runs output to input
         updates = compileUpdates(
             self._layers,
-            (xEntropy + self._regularization.calculate(self._layers)) / \
-            self.getNetworkInputSize()[0])
+            xEntropy + self._regularization.calculate(self._layers))
 
         # NOTE: This uses the lamda function as a means to consolidate the
         #       calling scheme. This saves us from later using conditionals in

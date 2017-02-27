@@ -1,4 +1,4 @@
-import six
+﻿import six
 from nn.layer import Layer
 from theano import dot
 from theano.tensor import tanh
@@ -33,10 +33,7 @@ class ContiguousLayer(Layer) :
         Layer.__init__(self, layerID, learningRate, momentumRate,
                        dropout, activation)
 
-        self._inputSize = inputSize
-        if isinstance(self._inputSize, six.integer_types) or \
-           len(self._inputSize) is not 2 :
-            self._inputSize = (1, inputSize)
+        self._inputSize = (None, inputSize[1])
         self._numNeurons = numNeurons
 
         # create weights based on the optimal distribution for the activation
