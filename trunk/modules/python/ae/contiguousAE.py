@@ -82,7 +82,8 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         from nn.layer import Layer
         from theano.tensor import round
         act = Layer._setActivation(self, out)
-        return round(act) if self._forceSparse else act
+        return round(act, mode='half_away_from_zero') \
+               if self._forceSparse else act
 
     def __getstate__(self) :
         '''Save layer pickle'''
