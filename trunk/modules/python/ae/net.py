@@ -3,7 +3,7 @@ import theano
 from nn.net import ClassifierNetwork
 from ae.encoder import AutoEncoder
 import numpy as np
-from dataset.shared import isShared, getShape
+from dataset.shared import toShared, isShared, getShape
 
 class SAENetwork (ClassifierNetwork) :
     '''The SAENetwork object allows autoencoders to be stacked such that the 
@@ -64,7 +64,6 @@ class SAENetwork (ClassifierNetwork) :
         '''
         self._startProfile('Encoding the Inputs', 'debug')
         if not hasattr(self, '_encode') :
-            from dataset.shared import toShared
             inp = toShared(inputs, borrow=True) \
                   if not isShared(inputs) else inputs
             self.finalizeNetwork(inp[:])
@@ -87,23 +86,33 @@ class ClassifierSAENetwork (SAENetwork) :
        example input(s), which the network then uses to determine similities
        between the feature data and the provided input.
 
-       filepath : Path to an already trained network on disk 
-                  'None' creates randomized weighting
-       prof     : Profiler to use
-       debug    : Turn on debugging information
+       maxTargets : Limit the number of targets loaded into the Feature
+                    Matrix. If the path contains more elements than this limit
+                    we randomly select examples using Bernoulli trails.
+                    NOTE: This size is pre-allocated and added to the execution
+                          graph for optimization purposes. This keeps us from
+                          rebuilding the graph each time a new Feature Matrix
+                          was loaded.
+       filepath   : Path to an already trained network on disk
+                    'None' creates randomized weighting
+       prof       : Profiler to use
+       debug      : Turn on debugging information
     '''
-    def __init__ (self, filepath=None, prof=None, debug=False) :
+    def __init__ (self, maxTargets, filepath=None, prof=None, debug=False) :
         SAENetwork.__init__(self, filepath, prof, debug)
-        self._targetEncodings = None
+        self._numTargets = toShared([0], borrow=False)
+        self._targetEncodings = toShared(np.zeros(
+            tuple([maxTargets] + list(self.getNetworkOutputSize()[1:])),
+            dtype=theano.config.floatX), borrow=False).T
 
     def __getstate__(self) :
         '''Save network pickle'''
         dict = SAENetwork.__getstate__(self)
         # remove the training and test datasets before pickling. This both
         # saves disk space, and makes trained networks allow transfer learning
+        dict['_numTargets'] = None
         dict['_targetEncodings'] = None
-        dict['_target'] = None
-        dict['_maxTargets'] = None
+
         # remove the functions -- they will be rebuilt JIT
         if '_closeness' in dict : del dict['_closeness']
         return dict
@@ -116,16 +125,16 @@ class ClassifierSAENetwork (SAENetwork) :
 
         # ensure the user input is remembered
         if hasattr(self, '_target') :
-            tmpTarg = dict['_target']
-        if hasattr(self, '_maxTargets') :
-            tmpMaxTarg = dict['_maxTargets']
+            tmpTarget = dict['_target']
+        if hasattr(self, '_targetEncodings') :
+            tmpTargEncode = dict['_targetEncodings']
         SAENetwork.__setstate__(self, dict)
         if hasattr(self, '_target') :
-            dict['_target'] = tmpTarg
-        if hasattr(self, '_maxTargets') :
-            dict['_maxTargets'] = tmpMaxTarg
+            dict['_target'] = tmpTarget
+        if hasattr(self, '_targetEncodings') :
+            dict['_targetEncodings'] = tmpTargEncode
 
-    def __readTargetData(self, targetpath, maxTargets=-1) :
+    def __readTargetData(self, targetpath) :
         '''Read a directory of data to use as a feature matrix.
 
            targetpath : Path to the target directory
@@ -139,9 +148,7 @@ class ClassifierSAENetwork (SAENetwork) :
 
         # read the directory for paths
         tFiles = os.listdir(targetpath)
-        if maxTargets == -1 :
-            maxTargets = len(tFiles)
-
+        maxTargets = getShape(self._targetEncodings)[1]
         if maxTargets < len(tFiles) :
             # send the path through a Bernoulli trial --
             # randomly select certain files if the maxTargets parameter is
@@ -157,19 +164,14 @@ class ClassifierSAENetwork (SAENetwork) :
         return np.resize(targets, [targets.shape[0]] +
                                   list(targets.shape[-3:]))
 
-    def loadFeatureMatrix(self, target, maxTargets=-1) :
+    def loadFeatureMatrix(self, target) :
         '''Load new target imagery into the Feature Matrix.
            target   : Target data for network. This is the way to provide the
                       unsupervised learning algorithm with a means to perform
                       classification.
                       NOTE: This can either be an numpy.ndarray or a path to a
                             directory of target images.
-           maxTargets : Limit the number of targets loaded into the Feature
-                        Matrix. If -1 load the entire directory, else randomize
-                        the data loaded from the directory.
-           batchSize : Batch size for the network. The feature matrix.
         '''
-        from dataset.shared import toShared, getShape
 
         # verify the network has been finalized, if not store the inputs and
         # lazily load them as part of finalization. After the network is
@@ -178,11 +180,10 @@ class ClassifierSAENetwork (SAENetwork) :
         #       passes data to the network the first time.
         if self.getNetworkInput() is None :
             self._target = target
-            self._maxTargets= maxTargets
             return
 
         # check if the data is currently in memory, if not read it
-        targetData = self.__readTargetData(target, maxTargets) \
+        targetData = self.__readTargetData(target) \
                      if isinstance(target, str) else target
 
         # ensure targetData is at least one batchSize, otherwise enlarge
@@ -218,10 +219,12 @@ class ClassifierSAENetwork (SAENetwork) :
             return unique_a.view(a.dtype).reshape((
                 unique_a.shape[0], a.shape[1]))
         enc = uniqueRows(enc)
+        self._numTargets = enc.shape[0]
 
-        # save the data into a shared buffer for efficiency
+        # copy the data into the shared buffer --
+        # This shared buffer is already connected to the execution graph.
         # NOTE: this is the transpose to orient for matrix multiplication
-        self._targetEncodings = toShared(enc, borrow=True).T
+        self._updateTargetEncodings(np.array(enc).T, self._numTargets)
 
     def finalizeNetwork(self, networkInput) :
         '''Setup the network based on the current network configuration.
@@ -243,6 +246,16 @@ class ClassifierSAENetwork (SAENetwork) :
         SAENetwork.finalizeNetwork(self, networkInput)
         self._profiler = tmp
 
+        # create a function to update the Feature Matrix --
+        # This allows us to connect the targetEncodings into the execution
+        # graph without having to rebuild the function each time the Feature
+        # Matrix is updated.
+        numTargets = t.tensor.scalari()
+        newMatrix = t.tensor.matrix()
+        self._updateTargetEncodings = t.function([newMatrix, numTargets], [],
+            updates={self._targetEncodings: t.tensor.set_subtensor(
+                 self._targetEncodings[:numTargets], newMatrix)})
+
         # TODO: Check if this should be the raw logit from the output layer or
         #       the softmax return of the output layer.
         # TODO: This needs to be updated to handle matrix vs matrix cosine
@@ -252,16 +265,18 @@ class ClassifierSAENetwork (SAENetwork) :
         outClass = self.getNetworkOutput()[0]
         cosineSimilarity = dot(outClass, targets) / \
             (t.sqrt(t.sum(outClass**2)) * (t.sqrt(t.sum(targets**2))))
-        self._closeness = function([self.getNetworkInput()[0], targets],
-                                   t.mean(cosineSimilarity, axis=1))
+        self._closeness = function(
+            [self.getNetworkInput()[0], numTargets],
+            t.mean(cosineSimilarity[:numTargets], axis=1),
+            givens={targets: self._targetEncodings})
 
         # perform the lazy load of the data now that the network is finalized
         # NOTE: If the call to loadFeatureMatrix() was called prior to the
         #       finalization, we load that information now.
         # NOTE: Only the last information sent to loadFeatureMatrix() will be 
         #       loaded here.
-        if hasattr(self, '_target') and hasattr(self, '_maxTargets') :
-            self.loadFeatureMatrix(self._target, self._maxTargets)
+        if hasattr(self, '_target') :
+            self.loadFeatureMatrix(self._target)
 
         self._endProfile()
 
@@ -285,7 +300,7 @@ class ClassifierSAENetwork (SAENetwork) :
            NOTE: Response of 1.0 indicates equality. The lower number indicate
                  less overlap between features.
         '''
-        from dataset.shared import toShared
+
         self._startProfile('Determining Closeness of Inputs', 'debug')
         if not hasattr(self, '_closeness') :
             inp = toShared(inputs, borrow=True) \
@@ -297,9 +312,9 @@ class ClassifierSAENetwork (SAENetwork) :
 
         # test out similar this input is compared with the targets
         if cosineVector is not None :
-            cosineVector += self._closeness(inputs, self._targetEncodings)
+            cosineVector += self._closeness(inputs, self._numTargets)
         else :
-            cosineVector = self._closeness(inputs, self._targetEncodings)
+            cosineVector = self._closeness(inputs, self._numTargets)
         self._endProfile()
         return cosineVector
 
@@ -573,7 +588,6 @@ class TrainerSAENetwork (SAENetwork) :
         '''
         self._startProfile('Checking Reconstruction Loss', 'debug')
         if len(self._checkGreedy) == 0 :
-            from dataset.shared import toShared
             inp = toShared(self._testData[0], borrow=True) \
                   if not isShared(self._testData) else self._testData[0]
             self.finalizeNetwork(inp[:])
