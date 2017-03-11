@@ -102,8 +102,8 @@ class ClassifierSAENetwork (SAENetwork) :
         SAENetwork.__init__(self, filepath, prof, debug)
         self._numTargets = toShared([0], borrow=False)
         self._targetEncodings = toShared(np.zeros(
-            tuple([maxTargets] + list(self.getNetworkOutputSize()[1:])),
-            dtype=theano.config.floatX), borrow=False).T
+            tuple([np.prod(self.getNetworkOutputSize()[1:]), maxTargets]),
+            dtype=theano.config.floatX), borrow=False)
 
     def __getstate__(self) :
         '''Save network pickle'''
@@ -155,7 +155,8 @@ class ClassifierSAENetwork (SAENetwork) :
             # smaller than the number of files in the target directory
             randomAssign = np.random.binomial(
                 1, float(maxTargets) / len(tFiles), len(tFiles))
-            tFiles = [t for ii in range(len(tFiles)) if randomAssign[ii] == 1]
+            tFiles = [tFiles[ii] for ii in range(len(tFiles)) \
+                      if randomAssign[ii] == 1]
 
         # read the target imagery into memory
         targets = makeContiguous(
@@ -250,11 +251,11 @@ class ClassifierSAENetwork (SAENetwork) :
         # This allows us to connect the targetEncodings into the execution
         # graph without having to rebuild the function each time the Feature
         # Matrix is updated.
-        numTargets = t.tensor.scalari()
-        newMatrix = t.tensor.matrix()
-        self._updateTargetEncodings = t.function([newMatrix, numTargets], [],
-            updates={self._targetEncodings: t.tensor.set_subtensor(
-                 self._targetEncodings[:numTargets], newMatrix)})
+        numTargets = t.iscalar()
+        newMatrix = t.matrix()
+        self._updateTargetEncodings = theano.function([newMatrix, numTargets],
+            [], updates={self._targetEncodings : t.set_subtensor(
+                         self._targetEncodings[:, :numTargets+1], newMatrix)})
 
         # TODO: Check if this should be the raw logit from the output layer or
         #       the softmax return of the output layer.
@@ -263,12 +264,11 @@ class ClassifierSAENetwork (SAENetwork) :
         # setup the closeness execution graph based on target information
         targets = t.fmatrix('targets')
         outClass = self.getNetworkOutput()[0]
-        cosineSimilarity = dot(outClass, targets) / \
+        cosineSimilarity = dot(outClass, targets[:, :numTargets+1]) / \
             (t.sqrt(t.sum(outClass**2)) * (t.sqrt(t.sum(targets**2))))
-        self._closeness = function(
-            [self.getNetworkInput()[0], numTargets],
-            t.mean(cosineSimilarity[:numTargets], axis=1),
-            givens={targets: self._targetEncodings})
+        self._closeness = function([self.getNetworkInput()[0], numTargets],
+                                   t.mean(cosineSimilarity, axis=1),
+                                   givens={targets: self._targetEncodings})
 
         # perform the lazy load of the data now that the network is finalized
         # NOTE: If the call to loadFeatureMatrix() was called prior to the
