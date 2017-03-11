@@ -6,8 +6,9 @@ from builder.profiler import setupLogging
 def createNetworks(target, maxTarget, batchSize, netFiles, prof, debug) :
     '''Read and create each network initialized with the target dataset.'''
     from ae.net import ClassifierSAENetwork
-    nets = [ClassifierSAENetwork(syn, prof, debug) for syn in netFiles]
-    [net.loadFeatureMatrix(target, maxTarget) for net in nets]
+    nets = [ClassifierSAENetwork(maxTarget, syn, prof, debug) \
+            for syn in netFiles]
+    [net.loadFeatureMatrix(target) for net in nets]
     return nets
 
 def sortDataset(netList, imagery, percentile=.95, debug=False) :
