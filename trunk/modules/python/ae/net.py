@@ -100,7 +100,7 @@ class ClassifierSAENetwork (SAENetwork) :
     '''
     def __init__ (self, maxTargets, filepath=None, prof=None, debug=False) :
         SAENetwork.__init__(self, filepath, prof, debug)
-        self._numTargets = toShared([0], borrow=False)
+        self._numTargets = 0
         self._targetEncodings = toShared(np.zeros(
             tuple([np.prod(self.getNetworkOutputSize()[1:]), maxTargets]),
             dtype=theano.config.floatX), borrow=False)
@@ -220,7 +220,15 @@ class ClassifierSAENetwork (SAENetwork) :
             return unique_a.view(a.dtype).reshape((
                 unique_a.shape[0], a.shape[1]))
         enc = uniqueRows(enc)
-        self._numTargets = enc.shape[0]
+        self._numTargets = min(enc.shape[0],
+                               getShape(self._targetEncodings)[1])
+
+        # NOTE: this is a problem with indexing into the array with equal size
+        #       to the copy size. We add one additional row to overcome this
+        #       limitation.
+        if enc.shape[0] == self._numTargets :
+            enc = np.vstack([enc, np.zeros(enc.shape[1],
+                                           dtype=theano.config.floatX)])
 
         # copy the data into the shared buffer --
         # This shared buffer is already connected to the execution graph.
