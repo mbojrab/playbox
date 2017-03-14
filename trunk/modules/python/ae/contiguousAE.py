@@ -126,6 +126,7 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         '''
         from nn.costUtils import calcLoss, computeJacobian, leastSquares, \
                                  calcSparsityConstraint, compileUpdate
+        from dataset.shared import getShape
         ContiguousLayer.finalize(self, networkInput, layerInput)
 
         # setup the decoder --
@@ -140,7 +141,8 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
         # DEBUG: For Debugging purposes only
         self.reconstruction = function([networkInput[0]], decodedInput)
         self._costs.append(calcSparsityConstraint(
-            self.output[0], self.getOutputSize()))
+            self.output[0], self.getOutputSize(),
+            scaleFactor=1. / self.getInputSize()[1]))
         self._costLabels.append('Sparsity')
 
         # contraction is only applicable in the non-binary case 
@@ -157,8 +159,9 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
 
         # create the negative log likelihood function --
         # this is our cost function with respect to the original input
-        self._costs.append(calcLoss(self.input[0].flatten(2), decodedInput,
-                           self._activation))
+        self._costs.append(calcLoss(
+            self.input[0].flatten(2), decodedInput, self._activation,
+            scaleFactor=1. / self.getInputSize()[1]))
         self._costLabels.append('Local Cost')
 
         # add regularization if it was user requested
@@ -167,7 +170,8 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
             self._costs.append(regularization)
             self._costLabels.append('Regularization')
 
-        gradients = t.grad(t.sum(self._costs), self.getWeights())
+        gradients = t.grad(t.sum(self._costs) / getShape(networkInput[0])[0],
+                           self.getWeights())
         self._updates = compileUpdate(self.getWeights(), gradients,
                                       self._learningRate, self._momentumRate)
 
