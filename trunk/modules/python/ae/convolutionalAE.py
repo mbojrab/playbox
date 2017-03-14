@@ -189,7 +189,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         #       and does not help convergence or regularization. It was removed
         self._costs.append(calcLoss(
             self.input[0], decodedInput, self._activation,
-            scaleFactor=1. / np.prod(self.getInputSize()[-3:])))
+            scaleFactor=1. / self.getInputSize()[1]))
         self._costLabels.append('Local Cost')
 
         # add regularization if it was user requested
