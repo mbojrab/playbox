@@ -387,6 +387,7 @@ class TrainerSAENetwork (SAENetwork) :
 
            NOTE: this uses theano.shared variables for optimized GPU execution
         '''
+        batchSize = getShape(self.getNetworkInput()[0])[0]
         from nn.costUtils import calcLoss, compileUpdate
         for ii, encoder in enumerate(self._layers) :
             # setup the layer-wise training functions --
@@ -419,7 +420,7 @@ class TrainerSAENetwork (SAENetwork) :
             # in additional to the existing costs.
             costs.append(calcLoss(netInput, decodedInput,
                                   self._layers[0].getActivation()))
-            gradients = t.grad(t.sum(costs), encoder.getWeights())
+            gradients = t.grad(t.sum(costs) / batchSize, encoder.getWeights())
             updates = compileUpdate(encoder.getWeights(), gradients,
                                     encoder.getLearningRate(),
                                     encoder.getMomentumRate())
