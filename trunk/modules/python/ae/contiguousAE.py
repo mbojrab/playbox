@@ -159,9 +159,8 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
 
         # create the negative log likelihood function --
         # this is our cost function with respect to the original input
-        self._costs.append(calcLoss(
-            self.input[0].flatten(2), decodedInput, self._activation,
-            scaleFactor=1. / self.getInputSize()[1]))
+        self._costs.append(calcLoss(self.input[0].flatten(2), decodedInput,
+                                    self._activation))
         self._costLabels.append('Local Cost')
 
         # add regularization if it was user requested

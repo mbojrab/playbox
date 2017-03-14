@@ -1,5 +1,6 @@
 ﻿import theano.tensor as t
 import theano
+from matplotlib.scale import scale_factory
 from nn.net import ClassifierNetwork
 from ae.encoder import AutoEncoder
 import numpy as np
@@ -418,8 +419,10 @@ class TrainerSAENetwork (SAENetwork) :
 
             # recreate the updates using the greedy network reconstruction
             # in additional to the existing costs.
-            costs.append(calcLoss(netInput, decodedInput,
-                                  self._layers[0].getActivation()))
+            costs.append(calcLoss(
+                netInput, decodedInput, self._layers[0].getActivation(),
+                scaleFactor=1. / getShape(self.getNetworkInput()[0])[1] \
+                            if len(self.getNetworkInputSize()) == 4 else 1.))
             gradients = t.grad(t.sum(costs) / batchSize, encoder.getWeights())
             updates = compileUpdate(encoder.getWeights(), gradients,
                                     encoder.getLearningRate(),
