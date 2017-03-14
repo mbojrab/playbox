@@ -1,6 +1,5 @@
 ﻿import theano.tensor as t
 import theano
-from matplotlib.scale import scale_factory
 from nn.net import ClassifierNetwork
 from ae.encoder import AutoEncoder
 import numpy as np
