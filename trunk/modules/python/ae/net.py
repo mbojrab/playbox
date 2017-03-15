@@ -142,9 +142,8 @@ class ClassifierSAENetwork (SAENetwork) :
         '''Read a directory of data to use as a feature matrix.
 
            targetpath : Path to the target directory
-           maxTargets : Limit the number of targets loaded into the Feature
-                        Matrix. If -1 load the entire directory, else randomize
-                        the data loaded from the directory.
+
+           return : format (numTargets, numChannels, rows, cols)
         '''
         import os
         from dataset.minibatch import makeContiguous
@@ -171,6 +170,7 @@ class ClassifierSAENetwork (SAENetwork) :
 
     def loadFeatureMatrix(self, target) :
         '''Load new target imagery into the Feature Matrix.
+
            target   : Target data for network. This is the way to provide the
                       unsupervised learning algorithm with a means to perform
                       classification.
