@@ -115,6 +115,8 @@ class ClassifierSAENetwork (SAENetwork) :
 
         # remove the functions -- they will be rebuilt JIT
         if '_closeness' in dict : del dict['_closeness']
+        if '_updateTargetEncodings' in dict :
+            del dict['_updateTargetEncodings']
         return dict
 
     def __setstate__(self, dict) :
@@ -122,6 +124,8 @@ class ClassifierSAENetwork (SAENetwork) :
         # remove any current functions from the object so we force the
         # theano functions to be rebuilt with the new buffers
         if hasattr(self, '_closeness') : delattr(self, '_closeness')
+        if hasattr(self, '_updateTargetEncodings') :
+            delattr(self, '_updateTargetEncodings')
 
         # ensure the user input is remembered
         if hasattr(self, '_target') :
