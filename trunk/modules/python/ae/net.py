@@ -345,7 +345,7 @@ class ClassifierSAENetwork (SAENetwork) :
         self._endProfile()
         return cosineVector
 
-    def closenessAndEncoding (self, inputs) :
+    def closenessAndEncoding (self, inputs, cosineVector=None) :
         '''This is a form of classification for SAE networks. The network has
            been provided a target input, which we now use to determine the
            similarity of this input against that target set.
@@ -359,7 +359,7 @@ class ClassifierSAENetwork (SAENetwork) :
 
         # TODO: this needs to be updated if the encodings should not be the
         #       result of a softmax on the logits.
-        cosineVector, encodings = (self.closeness(inputs),
+        cosineVector, encodings = (self.closeness(inputs, cosineVector),
                                    self.classifyAndSoftmax(inputs)[1])
         self._endProfile()
         return cosineVector, encodings
