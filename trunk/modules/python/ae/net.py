@@ -161,6 +161,12 @@ class ClassifierSAENetwork (SAENetwork) :
             tFiles = [tFiles[ii] for ii in range(len(tFiles)) \
                       if randomAssign[ii] == 1]
 
+        # Bernoulli Trials are in exact, so ensure we have at least one
+        if len(tFiles) == 0 :
+            raise AssertionError(
+                'Random selection has produced no targets. ' +
+                'Increasing the max number of targets used can help.')
+
         # read the target imagery into memory
         targets = makeContiguous(
             [(preProcImage(os.path.join(targetpath, im)), 0) 
@@ -187,17 +193,19 @@ class ClassifierSAENetwork (SAENetwork) :
             self._target = target
             return
 
+        self._startProfile('Loading Feature Matrix into Network, 'info')
+
         # check if the data is currently in memory, if not read it
         targetData = self.__readTargetData(target) \
                      if isinstance(target, str) else target
 
         # ensure targetData is at least one batchSize, otherwise enlarge
         batchSize = getShape(self.getNetworkInput()[0])[0]
-        numTargets = targetData.shape[0]
-        if numTargets < batchSize :
+        numTotalTargets = targetData.shape[0]
+        if numTotalTargets < batchSize :
             # add rows of zeros to fill out the rest of the batch
             targetData = np.resize(np.append(
-                np.zeros([batchSize - numTargets] + 
+                np.zeros([batchSize - numTotalTargets] +
                          list(targetData.shape[1:]), np.float32),
                 targetData), [batchSize] + list(targetData.shape[1:]))
 
@@ -206,12 +214,12 @@ class ClassifierSAENetwork (SAENetwork) :
         #
         # classify the inputs one batch at a time
         enc = []
-        for ii in range(int(numTargets / batchSize)) :
+        for ii in range(int(numTotalTargets / batchSize)) :
             enc.extend(self.encode(targetData[ii*batchSize:(ii+1)*batchSize]))
 
         # run one last batch and collect the remainder --
         # this is also used if there is less than one batch worth of targets
-        remainder = numTargets % batchSize
+        remainder = numTotalTargets % batchSize
         if remainder > 0 :
             enc.extend(self.encode(targetData[-batchSize:])[-remainder:])
 
@@ -227,17 +235,16 @@ class ClassifierSAENetwork (SAENetwork) :
         self._numTargets = min(enc.shape[0],
                                getShape(self._targetEncodings)[1])
 
-        # NOTE: this is a problem with indexing into the array with equal size
-        #       to the copy size. We add one additional row to overcome this
-        #       limitation.
-        if enc.shape[0] == self._numTargets :
-            enc = np.vstack([enc, np.zeros(enc.shape[1],
-                                           dtype=theano.config.floatX)])
+        self._startProfile('Loading [' + str(self._numTargets) +
+                           '] Unique Targets', 'debug')
 
         # copy the data into the shared buffer --
         # This shared buffer is already connected to the execution graph.
         # NOTE: this is the transpose to orient for matrix multiplication
         self._updateTargetEncodings(np.array(enc).T, self._numTargets)
+
+        self._endProfile()
+        self._endProfile()
 
     def finalizeNetwork(self, networkInput) :
         '''Setup the network based on the current network configuration.
@@ -263,11 +270,19 @@ class ClassifierSAENetwork (SAENetwork) :
         # This allows us to connect the targetEncodings into the execution
         # graph without having to rebuild the function each time the Feature
         # Matrix is updated.
+        #
+        # NOTE: this is a problem with indexing into the array with equal size
+        #       to the copy size. We create a second function for this case.
         numTargets = t.iscalar()
         newMatrix = t.matrix()
-        self._updateTargetEncodings = theano.function([newMatrix, numTargets],
+        updateSubsetEncodings = theano.function([newMatrix, numTargets],
             [], updates={self._targetEncodings : t.set_subtensor(
-                         self._targetEncodings[:, :numTargets+1], newMatrix)})
+                         self._targetEncodings[:,:numTargets+1], newMatrix)})
+        updateAllEncodings = theano.function([newMatrix],
+            [], updates={self._targetEncodings : t.set_subtensor(
+                         self._targetEncodings[:,:], newMatrix)})
+        self._updateTargetEncodings = lambda m, t : updateAllEncodings(m) \
+            if m.shape[1] == t else updateSubsetEncodings(m, t)
 
         # TODO: Check if this should be the raw logit from the output layer or
         #       the softmax return of the output layer.
