@@ -18,7 +18,7 @@ def renameBestNetwork(lastSave, bestNetwork, log=None) :
 def _train(network, appName, dataPath, numEpochs=5, stop=1,
            synapse=None, base=None, kernel=None, neuron=None,
            learnC=None, learnF=None, numLayers=1, maxEpoch=np.inf,
-           log=None) :
+           resetLayer=None, log=None) :
     '''This trains a stacked autoencoder in a greedy layer-wise manner. This
        starts by train each layer in sequence for the specified number of
        epochs, then returns the network. This can be used to initialize a
@@ -33,7 +33,8 @@ def _train(network, appName, dataPath, numEpochs=5, stop=1,
     getLayer = lambda x, net: None if isSup(net) else x
 
     globalEpoch = lastBest = resumeEpoch(synapse)
-    resetLayer = resumeLayer(synapse)
+    if resetLayer is None :
+        resetLayer = resumeLayer(synapse)
     if synapse is not None :
         kernel, neuron, learnC, learnF = resumeData(synapse)
     lastSave = buildPickleInterim(
@@ -109,7 +110,8 @@ def _train(network, appName, dataPath, numEpochs=5, stop=1,
 
 def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=1,
                       synapse=None, base=None, kernel=None, neuron=None, 
-                      learnC=None, learnF=None, maxEpoch=np.inf, log=None) :
+                      learnC=None, learnF=None, maxEpoch=np.inf,
+                      resetLayer=None, log=None) :
     '''This trains a stacked autoencoder in a greedy layer-wise manner. This
        starts by train each layer in sequence for the specified number of
        epochs, then returns the network. This can be used to initialize a
@@ -122,7 +124,8 @@ def trainUnsupervised(network, appName, dataPath, numEpochs=5, stop=1,
     _train(network=network, appName=appName, dataPath=dataPath,
            numEpochs=numEpochs, stop=stop, synapse=synapse, base=base,
            kernel=kernel, neuron=neuron, learnC=learnC, learnF=learnF, 
-           numLayers=network.getNumLayers(), maxEpoch=maxEpoch, log=log)
+           numLayers=network.getNumLayers(), maxEpoch=maxEpoch,
+           resetLayer=resetLayer, log=log)
 
 def trainSupervised (network, appName, dataPath, numEpochs=5, stop=30,
                      synapse=None, base=None, kernel=None, neuron=None, 

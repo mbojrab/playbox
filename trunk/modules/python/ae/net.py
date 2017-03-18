@@ -193,7 +193,7 @@ class ClassifierSAENetwork (SAENetwork) :
             self._target = target
             return
 
-        self._startProfile('Loading Feature Matrix into Network, 'info')
+        self._startProfile('Loading Feature Matrix into Network', 'info')
 
         # check if the data is currently in memory, if not read it
         targetData = self.__readTargetData(target) \
@@ -232,8 +232,13 @@ class ClassifierSAENetwork (SAENetwork) :
             return unique_a.view(a.dtype).reshape((
                 unique_a.shape[0], a.shape[1]))
         enc = uniqueRows(enc)
-        self._numTargets = min(enc.shape[0],
-                               getShape(self._targetEncodings)[1])
+
+        # resize in case the Bernoulli Trials have caused more encodings
+        # than our predefined max target size
+        # NOTE: These were already randomized by the Bernoulli trial so
+        #       we only grab the first ones in the list.
+        enc = enc[:min(enc.shape[0], getShape(self._targetEncodings)[1])]
+        self._numTargets = enc.shape[0]
 
         self._startProfile('Loading [' + str(self._numTargets) +
                            '] Unique Targets', 'debug')
@@ -270,19 +275,11 @@ class ClassifierSAENetwork (SAENetwork) :
         # This allows us to connect the targetEncodings into the execution
         # graph without having to rebuild the function each time the Feature
         # Matrix is updated.
-        #
-        # NOTE: this is a problem with indexing into the array with equal size
-        #       to the copy size. We create a second function for this case.
         numTargets = t.iscalar()
         newMatrix = t.matrix()
-        updateSubsetEncodings = theano.function([newMatrix, numTargets],
+        self._updateTargetEncodings = theano.function([newMatrix, numTargets],
             [], updates={self._targetEncodings : t.set_subtensor(
-                         self._targetEncodings[:,:numTargets+1], newMatrix)})
-        updateAllEncodings = theano.function([newMatrix],
-            [], updates={self._targetEncodings : t.set_subtensor(
-                         self._targetEncodings[:,:], newMatrix)})
-        self._updateTargetEncodings = lambda m, t : updateAllEncodings(m) \
-            if m.shape[1] == t else updateSubsetEncodings(m, t)
+                         self._targetEncodings[:,:numTargets], newMatrix)})
 
         # TODO: Check if this should be the raw logit from the output layer or
         #       the softmax return of the output layer.
