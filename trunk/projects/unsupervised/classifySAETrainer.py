@@ -58,8 +58,9 @@ if __name__ == '__main__' :
     options.synapse = tmpNet
 
     # train the SAE
-    net = ClassifierSAENetwork(options.targetDir, options.synapse, prof,
+    net = ClassifierSAENetwork(options.maxTarget, options.synapse, prof,
                                options.debug)
+    net.loadFeatureMatrix(options.targetDir)
 
     # test the training data for similarity to the target
     testCloseness(net, test.get_value(borrow=True))

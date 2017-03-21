@@ -49,6 +49,8 @@ def addUnsupDataParams (parser, base, multiLoad=False) :
     addSupDataParams(parser, base, multiLoad)
     parser.add_argument('--target', dest='targetDir', type=str, required=True,
                         help='Directory with target data to match.')
+    parser.add_argument('--maxTarget', dest='maxTarget', type=int, default=100,
+                        help='Directory with target data to match.')
 
 def addSupConvolutionalParams(parser) :
     '''Setup common ConvolutionalLayer options.'''

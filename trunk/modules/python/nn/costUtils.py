@@ -28,24 +28,26 @@ def crossEntropyLoss (p, q, axis=None, crop=True):
     else :
         return t.mean(t.nnet.crossentropy_categorical_1hot(q, p))
 
-def meanSquaredLoss (p, q, axis=None) :
+def meanSquaredLoss (p, q, axis=None, scaleFactor=1.) :
     '''for these purposes this is equivalent to Negative Log Likelihood
        p    : the target value
        q    : the current estimate
        axis : the axis in which to sum across -- used for multi-dimensional
+       scaleFactor : Scaling on the loss
     '''
-    return t.mean(t.sum((q - p) ** 2, axis=axis))
+    return t.mean(t.sum((q - p) ** 2, axis=axis)) * scaleFactor
 
-def calcLoss(p, q, activation) :
+def calcLoss(p, q, activation, scaleFactor=1.) :
     '''Specify a loss function using the last layer's activation.'''
     if q.ndim > 2 :
         axis = q.ndim - 2
     else :  
         axis = 1
-    return crossEntropyLoss(p, q, axis) if activation == t.nnet.sigmoid else \
+    loss = crossEntropyLoss(p, q, axis) if activation == t.nnet.sigmoid else \
            meanSquaredLoss(p, q, axis)
+    return loss * scaleFactor
 
-def calcSparsityConstraint(output, outShape, crop=True) :
+def calcSparsityConstraint(output, outShape, crop=True, scaleFactor=1.) :
     '''Calculate the Kullback-Leibler sparsity based on the number of neurons.
 
        This constraint favors sparse encodings, thereby enforcing individual
@@ -61,9 +63,9 @@ def calcSparsityConstraint(output, outShape, crop=True) :
         avgActivation = t.mean(output, axis=1)
         sparseCon = 1. / outShape[1]
 
-    return t.mean(sparseCon * t.log(sparseCon / avgActivation) +
-                  (1. - sparseCon) * \
-                  t.log((1. - sparseCon) / (1. - avgActivation)))
+    return scaleFactor * t.mean(sparseCon * t.log(sparseCon / avgActivation) +
+                                (1. - sparseCon) * \
+                                t.log((1. - sparseCon) / (1. - avgActivation)))
 
 def leastAbsoluteDeviation(a, scaleFactor=1.) :
     '''L1-norm provides 'Least Absolute Deviation' --

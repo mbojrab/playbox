@@ -85,7 +85,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         from nn.layer import Layer
         from theano.tensor import round
         act = Layer._setActivation(self, out)
-        return round(act, mode="half_away_from_zero") if self._forceSparse else act
+        return round(act, mode='half_away_from_zero') \
+               if self._forceSparse else act
 
     def __getstate__(self) :
         '''Save layer pickle'''
@@ -151,6 +152,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         '''
         from nn.costUtils import calcLoss, leastSquares, \
                                  calcSparsityConstraint, compileUpdate
+        from dataset.shared import getShape
         ConvolutionalLayer.finalize(self, networkInput, layerInput)
 
         weightsBack = self._getWeightsBack()
@@ -185,8 +187,9 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         # this is our cost function with respect to the original input
         # NOTE: The jacobian was computed however takes much longer to process
         #       and does not help convergence or regularization. It was removed
-        self._costs.append(calcLoss(self.input[0], decodedInput, 
-                                    self._activation))
+        self._costs.append(calcLoss(
+            self.input[0], decodedInput, self._activation,
+            scaleFactor=1. / self.getInputSize()[1]))
         self._costLabels.append('Local Cost')
 
         # add regularization if it was user requested
@@ -195,7 +198,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
             self._costs.append(regularization)
             self._costLabels.append('Regularization')
 
-        gradients = t.grad(t.sum(self._costs), self.getWeights())
+        gradients = t.grad(t.sum(self._costs) / getShape(networkInput[0])[0],
+                           self.getWeights())
         self._updates = compileUpdate(self.getWeights(), gradients,
                                       self._learningRate, self._momentumRate)
 
