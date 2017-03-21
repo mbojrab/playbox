@@ -1,23 +1,27 @@
 ﻿import argparse
 from dataset.ingest.unlabeled import ingestImagery
-from builder.args import addLoggingParams, addUnsupDataParams
+from builder.args import addLoggingParams, addUnsupDataParams, \
+                         addDebuggingParams
 from builder.profiler import setupLogging
 
-def createNetworks(target, maxTarget, batchSize, netFiles, prof, debug) :
+def createNetworks(maxTarget, batchSize, netFiles, prof, debug) :
     '''Read and create each network initialized with the target dataset.'''
     from ae.net import ClassifierSAENetwork
     nets = [ClassifierSAENetwork(maxTarget, syn, prof, debug) \
             for syn in netFiles]
-    [net.loadFeatureMatrix(target) for net in nets]
     return nets
 
-def sortDataset(netList, imagery, percentile=.95, debug=False) :
+def sortDataset(nets, target, imagery, percentile=.95, debug=False) :
     '''Test the imagery for how close it is to the target data. This also sorts
        the results according to closeness, so we can create a tiled tip-sheet.
     '''
     from dataset.debugger import saveTiledImage
     import numpy as np
     import math
+
+    # reload the target directory into the networks
+    [net.loadFeatureMatrix(target) for net in nets]
+
     sims = []
     batchSize = imagery.shape[1]
     for ii, batch in enumerate(imagery) :
@@ -67,11 +71,10 @@ if __name__ == '__main__' :
     parser = argparse.ArgumentParser()
     addLoggingParams(parser)
     addUnsupDataParams(parser, 'saeClass', multiLoad=True)
+    addDebuggingParams(parser)
     parser.add_argument('--percentile', dest='percentile', type=float,
                         default=.95, help='Keep the top percentile of ' +
                         'information corresponding to the most likely matches')
-    parser.add_argument('--debug', dest='debug', type=bool, required=False,
-                        help='Drop debugging information about the runs.')
     options = parser.parse_args()
 
     # setup the logger
@@ -85,10 +88,9 @@ if __name__ == '__main__' :
                                 log=log)
 
     # load all networks initialized to the target imagery
-    nets = createNetworks(options.targetDir, options.maxTarget,
-                          options.batchSize, options.synapse,
-                          prof, options.debug)
+    nets = createNetworks(options.maxTarget, options.batchSize,
+                          options.synapse, prof, options.debug)
 
     # test the training data for similarity to the target
-    sortDataset(nets, test.get_value(borrow=True), 
+    sortDataset(nets, options.targetDir, train.get_value(borrow=True),
                 options.percentile, options.debug)
