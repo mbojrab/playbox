@@ -11,7 +11,7 @@ def createNetworks(maxTarget, batchSize, netFiles, prof, debug) :
             for syn in netFiles]
     return nets
 
-def sortDataset(nets, target, imagery, percentile=.95, debug=False) :
+def sortDataset(nets, target, imagery, percReturned=100., debug=False) :
     '''Test the imagery for how close it is to the target data. This also sorts
        the results according to closeness, so we can create a tiled tip-sheet.
     '''
@@ -36,7 +36,7 @@ def sortDataset(nets, target, imagery, percentile=.95, debug=False) :
     sims = sorted(sims, key=lambda x: x[-1], reverse=True)
 
     # reorder the imagery to match the ranking
-    numImages = int((1.-percentile) * np.prod(imagery.shape[:2]))
+    numImages = int((percReturned / 100.) * np.prod(imagery.shape[:2]))
     sortedImagery = np.zeros([numImages] + list(imagery.shape[-3:]),
                              dtype=imagery.dtype)
     sortedConfidence = np.zeros([numImages], dtype=np.float32)
@@ -46,7 +46,7 @@ def sortDataset(nets, target, imagery, percentile=.95, debug=False) :
 
     # dump the ranked result as a series of batches
     if debug :
-        newNumBatch = int(math.ceil(numImages / batchSize))
+        newNumBatch = int(math.ceil(float(numImages) / batchSize))
         newFlatShape = [newNumBatch * batchSize] + list(imagery.shape[-3:])
         newBatchShape = [newNumBatch, batchSize] + list(imagery.shape[-3:])
         dimdiff = tuple([(0, a - b) for a, b in zip(newFlatShape,
@@ -72,9 +72,11 @@ if __name__ == '__main__' :
     addLoggingParams(parser)
     addUnsupDataParams(parser, 'saeClass', multiLoad=True)
     addDebuggingParams(parser)
-    parser.add_argument('--percentile', dest='percentile', type=float,
-                        default=.95, help='Keep the top percentile of ' +
-                        'information corresponding to the most likely matches')
+    parser.add_argument('--percent', dest='percentReturned', type=float,
+                        default=100.,
+                        help='Return some percentage of the highest related ' +
+                             'examples. All others will not be returned to ' +
+                             'the user.')
     options = parser.parse_args()
 
     # setup the logger
@@ -93,4 +95,4 @@ if __name__ == '__main__' :
 
     # test the training data for similarity to the target
     sortDataset(nets, options.targetDir, train.get_value(borrow=True),
-                options.percentile, options.debug)
+                options.percentReturned, options.debug)
