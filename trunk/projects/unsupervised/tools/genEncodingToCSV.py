@@ -14,12 +14,15 @@ def sortDataset(nets, target, data, percReturned=100., debug=False) :
     # reload the target directory into the networks
     [net.loadFeatureMatrix(target) for net in nets]
 
+    # split the data
     imagery = data[0]
     labels = data[1]
+
+    # setup the dataframe with appropriate column names
     cols = ['Similarity', 'Batch', 'Index', 'True Label']
     cols.extend(['F' + str(ii) for ii in \
                  xrange(np.prod(nets[0].getNetworkOutputSize()[1:]))])
-    sims = pd.DataFrame(columns=cols)
+    sims = pd.DataFrame()
 
     batchSize = imagery.shape[1]
     for ii, batch in enumerate(imagery) :
@@ -27,10 +30,21 @@ def sortDataset(nets, target, data, percReturned=100., debug=False) :
         cos, enc = nets[0].closenessAndEncoding(batch)
 
         # average the results found by multiple networks
-        [net.closenessAndEncoding(batch, cos) for net in nets[1:]]
-        sims.append([ii // batchSize, ii % batchSize, cos / float(len(nets)),
-                    labels[ii]].extend(enc), ignore_index=True)
-    sims.to_csv('output.csv')
+        [net.closeness(batch, cos) for net in nets[1:]]
+        cos /= float(len(nets))
+
+        # collect the row for each entry of the batch
+        batchList = []
+        for jj in xrange(batchSize) :
+            tmpList = [cos[jj], ii, jj, labels[ii][jj]]
+            tmpList.extend(enc[jj])
+            batchList.append(tmpList)
+
+        # write a batch of data to the data frame
+        sims = sims.append(batchList)
+
+    # write the output to a csv
+    sims.to_csv('output.csv')#, columns=cols)
 
 if __name__ == '__main__' :
     '''This application tests how close the examples are to a provided target
