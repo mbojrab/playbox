@@ -86,5 +86,5 @@ if __name__ == '__main__' :
                           options.synapse, prof, options.debug)
 
     # test the training data for similarity to the target
-    sortDataset(options.csvFile. nets, options.targetDir, test,
-                options.percentReturned, options.debug)
+    buildCSV(options.csvFile. nets, options.targetDir, test,
+             options.percentReturned, options.debug)
