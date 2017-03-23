@@ -4,7 +4,7 @@ from builder.args import addLoggingParams, addUnsupDataParams, \
                          addDebuggingParams
 from builder.profiler import setupLogging
 
-def sortDataset(nets, target, data, percReturned=100., debug=False) :
+def buildCSV(csvFile, nets, target, data, percReturned=100., debug=False) :
     '''Test the imagery for how close it is to the target data. This also sorts
        the results according to closeness, so we can create a tiled tip-sheet.
     '''
@@ -44,7 +44,7 @@ def sortDataset(nets, target, data, percReturned=100., debug=False) :
         sims = sims.append(batchList)
 
     # write the output to a csv
-    sims.to_csv('output.csv')#, columns=cols)
+    sims.to_csv(csvFile)#, columns=cols)
 
 if __name__ == '__main__' :
     '''This application tests how close the examples are to a provided target
@@ -67,6 +67,8 @@ if __name__ == '__main__' :
                         help='Return some percentage of the highest related ' +
                              'examples. All others will not be returned to ' +
                              'the user.')
+    parser.add_argument('--csv', dest='csvFile',type=str, default='output.csv',
+                        help='Name of the CSV file output.')
     options = parser.parse_args()
 
     # setup the logger
@@ -84,5 +86,5 @@ if __name__ == '__main__' :
                           options.synapse, prof, options.debug)
 
     # test the training data for similarity to the target
-    sortDataset(nets, options.targetDir, test,
+    sortDataset(options.csvFile. nets, options.targetDir, test,
                 options.percentReturned, options.debug)
