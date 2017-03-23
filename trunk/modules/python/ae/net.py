@@ -357,7 +357,7 @@ class ClassifierSAENetwork (SAENetwork) :
         # TODO: this needs to be updated if the encodings should not be the
         #       result of a softmax on the logits.
         cosineVector, encodings = (self.closeness(inputs, cosineVector),
-                                   self.classifyAndSoftmax(inputs)[1])
+                                   self.encode(inputs))
         self._endProfile()
         return cosineVector, encodings
 
