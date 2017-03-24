@@ -22,7 +22,7 @@ def buildCSV(csvFile, nets, target, data, percReturned=100., debug=False) :
     cols = ['Similarity', 'Batch', 'Index', 'True Label']
     cols.extend(['F' + str(ii) for ii in \
                  xrange(np.prod(nets[0].getNetworkOutputSize()[1:]))])
-    sims = pd.DataFrame()
+    sims = pd.DataFrame(columns=cols)
 
     batchSize = imagery.shape[1]
     for ii, batch in enumerate(imagery) :
@@ -41,10 +41,11 @@ def buildCSV(csvFile, nets, target, data, percReturned=100., debug=False) :
             batchList.append(tmpList)
 
         # write a batch of data to the data frame
-        sims = sims.append(batchList)
+        sims = sims.append(pd.DataFrame(batchList, columns=cols),
+                           ignore_index=True)
 
     # write the output to a csv
-    sims.to_csv(csvFile)#, columns=cols)
+    sims.to_csv(csvFile, encoding='utf-8')
 
 if __name__ == '__main__' :
     '''This application tests how close the examples are to a provided target
@@ -86,5 +87,5 @@ if __name__ == '__main__' :
                           options.synapse, prof, options.debug)
 
     # test the training data for similarity to the target
-    buildCSV(options.csvFile. nets, options.targetDir, test,
+    buildCSV(options.csvFile, nets, options.targetDir, test,
              options.percentReturned, options.debug)
