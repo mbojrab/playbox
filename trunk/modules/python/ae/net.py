@@ -55,7 +55,7 @@ class SAENetwork (ClassifierNetwork) :
         self._profiler = tmp
 
         self._encode = theano.function([self.getNetworkInput()[0]],
-                                       self.getNetworkOutput()[0])
+                                       self._getFlatOutput())
 
     def encode(self, inputs) :
         '''Encode the given inputs. The input is assumed to be 
@@ -287,7 +287,7 @@ class ClassifierSAENetwork (SAENetwork) :
         #       similarities between all pairs of vectors
         # setup the closeness execution graph based on target information
         targets = t.fmatrix('targets')
-        outClass = self.getNetworkOutput()[0]
+        outClass = self._getFlatOutput()
         cosineSimilarity = dot(outClass, targets[:, :numTargets+1]) / \
             (t.sqrt(t.sum(outClass**2)) * (t.sqrt(t.sum(targets**2))))
         self._closeness = function([self.getNetworkInput()[0], numTargets],

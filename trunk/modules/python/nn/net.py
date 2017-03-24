@@ -42,6 +42,13 @@ class Network () :
         if data is None : return []
         else : return data if isinstance(data, list) else [data]
 
+    def _getFlatOutput(self) :
+        '''Flatten the output for further processing. This allows fully
+           convolutional networks to output encoding vectors.
+        '''
+        outClass = self.getNetworkOutput()[0]
+        return outClass.flatten(2) if outClass.ndim > 2 else outClass
+
     def finalizeNetwork(self, networkInput) :
         '''Setup the network based on the current network configuration.'''
         if len(self._layers) == 0 :
@@ -190,7 +197,7 @@ class ClassifierNetwork (Network) :
         # output prediction, which emphasizes significant neural responses.
         # This takes as its input, the first layer's input, and uses the final
         # layer's output as the function (ie the network classification).
-        outClass = t.nnet.softmax(self.getNetworkOutput()[0])
+        outClass = t.nnet.softmax(self._getFlatOutput())
         self._outClassMax = t.argmax(outClass, axis=1)
         self._classify = theano.function([self.getNetworkInput()[0]],
                                          self._outClassMax)
