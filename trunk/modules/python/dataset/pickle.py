@@ -52,7 +52,7 @@ def readPickleZip (inFile, log=None) :
         #       numpy.arrays, and these are also encoded as raw bytes. Using
         #       the 'encoding' with these objects mangles them, and there no
         #       ability to pick and choose when to utilize the encoding. 
-        #       For now transfering pickled networks between py2 and py3 are
+        #       For now transfering pickled networks between py2 and py3 is
         #       not supported.
         # TODO: There are two solutions, decode as 'bytes' in py3, and perform
         #       the dencoding after the fact on all required objects, or use
