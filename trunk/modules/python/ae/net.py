@@ -55,7 +55,7 @@ class SAENetwork (ClassifierNetwork) :
         self._profiler = tmp
 
         self._encode = theano.function([self.getNetworkInput()[0]],
-                                       self.getNetworkOutput()[0])
+                                       self._getFlatOutput())
 
     def encode(self, inputs) :
         '''Encode the given inputs. The input is assumed to be 
@@ -287,7 +287,7 @@ class ClassifierSAENetwork (SAENetwork) :
         #       similarities between all pairs of vectors
         # setup the closeness execution graph based on target information
         targets = t.fmatrix('targets')
-        outClass = self.getNetworkOutput()[0]
+        outClass = self._getFlatOutput()
         cosineSimilarity = dot(outClass, targets[:, :numTargets+1]) / \
             (t.sqrt(t.sum(outClass**2)) * (t.sqrt(t.sum(targets**2))))
         self._closeness = function([self.getNetworkInput()[0], numTargets],
@@ -342,7 +342,7 @@ class ClassifierSAENetwork (SAENetwork) :
         self._endProfile()
         return cosineVector
 
-    def closenessAndEncoding (self, inputs) :
+    def closenessAndEncoding (self, inputs, cosineVector=None) :
         '''This is a form of classification for SAE networks. The network has
            been provided a target input, which we now use to determine the
            similarity of this input against that target set.
@@ -356,8 +356,8 @@ class ClassifierSAENetwork (SAENetwork) :
 
         # TODO: this needs to be updated if the encodings should not be the
         #       result of a softmax on the logits.
-        cosineVector, encodings = (self.closeness(inputs),
-                                   self.classifyAndSoftmax(inputs)[1])
+        cosineVector, encodings = (self.closeness(inputs, cosineVector),
+                                   self.encode(inputs))
         self._endProfile()
         return cosineVector, encodings
 

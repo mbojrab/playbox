@@ -1,4 +1,4 @@
-from six.moves import cPickle
+﻿from six.moves import cPickle
 import gzip
 def writePickleZip (outputFile, data, log=None) :
     '''Utility to write a pickle to disk.
@@ -45,5 +45,17 @@ def readPickleZip (inFile, log=None) :
     if log is not None :
         log.info('Load the data into memory')
     with gzip.open(inFile, 'rb') as f :
+        # NOTE: There is a compatibility issue with pickle and numpy. py2
+        #       encodes as raw bytes and py3 uses unicode. For raw strings
+        #       using the proper 'encoding' option returns the string properly.
+        #       py2 however makes no differentiation when encoding
+        #       numpy.arrays, and these are also encoded as raw bytes. Using
+        #       the 'encoding' with these objects mangles them, and there no
+        #       ability to pick and choose when to utilize the encoding. 
+        #       For now transfering pickled networks between py2 and py3 is
+        #       not supported.
+        # TODO: There are two solutions, decode as 'bytes' in py3, and perform
+        #       the dencoding after the fact on all required objects, or use
+        #       another archival format other than pickle.
         data = cPickle.load(f)
     return data

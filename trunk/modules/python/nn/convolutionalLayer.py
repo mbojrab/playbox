@@ -33,15 +33,13 @@ class ConvolutionalLayer(Layer) :
         Layer.__init__(self, layerID, learningRate, momentumRate, dropout,
                        activation)
 
-        # TODO: this check is likely unnecessary
-        if inputSize[2] == kernelSize[2] or inputSize[3] == kernelSize[3] :
-            raise ValueError('ConvolutionalLayer Error: ' +
-                             'inputSize cannot equal kernelSize')
         if inputSize[1] != kernelSize[1] :
             raise ValueError('ConvolutionalLayer Error: ' +
                              'Number of Channels must match in ' +
                              'inputSize and kernelSize')
 
+        # NOTE: use None instead of the batch size to allow variable batch
+        #       sizes during deployment.
         self._inputSize = [None] + list(inputSize[1:])
         self._kernelSize = kernelSize
         self._downsampleFactor = downsampleFactor

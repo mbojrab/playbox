@@ -90,16 +90,16 @@ def addUnsupConvolutionalParams(parser) :
 def addSupContiguousParams(parser) :
     '''Setup common ContiguousLayer options.'''
     parser.add_argument('--neuron', dest='neuron', type=int, nargs='+',
-                        default=[500, 300, 100],
+                        default=[],
                         help='Number of neurons on Fully-Connected Layers.')
     parser.add_argument('--learnF', dest='learnF', type=float, nargs='+',
-                        default=[.02, .02, .02],
+                        default=[],
                         help='Rate of learning on Fully-Connected Layers.')
     parser.add_argument('--momentumF', dest='momentumF', type=float, nargs='+',
-                        default=[.2, .2, .2],
+                        default=[],
                         help='Rate of momentum on Fully-Connected Layers.')
     parser.add_argument('--dropoutF', dest='dropoutF', type=float, nargs='+',
-                        default=[0.5, 0.5, 1],
+                        default=[],
                         help='Dropout amount on Fully-Connected Layer.')
     parser.add_argument('--regTypeF', dest='regTypeF', type=str, 
                         default='L2', help='Type of regularization on ' \
