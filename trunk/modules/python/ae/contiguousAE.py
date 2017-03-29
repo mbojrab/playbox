@@ -78,6 +78,14 @@ class ContiguousAutoEncoder(ContiguousLayer, AutoEncoder) :
                                         dtype=config.floatX)
         self._thresholdsBack = shared(value=initialVisThresh, borrow=True)
 
+    def __str__(self) :
+        '''Output Layer to String.'''
+        from nn.layer import Layer
+        s = ''
+        s += '\tLayer Type         : ContiguousAutoEncoder\n'
+        s += Layer.__str__(self)
+        return s
+
     def _setActivation(self, out) :
         from nn.layer import Layer
         from theano.tensor import round

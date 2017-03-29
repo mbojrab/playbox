@@ -9,7 +9,9 @@ def setupLogging (options, appName) :
     import logging
     from builder.profiler import Profiler
 
-    logName = appName + ': ' + options.data
+    logName = appName + ': '
+    if  hasattr(options, 'data') :
+        logName += options.data
 
     # setup the logger
     log = logging.getLogger(logName)

@@ -49,6 +49,22 @@ class Layer () :
         # convert back to a theano operation
         self._activation = convertActivation(self._activation)
 
+    def __str__(self) :
+        '''Output Layer to String.'''
+        s = ''
+        s += '\tLayer ID           : ' + self.layerID + '\n'
+        s += '\tLayer InputSize    : ' + str(self.getInputSize()) + '\n'
+        s += '\tLayer OutputSize   : ' + str(self.getOutputSize()) + '\n'
+        s += '\tLayer LearningRate : ' + str(self.getLearningRate()) + '\n'
+        s += '\tLayer MomentumRate : ' + str(self.getMomentumRate()) + '\n'
+        s += '\tLayer Dropout      : ' + str(self._dropout) + '\n'
+        if isinstance(self.getActivation(), str):
+            s += '\tLayer Activation   : ' + self.getActivation() + '\n'
+        else:
+            s += '\tLayer Activation   : ' + \
+                 convertActivation(self.getActivation()) + '\n\n'
+        return s
+
     def _initializeWeights(self, size, fanIn, fanOut, randomNumGen) :
         '''Initialize the weights according to the activation type selected.
 
