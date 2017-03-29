@@ -44,6 +44,13 @@ class ContiguousLayer(Layer) :
                 fanOut=self._numNeurons,
                 randomNumGen=randomNumGen)
 
+    def __str__(self) :
+        '''Output Layer to String.'''
+        s = ''
+        s += '\tLayer Type         : ContiguousLayer\n'
+        s += Layer.__str__(self)
+        return s
+
     def finalize(self, networkInput, layerInput) :
         '''Setup the computation graph for this layer.
            networkInput : the input variable tuple for the network

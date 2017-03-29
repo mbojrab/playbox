@@ -81,6 +81,14 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
         self._thresholdsBack = shared(value=initialVisThresh, borrow=True)
         self._regularization = Regularization(regType, self._contractionRate)
 
+    def __str__(self) :
+        '''Output Layer to String.'''
+        from nn.layer import Layer
+        s = ''
+        s += '\tLayer Type         : ConvolutionalAutoEncoder\n'
+        s += Layer.__str__(self)
+        return s
+
     def _setActivation(self, out) :
         from nn.layer import Layer
         from theano.tensor import round
