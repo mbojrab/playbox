@@ -29,6 +29,19 @@ class Network () :
         self._profiler = tmpProf
         self._debug = tmpDebug
 
+    def __str__(self) :
+        '''Turn the network information into a string.'''
+        s = ''
+        s += 'ID         : ' + self._unique + '\n'
+        s += 'InputSize  : ' + str(self.getNetworkInputSize()) + '\n'
+        s += 'OutputSize : ' + str(self.getNetworkOutputSize()) + '\n'
+        s += 'Num Layers : ' + str(self.getNumLayers()) + '\n'
+
+        for ii in range(self.getNumLayers()) :
+            s += 'Layer [' + str(ii) + '] : \n'
+            s += str(self._layers[ii])
+        return s
+
     def _genNewUUID(self) :
         '''Generate a new unique identifier. This allows the network
            to be easily identifiable in production settings.
