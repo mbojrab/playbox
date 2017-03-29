@@ -9,6 +9,7 @@ class Network () :
         self._profiler = prof
         self._layers = []
         self._debug = debug
+        self._genNewUUID()
 
     def __getstate__(self) :
         '''Save network pickle'''
@@ -27,6 +28,13 @@ class Network () :
         self.__dict__.update(dict)
         self._profiler = tmpProf
         self._debug = tmpDebug
+
+    def _genNewUUID(self) :
+        '''Generate a new unique identifier. This allows the network
+           to be easily identifiable in production settings.
+        '''
+        import uuid
+        self._unique = str(uuid.uuid4())
 
     def _startProfile(self, message, level) :
         '''Start a profile if the profiler exists.'''
@@ -71,9 +79,12 @@ class Network () :
 
     def save(self, filepath) :
         '''Save the network to disk.
-           TODO: This should also support output to Synapse file
+           NOTE: This updates the internal UUID. This ensures when the network
+                 is stored for future use it is uniquely identifiable. This
+                 update occurs here to reduce the number of generations needed.
         '''
         self._startProfile('Saving network to disk [' + filepath + ']', 'info')
+        self._genNewUUID()
         if '.pkl.gz' in filepath :
             writePickleZip(filepath, self.__getstate__())
         self._endProfile()
@@ -86,6 +97,10 @@ class Network () :
                            ']', 'info')
         self.__setstate__(readPickleZip(filepath))
         self._endProfile()
+
+    def getUniqueID(self) :
+        '''Return the UUID of the network state.'''
+        return self._unique
 
     def addLayer(self, layer) :
         '''Add a Layer to the network.'''
