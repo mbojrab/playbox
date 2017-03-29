@@ -9,7 +9,7 @@ class Network () :
         self._profiler = prof
         self._layers = []
         self._debug = debug
-        self._genNewUUID()
+        self._unique = 'No Unique ID'
 
     def __getstate__(self) :
         '''Save network pickle'''
