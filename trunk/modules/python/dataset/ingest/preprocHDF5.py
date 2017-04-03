@@ -345,16 +345,16 @@ def writePreprocessedHDF5(filepath, holdoutPercentage=.05, minTest=5,
 
         # populate the indice buffers
         workQueueIndices = queue.Queue()
-        workQueueIndices.put((trainIndicesH5, trainIndicesH5, train))
-        workQueueIndices.put((testIndicesH5, testIndicesH5, test))
+        workQueueIndices.put((trainIndicesH5, train))
+        workQueueIndices.put((testIndicesH5, test))
 
         # stream the indices into the buffers --
         # we are threading this for efficiency
         def copyIndices() :
             while True :
-                dataH5, indicesH5, data = workQueueIndices.get()
+                dataH5, data = workQueueIndices.get()
                 dataH5[:] = np.resize(np.asarray(data).flatten()[1::2],
-                                      indicesH5.shape).astype(np.int32)[:]
+                                      dataH5.shape).astype(np.int32)[:]
                 workQueueIndices.task_done()
         for ii in range(2) :
             thread = threading.Thread(target=copyIndices)
