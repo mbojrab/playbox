@@ -4,7 +4,8 @@ from builder.args import addLoggingParams, addUnsupDataParams, \
                          addDebuggingParams
 from builder.profiler import setupLogging
 
-def buildCSV(csvFile, nets, target, data, percReturned=100., debug=False) :
+def buildCSV(csvFile, nets, target, data, 
+             dumpEnc=True, percReturned=100., debug=False) :
     '''Test the imagery for how close it is to the target data. This also sorts
        the results according to closeness, so we can create a tiled tip-sheet.
     '''
@@ -20,8 +21,9 @@ def buildCSV(csvFile, nets, target, data, percReturned=100., debug=False) :
 
     # setup the dataframe with appropriate column names
     cols = ['Similarity', 'Batch', 'Index', 'True Label']
-    cols.extend(['F' + str(ii) for ii in \
-                 xrange(np.prod(nets[0].getNetworkOutputSize()[1:]))])
+    if dumpEnc is True :
+        cols.extend(['F' + str(ii) for ii in \
+                     xrange(np.prod(nets[0].getNetworkOutputSize()[1:]))])
     sims = pd.DataFrame(columns=cols)
 
     batchSize = imagery.shape[1]
@@ -37,7 +39,8 @@ def buildCSV(csvFile, nets, target, data, percReturned=100., debug=False) :
         batchList = []
         for jj in xrange(batchSize) :
             tmpList = [cos[jj], ii, jj, labels[ii][jj]]
-            tmpList.extend(enc[jj])
+            if dumpEnc is True :
+                tmpList.extend(enc[jj])
             batchList.append(tmpList)
 
         # write a batch of data to the data frame
@@ -88,4 +91,4 @@ if __name__ == '__main__' :
 
     # test the training data for similarity to the target
     buildCSV(options.csvFile, nets, options.targetDir, test,
-             options.percentReturned, options.debug)
+             False, options.percentReturned, options.debug)
