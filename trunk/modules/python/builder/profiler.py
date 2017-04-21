@@ -4,35 +4,46 @@ import lxml.etree as et
 import logging
 import atexit
 
-def setupLogging (options, appName) :
-    '''Grab the logger and parser from the options.'''
+def setupLogger (logFile, level, appName, data=None) :
+    '''Grab the logger and parser from the options.
+
+       logFile: Path for outputting logging to the filesystem
+       level  : Level at which to log messages
+       profile: Path for outputting the profile to the filesystem
+       appName: Name of the application for unique logging
+       data   : Path to data for this session
+    '''
     import logging
     from builder.profiler import Profiler
 
-    logName = appName + ': '
-    if  hasattr(options, 'data') :
-        logName += options.data
+    logName = appName
+    if data is not None :
+        logName += ': ' + data
 
     # setup the logger
     log = logging.getLogger(logName)
-    log.setLevel(options.level.upper())
+    log.setLevel(level.upper())
     formatter = logging.Formatter('%(levelname)s - %(message)s')
     stream = logging.StreamHandler()
-    stream.setLevel(options.level.upper())
+    stream.setLevel(level.upper())
     stream.setFormatter(formatter)
     log.addHandler(stream)
 
     # attach it to a file -- if requested
-    if options.logfile is not None :
-        logFile = logging.FileHandler(options.logfile)
-        logFile.setLevel(options.level.upper())
+    if logFile is not None :
+        logFile = logging.FileHandler(logFile)
+        logFile.setLevel(level.upper())
         logFile.setFormatter(formatter)
         log.addHandler(logFile)
 
-    # setup the profiler
-    prof = Profiler(log=log, name=logName, profFile=options.profile)
+    return log
 
-    return log, prof
+def setupLogging (options, appName) :
+    '''Grab the logger and parser from the options.'''
+    log = setupLogger(options.logfile, options.level,
+                      appName, data=getattr(options, 'data', None))
+    return log, Profiler(log=log, name=appName, profFile=options.profile)
+
 
 class Profiler () :
     def __init__ (self, log=None, name='ApplicationName',
