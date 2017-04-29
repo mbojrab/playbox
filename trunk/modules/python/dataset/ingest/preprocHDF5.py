@@ -89,15 +89,17 @@ def preprocessData(rootpath, image, log=None) :
             image = image[:]
     return preProcImage(image, log)
 
-def populateDataHDF5(h5Dataset, rootpath, data, dataShape,
-                     batchSize, threads, log) :
+def populateDataArray(store, rootpath, data, dataShape,
+                      batchSize, threads, log) :
     '''Read and preprocess the data for use in network training.
        This streams the data into the appropriate location of an
-       HDF5 file, such that it can be reused later.
+       HDF5 file, such that it can be reused later. 
 
-       h5Dataset : HDF5 file handle to populate
+       NOTE: This also handles streaming directly to a numpy array natively.
+
+       store     : HDF5 file handle to populate or numpy array
        rootpath  : Parent directory or HDF5 where the files reside
-       data      : List of all imagery paths. These are already sorted.
+       data      : List of all imagery paths. These are already sorted
        dataShape : All data should be this size, and pad if its smaller
        batchSize : The size of the batch for the imagery
        threads   : Number of python threads to use
@@ -106,7 +108,7 @@ def populateDataHDF5(h5Dataset, rootpath, data, dataShape,
     import theano
     from six.moves import queue
     import threading
-    from dataset.reader import padImageData, preProcImage
+    from dataset.reader import padImageData
 
     # add jobs to the queue --
     # NOTE : h5py.Dataset doesn't implement __setslice__, so we must implement
@@ -114,7 +116,7 @@ def populateDataHDF5(h5Dataset, rootpath, data, dataShape,
     #        formatting, but it gets the job done.
     workQueueData = queue.Queue()
     for ii in range(dataShape[0]) :
-        workQueueData.put((h5Dataset, rootpath, np.s_[ii, :], dataShape[1:],
+        workQueueData.put((store, rootpath, np.s_[ii, :], dataShape[1:],
                            data[ii*batchSize:(ii+1)*batchSize], log))
 
     # stream the imagery into the buffers --
@@ -127,9 +129,9 @@ def populateDataHDF5(h5Dataset, rootpath, data, dataShape,
             # load the batch locally so our writes are coherent
             tmp = np.ndarray((imSize), theano.config.floatX)
             for ii, imFile in enumerate(imFiles) :
-                tmp[ii][:] = padImageData(
-                    preprocessData(rootpath, imFile[0], log=log),
-                    imSize[-3:])[:]
+                tmp[ii][:] = padImageData(preprocessData(
+                    rootpath, imFile if isinstance(imFile, str) else imFile[0],
+                    log=log), imSize[-3:])[:]
             # write the whole batch at once
             h5[sliceIndex] = tmp[:]
 
@@ -345,16 +347,16 @@ def writePreprocessedHDF5(filepath, holdoutPercentage=.05, minTest=5,
 
         # populate the indice buffers
         workQueueIndices = queue.Queue()
-        workQueueIndices.put((trainIndicesH5, trainIndicesH5, train))
-        workQueueIndices.put((testIndicesH5, testIndicesH5, test))
+        workQueueIndices.put((trainIndicesH5, train))
+        workQueueIndices.put((testIndicesH5, test))
 
         # stream the indices into the buffers --
         # we are threading this for efficiency
         def copyIndices() :
             while True :
-                dataH5, indicesH5, data = workQueueIndices.get()
+                dataH5, data = workQueueIndices.get()
                 dataH5[:] = np.resize(np.asarray(data).flatten()[1::2],
-                                      indicesH5.shape).astype(np.int32)[:]
+                                      dataH5.shape).astype(np.int32)[:]
                 workQueueIndices.task_done()
         for ii in range(2) :
             thread = threading.Thread(target=copyIndices)
@@ -373,10 +375,10 @@ def writePreprocessedHDF5(filepath, holdoutPercentage=.05, minTest=5,
 
     # read the image data
     threads = multiprocessing.cpu_count()
-    populateDataHDF5(trainDataH5, rootpath, train, trainShape,
-                     batchSize, threads, log)
-    populateDataHDF5(testDataH5, rootpath, test, testShape, 
-                     batchSize, threads, log)
+    populateDataArray(trainDataH5, rootpath, train, trainShape,
+                      batchSize, threads, log)
+    populateDataArray(testDataH5, rootpath, test, testShape,
+                      batchSize, threads, log)
 
     if log is not None :
         log.info('Flushing to disk')
