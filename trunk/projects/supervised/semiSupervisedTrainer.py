@@ -62,8 +62,9 @@ if __name__ == '__main__' :
                                         log=log)
     trainShape = train[0].shape.eval()
 
-    # create the stacked network -- LeNet-5 (minus the output layer)
-    network = TrainerSAENetwork(train, prof=prof, debug=options.debug)
+    # create the stacked network
+    network = TrainerSAENetwork(train, greedyNetwork=options.greedyNet,
+                                prof=prof, debug=options.debug)
 
     if options.synapse is not None :
         # load a previously saved network

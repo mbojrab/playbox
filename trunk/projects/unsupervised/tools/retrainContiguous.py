@@ -54,8 +54,8 @@ if __name__ == '__main__' :
                                 log=log)
 
     # create the stacked network
-    trainer = TrainerSAENetwork(train, test, options.synapse, prof,
-                                options.debug)
+    trainer = TrainerSAENetwork(train, test, options.synapse,
+                                options.greedyNet, prof, options.debug)
 
     # remove the contiguous layers
     count = options.remove if options.remove is not None else np.inf
