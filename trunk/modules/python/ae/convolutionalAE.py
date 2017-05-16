@@ -191,6 +191,12 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
             self._costs.append(leastSquares(jacobianMat, self._contractionRate))
             self._costLabels.append('Jacob')
 
+        # add regularization if it was user requested
+        regularization = self._regularization.calculate([self])
+        if regularization is not None :
+            self._costs.append(regularization)
+            self._costLabels.append('Regularization')
+
         # create the negative log likelihood function --
         # this is our cost function with respect to the original input
         # NOTE: The jacobian was computed however takes much longer to process
@@ -199,12 +205,6 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
             self.input[0], decodedInput, self._activation,
             scaleFactor=1. / self.getInputSize()[1]))
         self._costLabels.append('Local Cost')
-
-        # add regularization if it was user requested
-        regularization = self._regularization.calculate([self])
-        if regularization is not None :
-            self._costs.append(regularization)
-            self._costLabels.append('Regularization')
 
         gradients = t.grad(t.sum(self._costs) / getShape(networkInput[0])[0],
                            self.getWeights())
