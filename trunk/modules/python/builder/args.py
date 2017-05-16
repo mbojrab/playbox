@@ -51,6 +51,10 @@ def addSupDataParams (parser, base, multiLoad=False) :
 def addUnsupDataParams (parser, base, multiLoad=False) :
     '''Setup common dataset parameters for unsupervised learning.'''
     addSupDataParams(parser, base, multiLoad)
+    boolCheck = lambda x: True if 'True' == x else False 
+    parser.add_argument('--greedyNetwork', dest='greedyNet',
+                        type=boolCheck, default=True,
+                        help='Activate Greedy Network Reconstruction.')
     parser.add_argument('--target', dest='targetDir', type=str, required=True,
                         help='Directory with target data to match.')
     parser.add_argument('--maxTarget', dest='maxTarget', type=int, default=100,

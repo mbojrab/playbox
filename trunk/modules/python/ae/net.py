@@ -376,15 +376,18 @@ class TrainerSAENetwork (SAENetwork) :
                   (numBatches, batchSize, numChannels, rows, cols)
        filepath : Path to an already trained network on disk 
                   'None' creates randomized weighting
+       greedyNetwork : Enable network-wide greedy loss.
        prof     : Profiler to use
        debug    : Turn on debugging information
     '''
-    def __init__ (self, train, test, filepath=None, prof=None, debug=False) :
+    def __init__ (self, train, test, filepath=None, greedyNetwork=True, 
+                  prof=None, debug=False) :
         from nn.reg import Regularization
         SAENetwork.__init__ (self, filepath, prof, debug)
         self._indexVar = t.lscalar('index')
         self._trainData = train[0] if isinstance(train, list) else train
         self._testData = test[0] if isinstance(test, list) else test
+        self._greedyNetwork = greedyNetwork
         self._trainGreedy = []
         self._checkGreedy = []
         self.reconstruction = []
@@ -412,13 +415,7 @@ class TrainerSAENetwork (SAENetwork) :
                                'debug')
             costs, _ = encoder.getUpdates()
 
-            # create a greedy network reconstruction with the current
-            # layer as the pseudo output layer. --
-            # NOTE: this allows each greedy layer training the ability to
-            #       additionally minimize the network-wide reconstruction.
-            # NOTE: to keep layers agnostic to their surroundings, this
-            #       cannot be performed within the encoder. The additional
-            #       loss is calculated and added here.
+
             netInput = self.getNetworkInput()[0]
             if len(netInput.shape.eval()) != len(self.getNetworkInputSize()) :
                 netInput = netInput.flatten(2)
@@ -432,12 +429,23 @@ class TrainerSAENetwork (SAENetwork) :
                 theano.function([self.getNetworkInput()[0]],
                                 decodedInput))
 
-            # recreate the updates using the greedy network reconstruction
-            # in additional to the existing costs.
-            costs.append(calcLoss(
-                netInput, decodedInput, self._layers[0].getActivation(),
-                scaleFactor=1. / getShape(self.getNetworkInput()[0])[1] \
-                            if len(self.getNetworkInputSize()) == 4 else 1.))
+            # create a greedy network reconstruction with the current
+            # layer as the pseudo output layer. --
+            # NOTE: this allows each greedy layer training the ability to
+            #       additionally minimize the network-wide reconstruction.
+            # NOTE: to keep layers agnostic to their surroundings, this
+            #       cannot be performed within the encoder. The additional
+            #       loss is calculated and added here.
+            if self._greedyNetwork :
+
+                # recreate the updates using the greedy network reconstruction
+                # in additional to the existing costs.
+                costs.append(calcLoss(
+                    netInput, decodedInput, self._layers[0].getActivation(),
+                    scaleFactor=1. / getShape(self.getNetworkInput()[0])[1] \
+                                if len(self.getNetworkInputSize()) == 4 else 1.))
+
+            # build the functions
             gradients = t.grad(t.sum(costs) / batchSize, encoder.getWeights())
             updates = compileUpdate(encoder.getWeights(), gradients,
                                     encoder.getLearningRate(),
@@ -559,7 +567,8 @@ class TrainerSAENetwork (SAENetwork) :
             costMessage = layerEpochStr
             for ii, l in enumerate(self._layers[layerIndex].getCostLabels()) :
                 costMessage += '|' + l + ': ' + str(locCost[ii])
-            costMessage += '|Network Cost: ' + str(locCost[-1])
+            if self._greedyNetwork :
+                costMessage += '|Network Cost: ' + str(locCost[-1])
             self._startProfile(costMessage, 'info')
             globCost.append(locCost)
             self._endProfile()
