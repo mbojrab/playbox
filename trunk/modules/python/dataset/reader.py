@@ -44,7 +44,11 @@ def normalize(v) :
 
 def statisticalNorm(v) :
     '''Zero-mean and unit variance.'''
-    return normalize((v - v.mean()) / v.std())
+    stddev = v.std()
+    if stddev == 0.:
+        return v
+    else:
+        return normalize((v - v.mean()) / v.std())
 
 def convertPhaseAmp(imData, log=None) :
     '''Extract the phase and amplitude components of a complex number.
