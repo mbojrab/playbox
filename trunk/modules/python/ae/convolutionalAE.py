@@ -3,7 +3,7 @@ from theano import config, shared, function
 import theano.tensor as t
 from ae.encoder import AutoEncoder
 from nn.convolutionalLayer import ConvolutionalLayer
-from theano.tensor.nnet.conv import conv2d
+from theano.tensor.nnet import conv2d
 
 class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
     '''This class describes a Contractive AutoEncoder (CAE) for a convolutional
@@ -68,7 +68,7 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
                                     dropout=dropout,
                                     initialWeights=initialWeights,
                                     initialThresholds=initialHidThresh,
-                                    activation=activation, 
+                                    activation=activation,
                                     randomNumGen=randomNumGen)
         AutoEncoder.__init__(self, forceSparsity, 
                              1. / np.prod(kernelSize[:]) \
@@ -146,8 +146,9 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
     def _decode(self, input) :
         from nn.layer import Layer
         weightsBack = self._getWeightsBack()
-        deconvolve = conv2d(input, weightsBack, self.getFeatureSize(), 
-                            weightsBack.shape.eval(), border_mode='full')
+        deconvolve = conv2d(input, weightsBack, self.getFeatureSize(),
+                            tuple(weightsBack.shape.eval()),
+                            border_mode='full')
         out = deconvolve + self._thresholdsBack.dimshuffle('x', 0, 'x', 'x')
         return Layer._setActivation(self, out)
 
@@ -186,7 +187,8 @@ class ConvolutionalAutoEncoder(ConvolutionalLayer, AutoEncoder) :
             # larger than the input vector.
             unpooling = self._unpool_2d(self.output[0], self._downsampleFactor)
             jacobianMat = conv2d(unpooling * (1. - unpooling), weightsBack,
-                                 self.getFeatureSize(), weightsBack.shape.eval(),
+                                 self.getFeatureSize(),
+                                 tuple(weightsBack.shape.eval()),
                                  border_mode='full')
             self._costs.append(leastSquares(jacobianMat, self._contractionRate))
             self._costLabels.append('Jacob')

@@ -40,9 +40,9 @@ class ConvolutionalLayer(Layer) :
 
         # NOTE: use None instead of the batch size to allow variable batch
         #       sizes during deployment.
-        self._inputSize = [None] + list(inputSize[1:])
-        self._kernelSize = kernelSize
-        self._downsampleFactor = downsampleFactor
+        self._inputSize = tuple([None] + list(inputSize[1:]))
+        self._kernelSize = tuple(kernelSize)
+        self._downsampleFactor = tuple(downsampleFactor)
 
         # create weights based on the optimal distribution for the activation
         if initialWeights is None or initialThresholds is None :
@@ -70,7 +70,7 @@ class ConvolutionalLayer(Layer) :
 
         def findLogits(input, weights, inputSize, kernelSize,
                        downsampleFactor, thresholds) :
-            from theano.tensor.nnet.conv import conv2d
+            from theano.tensor.nnet import conv2d
             from theano.tensor.signal.pool import pool_2d
 
             # create a function to perform the convolution
