@@ -124,7 +124,7 @@ def compileUpdate(weights, gradients, learningRate, momentumRate) :
     from dataset.shared import toShared, isShared, fromShared
     updates = []
     for w, g in zip(weights, gradients) :
-        if fromShared(momentumRate)[0] > 0.:
+        if fromShared(momentumRate) > 0.:
             # setup a second buffer for storing momentum
             previousWeightUpdate = toShared(
                 np.zeros(w.get_value().shape, theano.config.floatX))
@@ -133,10 +133,10 @@ def compileUpdate(weights, gradients, learningRate, momentumRate) :
             # perform weight update and save the previous update
             updates.append((w, w + previousWeightUpdate))
             updates.append((previousWeightUpdate,
-                            previousWeightUpdate * momentumRate[0] -
-                            learningRate[0] * g))
+                            previousWeightUpdate * momentumRate -
+                            learningRate * g))
         else :
-            updates.append((w, w - learningRate[0] * g))
+            updates.append((w, w - learningRate * g))
     return updates
 
 def compileUpdates(layers, loss) :

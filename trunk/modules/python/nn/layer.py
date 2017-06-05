@@ -1,4 +1,5 @@
 ﻿import theano
+import numpy as np
 from theano.tensor.shared_randomstreams import RandomStreams
 from time import time
 from nn.opMap import convertActivation
@@ -15,7 +16,6 @@ class Layer () :
            momentumRate : multiplier for force of gradient descent
            dropout      : rate of retention in a given neuron during training
         '''
-        from dataset.shared import toShared
         # input can be a tuple or a variable
         self.input = None
         # output must be a tuple
@@ -23,8 +23,8 @@ class Layer () :
         self.layerID = layerID
         self._weights = None
         self._thresholds = None
-        self._learningRate = toShared([learningRate])
-        self._momentumRate = toShared([momentumRate])
+        self._learningRate = theano.shared(np.float32(learningRate))
+        self._momentumRate = theano.shared(np.float32(momentumRate))
         self._dropout = dropout
         self._activation = activation
 
@@ -34,8 +34,8 @@ class Layer () :
         dict = self.__dict__.copy()
         dict['input'] = None
         dict['output'] = None
-        dict['_learningRate'] = fromShared(self._learningRate)
-        dict['_momentumRate'] = fromShared(self._momentumRate)
+        dict['_learningRate'] = self._learningRate.get_value()
+        dict['_momentumRate'] = self._momentumRate.get_value()
         dict['_weights'] = fromShared(self._weights)
         dict['_thresholds'] = fromShared(self._thresholds)
         # convert to a string for pickling purposes
@@ -46,12 +46,10 @@ class Layer () :
         '''Load layer pickle'''
         from dataset.shared import toShared
         self.__dict__.update(dict)
+        self._learningRate = theano.shared(np.float32(self._learningRate))
+        self._momentumRate = theano.shared(np.float32(self._momentumRate))
         # NOTE: this is saving to a secondary variable to allow
         #       borrowing the memory.
-        initialLearningRate = self._learningRate
-        self._learningRate = toShared(initialLearningRate)
-        initialMomentumRate = self._momentumRate
-        self._momentumRate = toShared(initialMomentumRate)
         initialWeights = self._weights
         self._weights = toShared(initialWeights)
         initialThresholds = self._thresholds
@@ -171,8 +169,14 @@ class Layer () :
     def getMomentumRate(self) :
         return self._momentumRate
 
+    def setMomentumRate(self, momentumRate) :
+        self._momentumRate.set_value(momentumRate)
+
     def getLearningRate(self) :
         return self._learningRate
+
+    def setLearningRate(self, learningRate) :
+        self._learningRate.set_value(learningRate)
 
     def getInputSize (self) :
         raise NotImplementedError('Implement the getInputSize() method')
