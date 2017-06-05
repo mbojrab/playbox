@@ -112,7 +112,7 @@ def computeJacobian(a, wrt, batchSize, inputSize, numNeurons) :
     wrtReshape = (1, inputSize, numNeurons)
     return t.reshape(a * (1 - a), aReshape) * t.reshape(wrt, wrtReshape)
 
-def compileUpdate(weights, gradients, learningRate, momentumRate=0.) :
+def compileUpdate(weights, gradients, learningRate, momentumRate) :
     '''Create an updates vector for the layer.
 
         weights   : w.r.t. the gradients
@@ -121,23 +121,22 @@ def compileUpdate(weights, gradients, learningRate, momentumRate=0.) :
     '''
     import theano
     import numpy as np
+    from dataset.shared import toShared, isShared, fromShared
     updates = []
     for w, g in zip(weights, gradients) :
-
-        if momentumRate > 0. :
+        if fromShared(momentumRate)[0] > 0.:
             # setup a second buffer for storing momentum
-            previousWeightUpdate = theano.shared(
-                np.zeros(w.get_value().shape, theano.config.floatX),
-                borrow=True)
+            previousWeightUpdate = toShared(
+                np.zeros(w.get_value().shape, theano.config.floatX))
 
             # add two updates --
             # perform weight update and save the previous update
             updates.append((w, w + previousWeightUpdate))
             updates.append((previousWeightUpdate,
-                            previousWeightUpdate * momentumRate -
-                            learningRate * g))
+                            previousWeightUpdate * momentumRate[0] -
+                            learningRate[0] * g))
         else :
-            updates.append((w, w - learningRate * g))
+            updates.append((w, w - learningRate[0] * g))
     return updates
 
 def compileUpdates(layers, loss) :
