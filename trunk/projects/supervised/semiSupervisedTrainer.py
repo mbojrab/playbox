@@ -69,6 +69,19 @@ if __name__ == '__main__' :
     if options.synapse is not None :
         # load a previously saved network
         network.load(options.synapse)
+
+        # reset the learning rates
+        network.setLayerLearningRate(0, options.learnC)
+        network.setLayerLearningRate(1, options.learnC)
+        network.setLayerLearningRate(2, options.learnF)
+        network.setLayerLearningRate(3, options.learnF)
+
+        # reset the momentum ratez
+        network.setLayerMomentumRate(0, options.momentum)
+        network.setLayerMomentumRate(1, options.momentum)
+        network.setLayerMomentumRate(2, options.momentum)
+        network.setLayerMomentumRate(3, options.momentum)
+
     else :
         log.info('Initializing Network...')
 
@@ -107,11 +120,7 @@ if __name__ == '__main__' :
     # train the SAE for unsupervised pattern recognition
     bestNetwork = trainUnsupervised(network, __file__, options.data, 
                                     numEpochs=options.limit, stop=options.stop, 
-                                    synapse=options.synapse, base=options.base, 
-                                    kernel=options.kernel, 
-                                    neuron=options.neuron, 
-                                    learnC=options.learnC,
-                                    learnF=options.learnF, 
+                                    synapse=options.synapse, base=options.base,
                                     log=log)
 
     # translate into a neural network --
@@ -129,6 +138,4 @@ if __name__ == '__main__' :
     # train the NN for supervised classification
     trainSupervised(network, __file__, options.data, 
                     numEpochs=options.limit, stop=options.stop, 
-                    synapse=options.synapse, base=options.base, 
-                    kernel=options.kernel, neuron=options.neuron, 
-                    learnC=options.learnC, learnF=options.learnF, log=log)
+                    synapse=options.synapse, base=options.base, log=log)

@@ -1,4 +1,4 @@
-import argparse
+﻿import argparse
 import numpy as np
 import theano.tensor as t
 from time import time
@@ -65,6 +65,19 @@ if __name__ == '__main__' :
     if options.synapse is not None :
         # load a previously saved network
         network.load(options.synapse)
+
+        # reset the learning rates
+        network.setLayerLearningRate(0, options.learnC)
+        network.setLayerLearningRate(1, options.learnC)
+        network.setLayerLearningRate(2, options.learnF)
+        network.setLayerLearningRate(3, options.learnF)
+
+        # reset the momentum ratez
+        network.setLayerMomentumRate(0, options.momentum)
+        network.setLayerMomentumRate(1, options.momentum)
+        network.setLayerMomentumRate(2, options.momentum)
+        network.setLayerMomentumRate(3, options.momentum)
+
     else :
         log.info('Initializing Network...')
 
@@ -106,6 +119,4 @@ if __name__ == '__main__' :
     trainSupervised(network, __file__, options.data, 
                     numEpochs=options.limit, stop=options.stop, 
                     synapse=options.synapse, base=options.base, 
-                    kernel=options.kernel, neuron=options.neuron, 
-                    learnC=options.learnC, learnF=options.learnF, 
                     maxEpoch=options.epoch, log=log)

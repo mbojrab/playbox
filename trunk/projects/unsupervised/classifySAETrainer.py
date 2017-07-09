@@ -29,6 +29,7 @@ def testCloseness(net, imagery) :
 if __name__ == '__main__' :
     '''Build and train an SAE, then test against a target example.'''
     import numpy as np
+    from builder.sae import updateNetworkRates
     options = setupCommandLine()
 
     # setup the logger
@@ -46,13 +47,13 @@ if __name__ == '__main__' :
                                 options.greedyNet, prof, options.debug)
     if options.synapse is None :
         buildNetwork(trainer, getShape(train)[1:], options, prof=prof)
+    else :
+        updateNetworkRates(trainer, options, prof)
 
     # train the SAE
     trainUnsupervised(trainer, __file__, options.data, 
                       numEpochs=options.limit, stop=options.stop,
                       synapse=options.synapse, base=options.base,
-                      kernel=options.kernel, neuron=options.neuron, 
-                      learnC=options.learnC, learnF=options.learnF,
                       maxEpoch=options.epoch, log=log)
     trainer.save(tmpNet)
     options.synapse = tmpNet
