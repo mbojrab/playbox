@@ -70,7 +70,6 @@ if __name__ == '__main__' :
     trainUnsupervised(trainer, __file__, options.data,
                       numEpochs=options.limit, stop=options.stop,
                       synapse=options.synapse, base=options.base,
-                      neuron=options.neuron, learnF=options.learnF,
                       maxEpoch=options.epoch,
                       resetLayer=options.layer, log=log)
     trainer.save(tmpNet)
