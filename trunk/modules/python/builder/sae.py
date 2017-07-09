@@ -133,3 +133,29 @@ def buildNetwork(network, inputSize, options, rng=None, prof=None) :
         prof.endProfile()
 
     return network
+
+def updateNetworkRates(network, options, prof=None) :
+    '''Updates the learning rates and momentum in a Network'''
+
+    # update learning rates per layer --
+    # this uses the command line specified learning rate to reset the network
+    learningRates = []
+    if hasattr(options, 'kernel') and hasattr(options, 'learnC') :
+        if len(options.kernel) and len(options.learnC) :
+            learningRates.extend(options.learnC)
+    if hasattr(options, 'neuron') and hasattr(options, 'learnF') :
+        if len(options.neuron) and len(options.learnF) :
+            learningRates.extend(options.learnF)
+    [network.setLayerLearningRate(ii, l) for ii, l in enumerate(learningRates)]
+
+    # update momentum rates per layer --
+    # this uses the command line specified momentum rate to reset the network
+    momentumRates = []
+    if hasattr(options, 'kernel') and hasattr(options, 'momentumC') :
+        if len(options.kernel) and len(options.momentumC) :
+            momentumRates.extend(options.momentumC)
+    if hasattr(options, 'neuron') and hasattr(options, 'momentumF') :
+        if len(options.neuron) and len(options.momentumF) :
+            momentumRates.extend(options.momentumF)
+    [network.setLayerMomentumRate(ii, m) for ii, m in enumerate(momentumRates)]
+
