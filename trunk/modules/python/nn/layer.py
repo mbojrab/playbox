@@ -1,3 +1,5 @@
+﻿import theano
+import numpy as np
 from theano.tensor.shared_randomstreams import RandomStreams
 from time import time
 from nn.opMap import convertActivation
@@ -21,8 +23,8 @@ class Layer () :
         self.layerID = layerID
         self._weights = None
         self._thresholds = None
-        self._learningRate = learningRate
-        self._momentumRate = momentumRate
+        self._learningRate = theano.shared(np.float32(learningRate))
+        self._momentumRate = theano.shared(np.float32(momentumRate))
         self._dropout = dropout
         self._activation = activation
 
@@ -32,6 +34,8 @@ class Layer () :
         dict = self.__dict__.copy()
         dict['input'] = None
         dict['output'] = None
+        dict['_learningRate'] = self._learningRate.get_value()
+        dict['_momentumRate'] = self._momentumRate.get_value()
         dict['_weights'] = fromShared(self._weights)
         dict['_thresholds'] = fromShared(self._thresholds)
         # convert to a string for pickling purposes
@@ -40,12 +44,16 @@ class Layer () :
 
     def __setstate__(self, dict) :
         '''Load layer pickle'''
-        from theano import shared
+        from dataset.shared import toShared
         self.__dict__.update(dict)
+        self._learningRate = theano.shared(np.float32(self._learningRate))
+        self._momentumRate = theano.shared(np.float32(self._momentumRate))
+        # NOTE: this is saving to a secondary variable to allow
+        #       borrowing the memory.
         initialWeights = self._weights
-        self._weights = shared(value=initialWeights, borrow=True)
+        self._weights = toShared(initialWeights)
         initialThresholds = self._thresholds
-        self._thresholds = shared(value=initialThresholds, borrow=True)
+        self._thresholds = toShared(initialThresholds)
         # convert back to a theano operation
         self._activation = convertActivation(self._activation)
 
@@ -55,8 +63,10 @@ class Layer () :
         s += '\tLayer ID           : ' + self.layerID + '\n'
         s += '\tLayer InputSize    : ' + str(self.getInputSize()) + '\n'
         s += '\tLayer OutputSize   : ' + str(self.getOutputSize()) + '\n'
-        s += '\tLayer LearningRate : ' + str(self.getLearningRate()) + '\n'
-        s += '\tLayer MomentumRate : ' + str(self.getMomentumRate()) + '\n'
+        s += '\tLayer LearningRate : ' + \
+             str(self.getLearningRate().get_value(borrow=True)) + '\n'
+        s += '\tLayer MomentumRate : ' + \
+             str(self.getMomentumRate().get_value(borrow=True)) + '\n'
         s += '\tLayer Dropout      : ' + str(self._dropout) + '\n'
         if isinstance(self.getActivation(), str):
             s += '\tLayer Activation   : ' + self.getActivation() + '\n'
@@ -159,8 +169,14 @@ class Layer () :
     def getMomentumRate(self) :
         return self._momentumRate
 
+    def setMomentumRate(self, momentumRate) :
+        self._momentumRate.set_value(momentumRate)
+
     def getLearningRate(self) :
         return self._learningRate
+
+    def setLearningRate(self, learningRate) :
+        self._learningRate.set_value(learningRate)
 
     def getInputSize (self) :
         raise NotImplementedError('Implement the getInputSize() method')

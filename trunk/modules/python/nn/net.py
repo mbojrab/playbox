@@ -132,6 +132,14 @@ class Network () :
         del self._layers[-1]
         self._endProfile()
 
+    def setLayerLearningRate(self, ii, learningRate) :
+        '''Set the learning rate for the specified layer.'''
+        self._layers[ii].setLearningRate(learningRate)
+
+    def setLayerMomentumRate(self, ii, momentumRate) :
+        '''Set the momentum rate for the specified layer.'''
+        self._layers[ii].setMomentumRate(momentumRate)
+
     def getNumLayers(self) :
         '''Return the total number of layers in the network.'''
         return len(self._layers)
